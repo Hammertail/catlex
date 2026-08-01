@@ -139,3 +139,12 @@ For non-skill agents, treat the task map below as the local onboarding source: r
 | understand a finding | `fallow explain <issue-type>` |
 | scope a monorepo | `--workspace <glob> / --changed-workspaces <ref>` (global flags, prefix any command) |
 <!-- fallow:setup-hooks:end -->
+
+## Cursor Cloud specific instructions
+
+Standard commands live in the `## Commands` section above (lint = `bun run check`, tests = `bun test`, build = `bun run build`, run = `bun run dev`). Runtime is Bun; it is preinstalled on the environment and `bun install` runs on startup, so no manual install is needed.
+
+Non-obvious caveats:
+
+- **`.gitignore` hides `src/core/messages/`.** The broad `messages` pattern (under "Hide test files") matches *any* path segment named `messages`, including the real source directory `src/core/messages/`. As currently committed this directory (`flatten.ts`, `compare.ts`, `load.ts`) is absent, so it is not tracked and never got committed. Verify with `git check-ignore -v src/core/messages/load.ts`. Any new file you create under `src/core/messages/` will be silently untracked — force-add it (`git add -f`) and/or narrow the ignore rule (e.g. `/messages/`) if you touch that area.
+- **A single missing module breaks the whole CLI.** `src/bin/catlex.ts` → `src/cli/program.ts` eagerly imports every command, so `validate.ts`'s import of the missing `./messages/load.ts` makes `bun run build`, `bun run dev`, and *all* subcommands (including `scan` and `--help`) fail to load until the `src/core/messages/` files exist. Individual unaffected modules (e.g. `src/core/scan/scan.ts`, config, init-ci) still import and run in isolation.
