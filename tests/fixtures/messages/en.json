@@ -1,0 +1,8 @@
+{
+  "nav": {
+    "home": "Home",
+    "about": "About"
+  },
+  "welcome": "Welcome",
+  "items": ["one", "two"]
+}

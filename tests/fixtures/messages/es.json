@@ -1,0 +1,8 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "about": "Acerca"
+  },
+  "welcome": "Bienvenido",
+  "items": ["uno", "dos"]
+}
