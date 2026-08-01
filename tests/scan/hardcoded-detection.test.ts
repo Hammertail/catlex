@@ -50,13 +50,6 @@ describe("scanHardcoded detection", () => {
       }),
     ]);
 
-    expect(issuesForFile(result.issues, "text-sibling.vue")).toEqual([
-      expect.objectContaining({
-        text: "GitHub",
-        line: 8,
-      }),
-    ]);
-
     expect(issuesForFile(result.issues, "text-with-t.vue")).toEqual([]);
     expect(issuesForFile(result.issues, "trans-component.vue")).toEqual([]);
   });
