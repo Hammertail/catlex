@@ -200,6 +200,167 @@ function reportAttributes(
   }
 }
 
+function isIgnoredContext(stack: TemplateStackEntry[]): boolean {
+  return stack.some((entry) => entry.ignoreChildren);
+}
+
+function skipHtmlComment(content: string, cursor: number): number {
+  const commentEnd = content.indexOf("-->", cursor + 4);
+  return commentEnd === -1 ? content.length : commentEnd + 3;
+}
+
+/** Returns the next cursor, or `undefined` when the interpolation is unclosed. */
+function consumeInterpolation(
+  collector: VueIssueCollector,
+  content: string,
+  absoluteStartIndex: number,
+  cursor: number,
+  inIgnoredContext: boolean,
+): number | undefined {
+  const interpolationEnd = content.indexOf("}}", cursor + 2);
+  if (interpolationEnd === -1) {
+    return undefined;
+  }
+
+  if (!inIgnoredContext) {
+    reportInterpolation(collector, content, absoluteStartIndex, cursor + 2, interpolationEnd);
+  }
+
+  return interpolationEnd + 2;
+}
+
+function handleClosingTag(stack: TemplateStackEntry[], trimmedMarkup: string): void {
+  const closingNameMatch = /^\/\s*([A-Za-z][\w.-]*)/.exec(trimmedMarkup);
+  const closingName = closingNameMatch?.[1];
+
+  if (closingName === undefined) {
+    return;
+  }
+
+  while (stack.length > 0) {
+    const entry = stack.pop();
+    if (entry?.name === closingName) {
+      break;
+    }
+  }
+}
+
+function handleOpeningTag(
+  collector: VueIssueCollector,
+  content: string,
+  absoluteStartIndex: number,
+  cursor: number,
+  tagEnd: number,
+  tagMarkup: string,
+  trimmedMarkup: string,
+  stack: TemplateStackEntry[],
+): void {
+  const nameMatch = /^([A-Za-z][\w.-]*)/.exec(trimmedMarkup);
+  if (nameMatch === null) {
+    return;
+  }
+
+  const tagName = nameMatch[1];
+  if (tagName === undefined) {
+    return;
+  }
+
+  const tagNameOffset = tagMarkup.indexOf(tagName);
+  const tagStart = absoluteStartIndex + cursor;
+  const tagContent = tagMarkup.slice((tagNameOffset >= 0 ? tagNameOffset : 0) + tagName.length);
+
+  reportAttributes(collector, tagContent, tagStart);
+
+  const selfClosing = /\/>\s*$/.test(content.slice(cursor, tagEnd + 1));
+  if (!selfClosing) {
+    stack.push({ name: tagName, ignoreChildren: tagName === "Trans" });
+  }
+}
+
+/** Returns the next cursor, or `undefined` when the tag is unclosed. */
+function consumeTag(
+  collector: VueIssueCollector,
+  content: string,
+  absoluteStartIndex: number,
+  cursor: number,
+  stack: TemplateStackEntry[],
+): number | undefined {
+  const tagEnd = findTagEnd(content, cursor + 1);
+  if (tagEnd === -1) {
+    return undefined;
+  }
+
+  const tagMarkup = content.slice(cursor + 1, tagEnd);
+  const trimmedMarkup = tagMarkup.trimStart();
+
+  if (trimmedMarkup.startsWith("/")) {
+    handleClosingTag(stack, trimmedMarkup);
+  } else {
+    handleOpeningTag(
+      collector,
+      content,
+      absoluteStartIndex,
+      cursor,
+      tagEnd,
+      tagMarkup,
+      trimmedMarkup,
+      stack,
+    );
+  }
+
+  return tagEnd + 1;
+}
+
+function nextTemplateBoundary(content: string, cursor: number): number {
+  const nextTag = content.indexOf("<", cursor);
+  const nextInterpolation = content.indexOf("{{", cursor);
+  const nextBoundaryCandidates = [nextTag, nextInterpolation].filter((value) => value !== -1);
+
+  if (nextBoundaryCandidates.length === 0) {
+    return content.length;
+  }
+
+  return Math.min(...nextBoundaryCandidates);
+}
+
+function consumeTextRun(
+  collector: VueIssueCollector,
+  content: string,
+  absoluteStartIndex: number,
+  cursor: number,
+  nextBoundary: number,
+): void {
+  let textCursor = cursor;
+
+  while (textCursor < nextBoundary) {
+    const interpolationStart = content.indexOf("{{", textCursor);
+    const textEnd =
+      interpolationStart !== -1 && interpolationStart < nextBoundary
+        ? interpolationStart
+        : nextBoundary;
+
+    reportText(collector, content, absoluteStartIndex, textCursor, textEnd);
+
+    if (textEnd === nextBoundary) {
+      break;
+    }
+
+    const interpolationEnd = content.indexOf("}}", interpolationStart + 2);
+    if (interpolationEnd === -1 || interpolationEnd > nextBoundary) {
+      break;
+    }
+
+    reportInterpolation(
+      collector,
+      content,
+      absoluteStartIndex,
+      interpolationStart + 2,
+      interpolationEnd,
+    );
+    textCursor = interpolationEnd + 2;
+  }
+}
+
 function scanTemplateContent(
   collector: VueIssueCollector,
   content: string,
@@ -209,118 +370,43 @@ function scanTemplateContent(
   let cursor = 0;
 
   while (cursor < content.length) {
-    const inIgnoredContext = stack.some((entry) => entry.ignoreChildren);
+    const inIgnoredContext = isIgnoredContext(stack);
 
     if (content.startsWith("<!--", cursor)) {
-      const commentEnd = content.indexOf("-->", cursor + 4);
-      cursor = commentEnd === -1 ? content.length : commentEnd + 3;
+      cursor = skipHtmlComment(content, cursor);
       continue;
     }
 
     if (content.startsWith("{{", cursor)) {
-      const interpolationEnd = content.indexOf("}}", cursor + 2);
-      if (interpolationEnd === -1) {
+      const nextCursor = consumeInterpolation(
+        collector,
+        content,
+        absoluteStartIndex,
+        cursor,
+        inIgnoredContext,
+      );
+      if (nextCursor === undefined) {
         break;
       }
 
-      if (!inIgnoredContext) {
-        reportInterpolation(collector, content, absoluteStartIndex, cursor + 2, interpolationEnd);
-      }
-
-      cursor = interpolationEnd + 2;
+      cursor = nextCursor;
       continue;
     }
 
     if (content[cursor] === "<") {
-      const tagEnd = findTagEnd(content, cursor + 1);
-      if (tagEnd === -1) {
+      const nextCursor = consumeTag(collector, content, absoluteStartIndex, cursor, stack);
+      if (nextCursor === undefined) {
         break;
       }
 
-      const tagMarkup = content.slice(cursor + 1, tagEnd);
-      const trimmedMarkup = tagMarkup.trimStart();
-
-      if (trimmedMarkup.startsWith("/")) {
-        const closingNameMatch = /^\/\s*([A-Za-z][\w.-]*)/.exec(trimmedMarkup);
-        const closingName = closingNameMatch?.[1];
-
-        if (closingName !== undefined) {
-          while (stack.length > 0) {
-            const entry = stack.pop();
-            if (entry?.name === closingName) {
-              break;
-            }
-          }
-        }
-
-        cursor = tagEnd + 1;
-        continue;
-      }
-
-      const nameMatch = /^([A-Za-z][\w.-]*)/.exec(trimmedMarkup);
-      if (nameMatch === null) {
-        cursor = tagEnd + 1;
-        continue;
-      }
-
-      const tagName = nameMatch[1];
-      if (tagName === undefined) {
-        cursor = tagEnd + 1;
-        continue;
-      }
-
-      const tagNameOffset = tagMarkup.indexOf(tagName);
-      const tagStart = absoluteStartIndex + cursor;
-      const tagContent = tagMarkup.slice((tagNameOffset >= 0 ? tagNameOffset : 0) + tagName.length);
-
-      reportAttributes(collector, tagContent, tagStart);
-
-      const selfClosing = /\/>\s*$/.test(content.slice(cursor, tagEnd + 1));
-      if (!selfClosing) {
-        stack.push({ name: tagName, ignoreChildren: tagName === "Trans" });
-      }
-
-      cursor = tagEnd + 1;
+      cursor = nextCursor;
       continue;
     }
 
-    const nextTag = content.indexOf("<", cursor);
-    const nextInterpolation = content.indexOf("{{", cursor);
-    const nextBoundaryCandidates = [nextTag, nextInterpolation].filter((value) => value !== -1);
-    const nextBoundary =
-      nextBoundaryCandidates.length === 0 ? content.length : Math.min(...nextBoundaryCandidates);
+    const nextBoundary = nextTemplateBoundary(content, cursor);
 
     if (!inIgnoredContext) {
-      let textCursor = cursor;
-
-      while (textCursor < nextBoundary) {
-        const interpolationStart = content.indexOf("{{", textCursor);
-        const textEnd =
-          interpolationStart !== -1 && interpolationStart < nextBoundary
-            ? interpolationStart
-            : nextBoundary;
-
-        reportText(collector, content, absoluteStartIndex, textCursor, textEnd);
-
-        if (textEnd === nextBoundary) {
-          break;
-        }
-
-        const interpolationEnd = content.indexOf("}}", interpolationStart + 2);
-        if (interpolationEnd === -1 || interpolationEnd > nextBoundary) {
-          textCursor = nextBoundary;
-          break;
-        }
-
-        reportInterpolation(
-          collector,
-          content,
-          absoluteStartIndex,
-          interpolationStart + 2,
-          interpolationEnd,
-        );
-        textCursor = interpolationEnd + 2;
-      }
+      consumeTextRun(collector, content, absoluteStartIndex, cursor, nextBoundary);
     }
 
     cursor = nextBoundary;
