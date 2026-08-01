@@ -4,6 +4,7 @@ import path from "node:path";
 import ts from "typescript";
 
 //* Local imports
+import { scanVueFile } from "./vue.ts";
 import { walkSourceFile } from "./walk.ts";
 
 //* Types imports
@@ -11,7 +12,7 @@ import type { HardcodedIssue, ScanResult } from "./types.ts";
 
 const IGNORE_DIR_NAMES = new Set(["node_modules", "dist", ".next", ".git"]);
 
-const SOURCE_EXTENSIONS = new Set([".jsx", ".tsx"]);
+const SOURCE_EXTENSIONS = new Set([".jsx", ".tsx", ".vue"]);
 
 async function collectSourceFiles(rootDir: string): Promise<string[]> {
   const files: string[] = [];
@@ -53,7 +54,7 @@ function parseSourceFile(filePath: string, content: string): ts.SourceFile {
 }
 
 /**
- * Scan a directory tree for obvious hardcoded user-visible strings in JSX/TSX.
+ * Scan a directory tree for obvious hardcoded user-visible strings in JSX/TSX/Vue SFCs.
  */
 export async function scanHardcoded(rootDir: string): Promise<ScanResult> {
   const absoluteRoot = path.resolve(rootDir);
@@ -62,6 +63,12 @@ export async function scanHardcoded(rootDir: string): Promise<ScanResult> {
 
   for (const filePath of sourceFiles) {
     const content = await Bun.file(filePath).text();
+
+    if (path.extname(filePath) === ".vue") {
+      issues.push(...scanVueFile(filePath, content));
+      continue;
+    }
+
     const sourceFile = parseSourceFile(filePath, content);
     issues.push(...walkSourceFile(sourceFile, filePath));
   }
