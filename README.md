@@ -9,13 +9,13 @@ Catch missing keys before they hit production, optionally fail on keys that exis
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://github.com/Tamicktom/catlex/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
 ```
 
 Pin a version:
 
 ```bash
-curl -fsSL https://github.com/Tamicktom/catlex/releases/download/v0.0.1/install.sh | CATLEX_VERSION=0.0.1 bash
+curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.sh | CATLEX_VERSION=0.0.1 bash
 ```
 
 The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and installs to `~/.local/bin/catlex`. Make sure `~/.local/bin` is on your `PATH`.
@@ -23,13 +23,13 @@ The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and 
 ### Windows (x64)
 
 ```powershell
-irm https://github.com/Tamicktom/catlex/releases/latest/download/install.ps1 | iex
+irm https://github.com/Hammertail/catlex/releases/latest/download/install.ps1 | iex
 ```
 
 Pin a version:
 
 ```powershell
-$env:CATLEX_VERSION='0.0.1'; irm https://github.com/Tamicktom/catlex/releases/download/v0.0.1/install.ps1 | iex
+$env:CATLEX_VERSION='0.0.1'; irm https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.ps1 | iex
 ```
 
 The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`.
