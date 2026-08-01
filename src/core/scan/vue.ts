@@ -22,7 +22,10 @@ type VueIssueCollector = {
   issues: HardcodedIssue[];
 };
 
-function positionOf(sourceFile: ts.SourceFile, absoluteIndex: number): { line: number; column: number } {
+function positionOf(
+  sourceFile: ts.SourceFile,
+  absoluteIndex: number,
+): { line: number; column: number } {
   const { line, character } = sourceFile.getLineAndCharacterOfPosition(absoluteIndex);
 
   return {
@@ -284,14 +287,18 @@ function scanTemplateContent(
     const nextTag = content.indexOf("<", cursor);
     const nextInterpolation = content.indexOf("{{", cursor);
     const nextBoundaryCandidates = [nextTag, nextInterpolation].filter((value) => value !== -1);
-    const nextBoundary = nextBoundaryCandidates.length === 0 ? content.length : Math.min(...nextBoundaryCandidates);
+    const nextBoundary =
+      nextBoundaryCandidates.length === 0 ? content.length : Math.min(...nextBoundaryCandidates);
 
     if (!inIgnoredContext) {
       let textCursor = cursor;
 
       while (textCursor < nextBoundary) {
         const interpolationStart = content.indexOf("{{", textCursor);
-        const textEnd = interpolationStart !== -1 && interpolationStart < nextBoundary ? interpolationStart : nextBoundary;
+        const textEnd =
+          interpolationStart !== -1 && interpolationStart < nextBoundary
+            ? interpolationStart
+            : nextBoundary;
 
         reportText(collector, content, absoluteStartIndex, textCursor, textEnd);
 
@@ -370,7 +377,13 @@ function scanScriptBlock(
 }
 
 export function scanVueFile(filePath: string, content: string): HardcodedIssue[] {
-  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
   const collector: VueIssueCollector = {
     sourceFile,
     filePath,
