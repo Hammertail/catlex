@@ -37,9 +37,7 @@ async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
   }
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new MessagesLoadError(
-      `Translation file must be a JSON object: ${filePath}`,
-    );
+    throw new MessagesLoadError(`Translation file must be a JSON object: ${filePath}`);
   }
 
   const tree = parsed as MessageTree;
@@ -56,34 +54,24 @@ async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
 /**
  * Loads all `*.json` translation files from a messages directory.
  */
-export async function loadMessagesDir(
-  messagesDir: string,
-): Promise<LocaleMessages[]> {
+export async function loadMessagesDir(messagesDir: string): Promise<LocaleMessages[]> {
   let dirStat: Awaited<ReturnType<typeof stat>>;
 
   try {
     dirStat = await stat(messagesDir);
   } catch {
-    throw new MessagesLoadError(
-      `Messages directory not found: ${messagesDir}`,
-    );
+    throw new MessagesLoadError(`Messages directory not found: ${messagesDir}`);
   }
 
   if (!dirStat.isDirectory()) {
-    throw new MessagesLoadError(
-      `Messages path is not a directory: ${messagesDir}`,
-    );
+    throw new MessagesLoadError(`Messages path is not a directory: ${messagesDir}`);
   }
 
   const entries = await readdir(messagesDir);
-  const jsonFiles = entries
-    .filter((name) => name.endsWith(".json"))
-    .sort();
+  const jsonFiles = entries.filter((name) => name.endsWith(".json")).sort();
 
   if (jsonFiles.length === 0) {
-    throw new MessagesLoadError(
-      `No JSON translation files found in: ${messagesDir}`,
-    );
+    throw new MessagesLoadError(`No JSON translation files found in: ${messagesDir}`);
   }
 
   const locales: LocaleMessages[] = [];
@@ -103,9 +91,7 @@ export function splitBaseAndLocales(
   const base = locales.find((locale) => locale.locale === baseLocale);
 
   if (!base) {
-    throw new MessagesLoadError(
-      `Base locale file not found: ${baseLocale}.json`,
-    );
+    throw new MessagesLoadError(`Base locale file not found: ${baseLocale}.json`);
   }
 
   const others = locales.filter((locale) => locale.locale !== baseLocale);
