@@ -8,7 +8,7 @@ import { flattenMessages } from "./flatten.ts";
 //* Types imports
 import type { LocaleMessages, MessageTree } from "../types.ts";
 
-export class MessagesLoadError extends Error {
+class MessagesLoadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MessagesLoadError";
@@ -59,7 +59,7 @@ async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
 export async function loadMessagesDir(
   messagesDir: string,
 ): Promise<LocaleMessages[]> {
-  let dirStat;
+  let dirStat: Awaited<ReturnType<typeof stat>>;
 
   try {
     dirStat = await stat(messagesDir);
