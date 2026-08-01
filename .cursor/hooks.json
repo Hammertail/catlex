@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/fallow-gate.ts",
+        "matcher": "git\\s+(commit|push)",
+        "failClosed": false
+      }
+    ]
+  }
+}

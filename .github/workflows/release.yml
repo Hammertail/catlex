@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version without v prefix (e.g. 0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Release workflow can only run from the main branch (got ${{ github.ref }})."
+          exit 1
+
+      - name: Validate version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION#v}"
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semver version: ${{ inputs.version }}"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=v${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Bump version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          bun -e "
+            const pkg = await Bun.file('package.json').json();
+            pkg.version = '${VERSION}';
+            await Bun.write('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          sed -i "s/\.version(\"[^\"]*\")/.version(\"${VERSION}\")/" src/cli/program.ts
+
+      - name: Build standalone binaries
+        run: bun run build:all
+
+      - name: Prepare release assets
+        run: |
+          cp dist/catlex-linux-x64 catlex-linux-x64
+          cp dist/catlex-linux-arm64 catlex-linux-arm64
+          cp dist/catlex-darwin-x64 catlex-darwin-x64
+          cp dist/catlex-darwin-arm64 catlex-darwin-arm64
+          cp dist/catlex-windows-x64.exe catlex-windows-x64.exe
+          chmod +x catlex-linux-x64 catlex-linux-arm64 catlex-darwin-x64 catlex-darwin-arm64
+          cp scripts/install.sh install.sh
+          cp scripts/install.ps1 install.ps1
+          chmod +x install.sh
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit, tag and push
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          git add package.json src/cli/program.ts
+          git commit -m "chore: release ${TAG}"
+          git tag "${TAG}"
+          git push origin HEAD:main
+          git push origin "${TAG}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "${TAG}" \
+            catlex-linux-x64 \
+            catlex-linux-arm64 \
+            catlex-darwin-x64 \
+            catlex-darwin-arm64 \
+            catlex-windows-x64.exe \
+            install.sh \
+            install.ps1 \
+            --title "${TAG}" \
+            --notes "$(cat <<EOF
+          ## Install
+
+          ### Linux / macOS
+
+          \`\`\`bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | bash
+          \`\`\`
+
+          Installs the binary to \`~/.local/bin/catlex\`.
+
+          To install a specific version:
+
+          \`\`\`bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${{ steps.version.outputs.version }} bash
+          \`\`\`
+
+          ### Windows (x64)
+
+          \`\`\`powershell
+          irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex
+          \`\`\`
+
+          Installs the binary to \`%LOCALAPPDATA%\\catlex\\bin\\catlex.exe\`.
+
+          To install a specific version:
+
+          \`\`\`powershell
+          \$env:CATLEX_VERSION='${{ steps.version.outputs.version }}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
+          \`\`\`
+          EOF
+          )"

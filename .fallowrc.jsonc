@@ -1,0 +1,33 @@
+{
+  // This file is JSONC: fallow reads these comments; generic JSON tools may not.
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "duplicates": {
+    // Hide pair-only clones; focus on widespread copy-paste worth refactoring.
+    "minOccurrences": 3
+  },
+  // Ink peers: react is required at runtime (automatic JSX runtime has no
+  // direct import). react-devtools-core is optional and only used when DevTools attach.
+  "ignoreDependencies": ["react", "react-devtools-core"],
+  // Scanned by path in tests; not imported as modules.
+  "ignorePatterns": [
+    "tests/fixtures/source/hardcoded/**",
+    "tests/fixtures/source/hardcoded-broken/**"
+  ],
+  "boundaries": {
+    "zones": [
+      { "name": "bin", "patterns": ["src/bin/**"] },
+      { "name": "cli", "patterns": ["src/cli/**"] },
+      { "name": "core", "patterns": ["src/core/**"] }
+    ],
+    "rules": [
+      { "from": "bin", "allow": ["cli", "core"] },
+      { "from": "cli", "allow": ["core"] },
+      { "from": "core", "allow": ["core"] }
+    ],
+    "coverage": {
+      "requireAllFiles": true,
+      "allowUnmatched": ["src/index.ts", "tests/**"]
+    }
+  },
+  "rules": {}
+}
