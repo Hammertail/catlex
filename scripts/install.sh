@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="Tamicktom/catlex"
+REPO="Hammertail/catlex"
 INSTALL_DIR="${HOME}/.local/bin"
 BINARY_NAME="catlex"
 

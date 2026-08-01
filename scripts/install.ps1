@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 $ErrorActionPreference = "Stop"
 
-$Repo = "Tamicktom/catlex"
+$Repo = "Hammertail/catlex"
 $AssetName = "catlex-windows-x64.exe"
 $InstallDir = Join-Path $env:LOCALAPPDATA "catlex\bin"
 $BinaryPath = Join-Path $InstallDir "catlex.exe"
