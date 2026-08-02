@@ -8,8 +8,14 @@ import { walkSourceFile } from "./walk.ts";
 //* Types imports
 import type { HardcodedIssue } from "./types.ts";
 
-const TEMPLATE_OR_SCRIPT_RE = /<(template|script)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
+const BLOCK_OPEN_RE = /<(template|script)\b/gi;
 const ATTRIBUTE_RE = /([:@]?[A-Za-z_][\w:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'))?/g;
+
+type SfcBlock = {
+  type: "template" | "script";
+  content: string;
+  contentStartIndex: number;
+};
 
 type TemplateStackEntry = {
   name: string;
@@ -266,10 +272,13 @@ function handleOpeningTag(
   }
 
   const tagNameOffset = tagMarkup.indexOf(tagName);
-  const tagStart = absoluteStartIndex + cursor;
-  const tagContent = tagMarkup.slice((tagNameOffset >= 0 ? tagNameOffset : 0) + tagName.length);
+  const nameStart = tagNameOffset >= 0 ? tagNameOffset : 0;
+  const tagContentOffset = nameStart + tagName.length;
+  const tagContent = tagMarkup.slice(tagContentOffset);
+  // tagMarkup starts after `<`, so attributes begin at cursor + 1 + tagContentOffset.
+  const absoluteTagContentStart = absoluteStartIndex + cursor + 1 + tagContentOffset;
 
-  reportAttributes(collector, tagContent, tagStart);
+  reportAttributes(collector, tagContent, absoluteTagContentStart);
 
   const selfClosing = /\/>\s*$/.test(content.slice(cursor, tagEnd + 1));
   if (!selfClosing) {
@@ -462,6 +471,149 @@ function scanScriptBlock(
   collector.issues.push(...remappedIssues);
 }
 
+function findClosingTagIndex(content: string, blockType: string, fromIndex: number): number {
+  const closeRe = new RegExp(`</${blockType}>`, "gi");
+  closeRe.lastIndex = fromIndex;
+  const match = closeRe.exec(content);
+  return match?.index ?? -1;
+}
+
+function findNestedOpenIndex(content: string, blockType: string, fromIndex: number): number {
+  const nestedOpenRe = new RegExp(`<${blockType}\\b`, "gi");
+  nestedOpenRe.lastIndex = fromIndex;
+  return nestedOpenRe.exec(content)?.index ?? -1;
+}
+
+function closeTagLength(blockType: string): number {
+  return blockType.length + 3; // </name>
+}
+
+/** Advance past a nested open tag; `undefined` when the tag is unclosed. */
+function consumeNestedOpen(
+  content: string,
+  openIndex: number,
+): { searchFrom: number; increasesDepth: boolean } | undefined {
+  const openTagEnd = findTagEnd(content, openIndex + 1);
+  if (openTagEnd === -1) {
+    return undefined;
+  }
+
+  const selfClosing = openTagEnd > 0 && content[openTagEnd - 1] === "/";
+  return {
+    searchFrom: openTagEnd + 1,
+    increasesDepth: !selfClosing,
+  };
+}
+
+/**
+ * Find the index of the matching close tag for an SFC block, counting nested
+ * tags of the same name. Returns -1 when the block is unclosed.
+ */
+function findMatchingCloseIndex(
+  content: string,
+  blockType: string,
+  contentStartIndex: number,
+): number {
+  let depth = 1;
+  let searchFrom = contentStartIndex;
+
+  while (depth > 0 && searchFrom < content.length) {
+    const nextOpen = findNestedOpenIndex(content, blockType, searchFrom);
+    const nextClose = findClosingTagIndex(content, blockType, searchFrom);
+
+    if (nextClose === -1) {
+      return -1;
+    }
+
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      const nested = consumeNestedOpen(content, nextOpen);
+      if (nested === undefined) {
+        return -1;
+      }
+
+      if (nested.increasesDepth) {
+        depth += 1;
+      }
+
+      searchFrom = nested.searchFrom;
+      continue;
+    }
+
+    depth -= 1;
+    if (depth === 0) {
+      return nextClose;
+    }
+
+    searchFrom = nextClose + closeTagLength(blockType);
+  }
+
+  return -1;
+}
+
+type ParseSfcBlockResult =
+  | { status: "block"; block: SfcBlock; nextIndex: number }
+  | { status: "skip" }
+  | { status: "stop" };
+
+function parseSfcBlockAt(content: string, openMatch: RegExpExecArray): ParseSfcBlockResult {
+  const rawType = openMatch[1];
+  if (rawType === undefined) {
+    return { status: "skip" };
+  }
+
+  const blockType = rawType.toLowerCase() as SfcBlock["type"];
+  const openTagEnd = findTagEnd(content, openMatch.index + 1);
+  if (openTagEnd === -1) {
+    return { status: "stop" };
+  }
+
+  const contentStartIndex = openTagEnd + 1;
+  const contentEnd = findMatchingCloseIndex(content, blockType, contentStartIndex);
+  if (contentEnd === -1) {
+    return { status: "stop" };
+  }
+
+  return {
+    status: "block",
+    block: {
+      type: blockType,
+      content: content.slice(contentStartIndex, contentEnd),
+      contentStartIndex,
+    },
+    nextIndex: contentEnd + closeTagLength(blockType),
+  };
+}
+
+/**
+ * Extract top-level `<template>` / `<script>` SFC blocks, respecting nested
+ * tags of the same name (e.g. `<template v-if>` inside the root template).
+ */
+function extractSfcBlocks(content: string): SfcBlock[] {
+  const blocks: SfcBlock[] = [];
+  const openRe = new RegExp(BLOCK_OPEN_RE.source, BLOCK_OPEN_RE.flags);
+
+  while (true) {
+    const openMatch = openRe.exec(content);
+    if (openMatch === null) {
+      break;
+    }
+
+    const parsed = parseSfcBlockAt(content, openMatch);
+    if (parsed.status === "skip") {
+      continue;
+    }
+
+    if (parsed.status === "stop") {
+      break;
+    }
+
+    blocks.push(parsed.block);
+    openRe.lastIndex = parsed.nextIndex;
+  }
+
+  return blocks;
+}
+
 export function scanVueFile(filePath: string, content: string): HardcodedIssue[] {
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -476,22 +628,13 @@ export function scanVueFile(filePath: string, content: string): HardcodedIssue[]
     issues: [],
   };
 
-  for (const match of content.matchAll(TEMPLATE_OR_SCRIPT_RE)) {
-    const blockType = match[1];
-    const openingTag = match[0].slice(0, match[0].indexOf(">") + 1);
-    const contentStartIndex = (match.index ?? 0) + openingTag.length;
-    const blockContent = match[3];
-
-    if (blockContent === undefined) {
+  for (const block of extractSfcBlocks(content)) {
+    if (block.type === "template") {
+      scanTemplateContent(collector, block.content, block.contentStartIndex);
       continue;
     }
 
-    if (blockType === "template") {
-      scanTemplateContent(collector, blockContent, contentStartIndex);
-      continue;
-    }
-
-    scanScriptBlock(collector, filePath, blockContent, contentStartIndex);
+    scanScriptBlock(collector, filePath, block.content, block.contentStartIndex);
   }
 
   return collector.issues;

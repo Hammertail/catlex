@@ -47,11 +47,31 @@ describe("scanHardcoded detection", () => {
         attributeName: "placeholder",
         text: "Email",
         line: 2,
+        column: 23,
       }),
     ]);
 
     expect(issuesForFile(result.issues, "text-with-t.vue")).toEqual([]);
     expect(issuesForFile(result.issues, "trans-component.vue")).toEqual([]);
+  });
+
+  it("scans Vue template content after nested template elements", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "nested-template.vue");
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Inner details",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "After nested template",
+        line: 6,
+      }),
+    );
   });
 
   it("flags user-facing attribute string literals", async () => {
