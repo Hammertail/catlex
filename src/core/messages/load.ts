@@ -8,7 +8,7 @@ import { flattenMessages } from "./flatten.ts";
 //* Types imports
 import type { LocaleMessages, MessageTree } from "../types.ts";
 
-class MessagesLoadError extends Error {
+export class MessagesLoadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MessagesLoadError";
@@ -17,6 +17,42 @@ class MessagesLoadError extends Error {
 
 function localeFromFileName(fileName: string): string {
   return path.basename(fileName, ".json");
+}
+
+export type ParseLocaleMessagesOptions = {
+  locale: string;
+  filePath: string;
+};
+
+/**
+ * Parses raw JSON text into LocaleMessages with a flattened key map.
+ */
+export function parseLocaleMessages(
+  raw: string,
+  options: ParseLocaleMessagesOptions,
+): LocaleMessages {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new MessagesLoadError(`Invalid JSON: ${options.filePath}`);
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new MessagesLoadError(
+      `Translation file must be a JSON object: ${options.filePath}`,
+    );
+  }
+
+  const tree = parsed as MessageTree;
+
+  return {
+    locale: options.locale,
+    filePath: options.filePath,
+    tree,
+    flat: flattenMessages(tree),
+  };
 }
 
 async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
@@ -28,50 +64,43 @@ async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
     throw new MessagesLoadError(`Cannot read translation file: ${filePath}`);
   }
 
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new MessagesLoadError(`Invalid JSON: ${filePath}`);
-  }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new MessagesLoadError(`Translation file must be a JSON object: ${filePath}`);
-  }
-
-  const tree = parsed as MessageTree;
-  const locale = localeFromFileName(filePath);
-
-  return {
-    locale,
+  return parseLocaleMessages(raw, {
+    locale: localeFromFileName(filePath),
     filePath,
-    tree,
-    flat: flattenMessages(tree),
-  };
+  });
 }
 
 /**
  * Loads all `*.json` translation files from a messages directory.
  */
-export async function loadMessagesDir(messagesDir: string): Promise<LocaleMessages[]> {
-  let dirStat: Awaited<ReturnType<typeof stat>>;
+export async function loadMessagesDir(
+  messagesDir: string,
+): Promise<LocaleMessages[]> {
+  let dirStat;
 
   try {
     dirStat = await stat(messagesDir);
   } catch {
-    throw new MessagesLoadError(`Messages directory not found: ${messagesDir}`);
+    throw new MessagesLoadError(
+      `Messages directory not found: ${messagesDir}`,
+    );
   }
 
   if (!dirStat.isDirectory()) {
-    throw new MessagesLoadError(`Messages path is not a directory: ${messagesDir}`);
+    throw new MessagesLoadError(
+      `Messages path is not a directory: ${messagesDir}`,
+    );
   }
 
   const entries = await readdir(messagesDir);
-  const jsonFiles = entries.filter((name) => name.endsWith(".json")).sort();
+  const jsonFiles = entries
+    .filter((name) => name.endsWith(".json"))
+    .sort();
 
   if (jsonFiles.length === 0) {
-    throw new MessagesLoadError(`No JSON translation files found in: ${messagesDir}`);
+    throw new MessagesLoadError(
+      `No JSON translation files found in: ${messagesDir}`,
+    );
   }
 
   const locales: LocaleMessages[] = [];
@@ -91,7 +120,9 @@ export function splitBaseAndLocales(
   const base = locales.find((locale) => locale.locale === baseLocale);
 
   if (!base) {
-    throw new MessagesLoadError(`Base locale file not found: ${baseLocale}.json`);
+    throw new MessagesLoadError(
+      `Base locale file not found: ${baseLocale}.json`,
+    );
   }
 
   const others = locales.filter((locale) => locale.locale !== baseLocale);
