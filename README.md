@@ -1,6 +1,6 @@
 # catlex
 
-CLI to validate [next-intl](https://next-intl.dev/)-style translation JSON files against a base locale, and scan JSX/TSX for hardcoded user-visible strings.
+CLI to validate [next-intl](https://next-intl.dev/)-style translation JSON files against a base locale, and scan JSX/TSX/Vue SFCs for hardcoded user-visible strings.
 
 Catch missing keys before they hit production, optionally fail on keys that exist only in a locale file, and (alpha) flag UI copy that never entered the message files.
 
@@ -114,7 +114,7 @@ Example `catlex.config.json`:
 
 ## Source scan (alpha)
 
-Scan JSX/TSX for obvious hardcoded user-visible strings that should go through next-intl instead:
+Scan JSX/TSX/Vue SFCs for obvious hardcoded user-visible strings that should go through next-intl instead:
 
 ```bash
 catlex scan
@@ -128,7 +128,7 @@ catlex scan --json
 | `--cwd <path>` | Project root (default: current directory) |
 | `--json` | Print JSON instead of the interactive terminal UI |
 
-This command is **alpha**: false positives and missed issues may occur. Detection covers JSX text and common user-facing attributes (`placeholder`, `alt`, `title`, aria-*); translation calls like `t("…")` and `<Trans>` children are not flagged.
+This command is **alpha**: false positives and missed issues may occur. Detection covers JSX text, Vue template text, and common user-facing attributes (`placeholder`, `alt`, `title`, aria-*); translation calls like `t("…")` and `<Trans>` children are not flagged.
 
 ## Exit codes and CI
 

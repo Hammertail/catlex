@@ -1,6 +1,6 @@
-# Hardcoded JSX/TSX scan prototype
+# Hardcoded JSX/TSX/Vue SFC scan prototype
 
-Status notes for the experimental source scanner that finds obvious user-visible strings which should go through [next-intl](https://next-intl.dev/) instead of being hardcoded in JSX/TSX.
+Status notes for the experimental source scanner that finds obvious user-visible strings which should go through [next-intl](https://next-intl.dev/) instead of being hardcoded in JSX/TSX or Vue SFCs.
 
 The scanner ships as **`catlex scan` (alpha)** with Ink UI and `--json`. False positives and missed issues may still occur. Config options (`sourceDir`, ignore globs, `ignoreStrings`) are not wired yet.
 
@@ -24,7 +24,7 @@ src/core/scan/
   types.ts      # HardcodedIssue, ScanResult
   filters.ts    # isLikelyUserVisible, USER_FACING_ATTRS
   walk.ts       # TypeScript AST walk → issues
-  scan.ts       # discover *.jsx / *.tsx, parse, walk
+  scan.ts       # discover *.jsx / *.tsx / *.vue, parse, walk
 
 tests/fixtures/source/hardcoded/          # valid flag / no-flag examples
 tests/fixtures/source/hardcoded/discovery/ # nested dirs for ignore rules
@@ -38,8 +38,8 @@ Fixture files under `tests/fixtures/source/hardcoded/` and `hardcoded-broken/` a
 
 ### Algorithm (v1)
 
-1. **Discover** — recursively collect `*.jsx` / `*.tsx` under a root directory; skip `node_modules`, `dist`, `.next`, and other dot-directories.
-2. **Parse** — `typescript.createSourceFile` with `ScriptKind.JSX` or `ScriptKind.TSX`.
+1. **Discover** — recursively collect `*.jsx` / `*.tsx` / `*.vue` under a root directory; skip `node_modules`, `dist`, `.next`, and other dot-directories.
+2. **Parse** — `typescript.createSourceFile` with `ScriptKind.JSX`, `ScriptKind.TSX`, or Vue SFC template/script handling.
 3. **Walk** — visit JSX nodes and classify candidates.
 4. **Filter** — keep only strings that look user-visible (`isLikelyUserVisible`).
 5. **Report** — emit `HardcodedIssue` with file, 1-based line/column, text, and kind.
@@ -144,4 +144,4 @@ Rough priority order after the alpha CLI proves useful on real apps:
 | Command / API | Responsibility |
 |---------------|----------------|
 | `catlex validate` / `validateTranslations` | Locale JSON key parity |
-| `catlex scan` / `scanHardcoded` (alpha) | Hardcoded UI strings in JSX/TSX |
+| `catlex scan` / `scanHardcoded` (alpha) | Hardcoded UI strings in JSX/TSX/Vue SFCs |
