@@ -7,11 +7,28 @@ import { theme } from "./theme.ts";
 
 //* Types imports
 import type { ReviewResult } from "../../core/translate/review.ts";
-import type { ReviewLocaleSectionView, ReviewReportView } from "./review-report-view.ts";
+import type {
+  ReviewLocaleSectionView,
+  ReviewReportView,
+  ReviewScopeView,
+} from "./review-report-view.ts";
 
 type ReviewReportProps = {
   result: ReviewResult;
 };
+
+function ScopeSection(props: { scope: ReviewScopeView }) {
+  return (
+    <Box flexDirection="column" paddingBottom={1}>
+      <Text bold>Scope</Text>
+      <Box paddingLeft={2} flexDirection="column">
+        <Text color={theme.muted}>{props.scope.branchLine}</Text>
+        <Text color={theme.muted}>{props.scope.filesLine}</Text>
+        <Text color={theme.muted}>{props.scope.countsLine}</Text>
+      </Box>
+    </Box>
+  );
+}
 
 function LocaleSection(props: { section: ReviewLocaleSectionView }) {
   return (
@@ -63,6 +80,26 @@ function LocaleSection(props: { section: ReviewLocaleSectionView }) {
   );
 }
 
+function InfoLines(props: { label: string; lines: string[]; color: string }) {
+  if (props.lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box flexDirection="column" paddingBottom={1}>
+      <Text bold>
+        {props.label}
+        <Text color={theme.muted}> · {props.lines.length}</Text>
+      </Text>
+      {props.lines.map((line) => (
+        <Box key={`${props.label}-${line}`} paddingLeft={2}>
+          <Text color={props.color}>{line}</Text>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 function Verdict(props: { view: ReviewReportView }) {
   return (
     <Text>
@@ -91,6 +128,9 @@ export function ReviewReport(props: ReviewReportProps) {
         {view.dryRun ? " · dry-run" : ""}
       </Text>
       <Box paddingTop={1} flexDirection="column">
+        {view.scope !== null ? <ScopeSection scope={view.scope} /> : null}
+        <InfoLines label="removed" lines={view.removedLines} color={theme.muted} />
+        <InfoLines label="skipped" lines={view.skippedLines} color={theme.muted} />
         {view.emptyMessage !== null ? (
           <Text color={theme.success}>{view.emptyMessage}</Text>
         ) : (

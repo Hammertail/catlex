@@ -13,6 +13,7 @@ import {
   type ReviewChangeSource,
   type ReviewRemovedPath,
   type ReviewScopeSkipped,
+  type ReviewSinceContext,
   type ReviewTarget,
 } from "./review-scope.ts";
 import { validateSubmittedTranslations, type PlaceholderWarning } from "./schema.ts";
@@ -58,6 +59,7 @@ export type ReviewResult = {
   baseLocale: string;
   messagesDir: string;
   since: string | null;
+  sinceContext: ReviewSinceContext | null;
   autoFix: boolean;
   dryRun: boolean;
   cancelled: boolean;
@@ -538,6 +540,7 @@ export async function reviewTranslations(
     baseLocale: config.baseLocale,
     messagesDir: config.messagesDir,
     since: scope.since,
+    sinceContext: scope.sinceContext,
     autoFix,
     dryRun,
     cancelled: false,

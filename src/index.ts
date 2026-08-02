@@ -19,6 +19,8 @@ export {
   assertRefExists,
   listFilesAtRef,
   readFileAtRef,
+  resolveCurrentBranch,
+  resolveRefSha,
   GitError,
 } from "./core/git/show.ts";
 export { runGit } from "./core/git/run.ts";
@@ -168,6 +170,7 @@ export type {
   ReviewRemovedPath,
   ReviewScopeResult,
   ReviewScopeSkipped,
+  ReviewSinceContext,
   ReviewTarget,
   ResolveReviewScopeOptions,
 } from "./core/translate/review-scope.ts";
