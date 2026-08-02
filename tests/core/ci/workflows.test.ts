@@ -11,7 +11,7 @@ import {
 } from "../../../src/core/ci/workflows.ts";
 import { CI_WORKFLOW_OPTIONS } from "../../../src/core/ci/kinds.ts";
 
-const INSTALL_URL = "https://github.com/Tamicktom/catlex/releases/latest/download/install.sh";
+const INSTALL_URL = "https://github.com/Hammertail/catlex/releases/latest/download/install.sh";
 const SINCE_EXPR =
   "${{" +
   " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
