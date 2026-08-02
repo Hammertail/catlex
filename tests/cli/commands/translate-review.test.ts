@@ -127,7 +127,7 @@ describe("runTranslateReviewCommand", () => {
       pt: { welcome: "Welcome" },
     });
     const before = await readFile(path.join(cwd, "messages", "pt.json"), "utf8");
-    captureLog();
+    const log = captureLog();
 
     const exitCode = await runTranslateReviewCommand({
       cwd,
@@ -151,6 +151,9 @@ describe("runTranslateReviewCommand", () => {
     const after = await readFile(path.join(cwd, "messages", "pt.json"), "utf8");
     expect(after).toBe(before);
     expect(exitCode).toBe(1);
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+    expect(payload.cancelled).toBe(true);
+    expect(payload.writtenFiles).toEqual([]);
   });
 
   it("writes fixes with --auto-fix --yes and returns 0 when everything is fixed", async () => {
@@ -199,12 +202,19 @@ describe("runTranslateReviewCommand", () => {
 });
 
 describe("createProgram translate review", () => {
-  it("registers the translate review subcommand", () => {
+  it("registers the translate review subcommand with expected options", () => {
     const program = createProgram();
     const translate = program.commands.find((command) => command.name() === "translate");
     expect(translate).toBeDefined();
     const review = translate?.commands.find((command) => command.name() === "review");
     expect(review).toBeDefined();
     expect(review?.description()).toContain("--since");
+
+    const optionFlags = new Set(review?.options.map((option) => option.flags) ?? []);
+    expect(optionFlags.has("--since <ref>")).toBe(true);
+    expect(optionFlags.has("--auto-fix")).toBe(true);
+    expect(optionFlags.has("--yes")).toBe(true);
+    expect(optionFlags.has("--locale <locale>")).toBe(true);
+    expect(optionFlags.has("--json")).toBe(true);
   });
 });
