@@ -375,16 +375,16 @@ async function buildSinceScope(options: {
   locales?: string[];
   runGit?: GitRunner;
   loadAtRef: (ref: string) => Promise<LocaleMessages[]>;
+  loadWorkingTree: () => Promise<LocaleMessages[]>;
   skipGitChecks: boolean;
 }): Promise<ReviewScopeResult> {
   if (!options.skipGitChecks) {
     await assertGitRepo({ cwd: options.cwd, runGit: options.runGit });
     await assertRefExists({ cwd: options.cwd, ref: options.since, runGit: options.runGit });
-    await assertRefExists({ cwd: options.cwd, ref: "HEAD", runGit: options.runGit });
   }
 
   const previous = await options.loadAtRef(options.since);
-  const current = await options.loadAtRef("HEAD");
+  const current = await options.loadWorkingTree();
 
   const baseCurrent = findLocale(current, options.baseLocale, options.messagesDir, options.cwd);
   const basePrevious = findLocale(previous, options.baseLocale, options.messagesDir, options.cwd);
@@ -464,6 +464,7 @@ export async function resolveReviewScope(
     locales: options.locales,
     runGit: options.runGit,
     loadAtRef,
+    loadWorkingTree,
     skipGitChecks: options.loadAtRef !== undefined,
   });
 }

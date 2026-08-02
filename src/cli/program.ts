@@ -131,7 +131,10 @@ export function createProgram(): Command {
       [] as string[],
     )
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
-    .option("--since <ref>", "Only review keys changed between <ref> and HEAD (recommended in CI)")
+    .option(
+      "--since <ref>",
+      "Only review keys changed between <ref> and the working tree (recommended in CI)",
+    )
     .option("--auto-fix", "Propose fixes for wrong/missing translations", false)
     .option("--yes", "Apply auto-fix writes without interactive confirmation", false)
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)

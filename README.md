@@ -177,7 +177,7 @@ catlex translate review --since main --auto-fix --yes --json
 | `--cwd <path>` | Project root (default: current directory) |
 | `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
 | `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
-| `--since <ref>` | Only review keys changed between `<ref>` and `HEAD` (**recommended in CI**) |
+| `--since <ref>` | Only review keys changed between `<ref>` and the current working tree (**recommended in CI**) |
 | `--auto-fix` | Propose fixes for `wrong` / missing keys |
 | `--yes` | Apply auto-fix writes without interactive confirmation |
 | `--json` | Print JSON instead of the interactive terminal UI |
@@ -186,7 +186,7 @@ Without `--since`, catlex reviews the **full** corpus (every string key in the b
 
 With `--since`:
 
-- Diff is `since`…`HEAD` (dirty working-tree edits are ignored).
+- Diff is `since`…working tree (includes uncommitted message edits).
 - A change in the **base** locale file causes that path to be reviewed in every target locale.
 - A change only in a **sibling** locale file (e.g. `pt.json`) reviews that path only in that locale, compared to the current base value.
 - Removed keys are reported informatively and do not fail the gate.

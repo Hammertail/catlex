@@ -81,15 +81,16 @@ describe("resolveReviewScope", () => {
             localeMessages("es", { welcome: "Hola" }),
           ];
         }
-        return [
-          localeMessages("en", {
-            welcome: "Hello",
-            nav: { about: "About" },
-          }),
-          localeMessages("pt", { welcome: "Olá" }),
-          localeMessages("es", { welcome: "Hola", nav: { about: "Acerca" } }),
-        ];
+        throw new Error(`unexpected ref: ${ref}`);
       },
+      loadWorkingTree: async () => [
+        localeMessages("en", {
+          welcome: "Hello",
+          nav: { about: "About" },
+        }),
+        localeMessages("pt", { welcome: "Olá" }),
+        localeMessages("es", { welcome: "Hola", nav: { about: "Acerca" } }),
+      ],
     });
 
     const keys = result.targets.map((t) => `${t.locale}:${t.path}`).sort();
@@ -119,12 +120,13 @@ describe("resolveReviewScope", () => {
             localeMessages("es", { welcome: "Hola", title: "Título" }),
           ];
         }
-        return [
-          localeMessages("en", { welcome: "Welcome", title: "Title" }),
-          localeMessages("pt", { welcome: "Oi", title: "Título" }),
-          localeMessages("es", { welcome: "Hola", title: "Título" }),
-        ];
+        throw new Error(`unexpected ref: ${ref}`);
       },
+      loadWorkingTree: async () => [
+        localeMessages("en", { welcome: "Welcome", title: "Title" }),
+        localeMessages("pt", { welcome: "Oi", title: "Título" }),
+        localeMessages("es", { welcome: "Hola", title: "Título" }),
+      ],
     });
 
     expect(result.targets).toEqual([
@@ -152,12 +154,13 @@ describe("resolveReviewScope", () => {
             localeMessages("es", { welcome: "Hola" }),
           ];
         }
-        return [
-          localeMessages("en", { welcome: "Hello" }),
-          localeMessages("pt", { welcome: "Oi" }),
-          localeMessages("es", { welcome: "Hola" }),
-        ];
+        throw new Error(`unexpected ref: ${ref}`);
       },
+      loadWorkingTree: async () => [
+        localeMessages("en", { welcome: "Hello" }),
+        localeMessages("pt", { welcome: "Oi" }),
+        localeMessages("es", { welcome: "Hola" }),
+      ],
     });
 
     const welcomePt = result.targets.find((t) => t.locale === "pt" && t.path === "welcome");
@@ -183,11 +186,12 @@ describe("resolveReviewScope", () => {
             localeMessages("pt", { welcome: "Olá", old: "Antigo" }),
           ];
         }
-        return [
-          localeMessages("en", { welcome: "Welcome" }),
-          localeMessages("pt", { welcome: "Olá" }),
-        ];
+        throw new Error(`unexpected ref: ${ref}`);
       },
+      loadWorkingTree: async () => [
+        localeMessages("en", { welcome: "Welcome" }),
+        localeMessages("pt", { welcome: "Olá" }),
+      ],
     });
 
     expect(result.targets).toEqual([]);
@@ -219,7 +223,7 @@ describe("resolveReviewScope", () => {
 const gitAvailable = await whichGit();
 
 describe.skipIf(!gitAvailable)("resolveReviewScope with real git", () => {
-  it("uses HEAD content and ignores dirty working tree when since is set", async () => {
+  it("uses working tree content including dirty edits when since is set", async () => {
     const { cwd } = await createTempGitRepo();
     await writeRepoFile(
       cwd,
@@ -259,7 +263,7 @@ describe.skipIf(!gitAvailable)("resolveReviewScope with real git", () => {
       {
         locale: "pt",
         path: "welcome",
-        baseValue: "Hello",
+        baseValue: "DIRTY",
         localeValue: "Olá",
         changeSources: ["base"],
       },
