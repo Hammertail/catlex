@@ -12,11 +12,7 @@ function cloneTree(tree: MessageTree): MessageTree {
 /**
  * Sets a dot-path value on a cloned message tree without mutating the original.
  */
-export function setPathInTree(
-  tree: MessageTree,
-  path: string,
-  value: unknown,
-): MessageTree {
+export function setPathInTree(tree: MessageTree, path: string, value: unknown): MessageTree {
   const next = cloneTree(tree);
   const segments = path.split(".");
 

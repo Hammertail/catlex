@@ -9,10 +9,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Flattens nested message objects into dot-path keys.
  * Arrays and primitives are treated as leaf values.
  */
-export function flattenMessages(
-  tree: MessageTree,
-  prefix = "",
-): FlatMessages {
+export function flattenMessages(tree: MessageTree, prefix = ""): FlatMessages {
   const result: FlatMessages = new Map();
 
   for (const [key, value] of Object.entries(tree)) {

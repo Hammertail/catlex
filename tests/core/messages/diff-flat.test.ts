@@ -27,9 +27,7 @@ describe("diffFlatMessages", () => {
     const result = diffFlatMessages(before, after);
 
     expect(result.added).toEqual([]);
-    expect(result.modified).toEqual([
-      { path: "welcome", before: "Welcome", after: "Hello" },
-    ]);
+    expect(result.modified).toEqual([{ path: "welcome", before: "Welcome", after: "Hello" }]);
     expect(result.removed).toEqual([]);
   });
 

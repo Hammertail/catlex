@@ -2,10 +2,7 @@
 import { describe, expect, it } from "bun:test";
 
 //* Local imports
-import {
-  compareFlatMessages,
-  compareResultToIssues,
-} from "../../src/core/messages/compare.ts";
+import { compareFlatMessages, compareResultToIssues } from "../../src/core/messages/compare.ts";
 import { flattenMessages } from "../../src/core/messages/flatten.ts";
 
 describe("compareFlatMessages", () => {

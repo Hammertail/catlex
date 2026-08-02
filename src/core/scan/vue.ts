@@ -168,12 +168,7 @@ function reportInterpolation(
   }
 
   const leadingWhitespace = expression.length - expression.trimStart().length;
-  addIssue(
-    collector,
-    absoluteBaseIndex + startIndex + leadingWhitespace + 1,
-    text,
-    "jsx-text",
-  );
+  addIssue(collector, absoluteBaseIndex + startIndex + leadingWhitespace + 1, text, "jsx-text");
 }
 
 function reportText(

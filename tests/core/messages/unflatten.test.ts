@@ -2,10 +2,7 @@
 import { describe, expect, it } from "bun:test";
 
 //* Local imports
-import {
-  applyTranslationsToTree,
-  setPathInTree,
-} from "../../../src/core/messages/unflatten.ts";
+import { applyTranslationsToTree, setPathInTree } from "../../../src/core/messages/unflatten.ts";
 
 describe("setPathInTree", () => {
   it("sets a top-level path without removing siblings", () => {

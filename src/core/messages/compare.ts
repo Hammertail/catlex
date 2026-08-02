@@ -9,10 +9,7 @@ export type CompareResult = {
 /**
  * Compares a locale's flat keys against the base locale.
  */
-export function compareFlatMessages(
-  base: FlatMessages,
-  locale: FlatMessages,
-): CompareResult {
+export function compareFlatMessages(base: FlatMessages, locale: FlatMessages): CompareResult {
   const missing: string[] = [];
   const extra: string[] = [];
 
@@ -34,10 +31,7 @@ export function compareFlatMessages(
   return { missing, extra };
 }
 
-export function compareResultToIssues(
-  locale: string,
-  result: CompareResult,
-): ValidationIssue[] {
+export function compareResultToIssues(locale: string, result: CompareResult): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const path of result.missing) {
