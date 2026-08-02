@@ -1,0 +1,8 @@
+{
+  "nav": {
+    "home": "Início"
+  },
+  "welcome": "Bem-vindo",
+  "items": ["um", "dois"],
+  "extraOnly": "Só no PT"
+}

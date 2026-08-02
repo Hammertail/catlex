@@ -1,0 +1,3 @@
+<template>
+  <button>Save</button>
+</template>

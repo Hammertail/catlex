@@ -32,6 +32,47 @@ describe("scanHardcoded detection", () => {
     ]);
   });
 
+  it("flags hardcoded Vue SFC text and user-facing attributes", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+
+    expect(issuesForFile(result.issues, "text-basic.vue")).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Save",
+        line: 2,
+      }),
+    ]);
+
+    expect(issuesForFile(result.issues, "attr-placeholder.vue")).toEqual([
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "placeholder",
+        text: "Email",
+        line: 2,
+        column: 23,
+      }),
+    ]);
+  });
+
+  it("scans Vue template content after nested template elements", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "nested-template.vue");
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Inner details",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "After nested template",
+        line: 6,
+      }),
+    );
+  });
+
   it("flags user-facing attribute string literals", async () => {
     const result = await scanHardcoded(fixturesRoot);
     const issues = issuesForFile(result.issues, "attr-placeholder.tsx");
@@ -59,9 +100,74 @@ describe("scanHardcoded detection", () => {
     ]);
   });
 
+  it("flags string literals inside Vue mustache interpolations", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "expression-string.vue");
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Hello",
+        line: 2,
+      }),
+    ]);
+  });
+
+  it("decodes Vue string-literal escapes and ignores non-literal expressions", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "expression-escapes.vue");
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Line\nBreak",
+        line: 3,
+      }),
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "It's fine",
+        line: 4,
+      }),
+    ]);
+  });
+
   it("reports every obvious hardcoded string in a mixed file", async () => {
     const result = await scanHardcoded(fixturesRoot);
     const issues = issuesForFile(result.issues, "mixed.tsx");
+
+    expect(issues).toHaveLength(4);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Welcome",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "placeholder",
+        text: "Your name",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-label",
+        text: "Name field",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "alt",
+        text: "Logo",
+      }),
+    );
+  });
+
+  it("reports every obvious hardcoded string in a mixed Vue SFC", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "mixed.vue");
 
     expect(issues).toHaveLength(4);
     expect(issues).toContainEqual(
@@ -135,6 +241,48 @@ describe("scanHardcoded detection", () => {
     );
   });
 
+  it("flags title and remaining aria-* attributes in Vue SFCs", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "attr-title-aria.vue");
+
+    expect(issues).toHaveLength(5);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "title",
+        text: "Open help center",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-description",
+        text: "Used for invoices",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-placeholder",
+        text: "Search invoices",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-roledescription",
+        text: "Search field",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-valuetext",
+        text: "Fifty percent",
+      }),
+    );
+  });
+
   it("flags user-facing attributes written as JSX expressions", async () => {
     const result = await scanHardcoded(fixturesRoot);
     const issues = issuesForFile(result.issues, "attr-expression.tsx");
@@ -156,9 +304,42 @@ describe("scanHardcoded detection", () => {
     );
   });
 
+  it("flags user-facing attributes written as Vue bindings with string literals", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "attr-expression.vue");
+
+    expect(issues).toHaveLength(2);
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "placeholder",
+        text: "Email",
+      }),
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "jsx-attribute",
+        attributeName: "aria-label",
+        text: "Close",
+      }),
+    );
+  });
+
   it("flags no-substitution template literals but not templates with substitutions", async () => {
     const result = await scanHardcoded(fixturesRoot);
     const issues = issuesForFile(result.issues, "template-literal.tsx");
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Hello",
+      }),
+    ]);
+  });
+
+  it("flags no-substitution Vue template literals but not templates with substitutions", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "template-literal.vue");
 
     expect(issues).toEqual([
       expect.objectContaining({

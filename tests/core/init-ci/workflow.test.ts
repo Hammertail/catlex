@@ -11,7 +11,7 @@ describe("generateValidateMessagesWorkflow", () => {
     expect(yaml).toContain("name: Validate messages");
     expect(yaml).toContain("actions/checkout@v4");
     expect(yaml).toContain(
-      "https://github.com/Tamicktom/catlex/releases/latest/download/install.sh",
+      "https://github.com/Hammertail/catlex/releases/latest/download/install.sh",
     );
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');
