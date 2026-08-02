@@ -58,7 +58,7 @@ function comparedFiles(context: ReviewSinceContext): string[] {
 /**
  * Builds Ink-friendly lines for --since scope context.
  */
-export function buildReviewScopeView(context: ReviewSinceContext): ReviewScopeView {
+function buildReviewScopeView(context: ReviewSinceContext): ReviewScopeView {
   const branchLabel = context.detachedHead
     ? "(detached HEAD)"
     : (context.currentBranch ?? "(unknown)");
