@@ -2,7 +2,14 @@
 import path from "node:path";
 
 //* Local imports
-import { assertGitRepo, assertRefExists, listFilesAtRef, readFileAtRef } from "../git/show.ts";
+import {
+  assertGitRepo,
+  assertRefExists,
+  listFilesAtRef,
+  readFileAtRef,
+  resolveCurrentBranch,
+  resolveRefSha,
+} from "../git/show.ts";
 import { diffFlatMessages } from "../messages/diff-flat.ts";
 import { flattenMessages } from "../messages/flatten.ts";
 import { loadMessagesDir, parseLocaleMessages } from "../messages/load.ts";
@@ -37,12 +44,25 @@ export type ReviewScopeSkipped = {
   localeValue?: unknown;
 };
 
+export type ReviewSinceContext = {
+  sinceRef: string;
+  sinceSha: string | null;
+  currentBranch: string | null;
+  detachedHead: boolean;
+  filesAtRef: string[];
+  filesWorkingTree: string[];
+  keyCount: number;
+  removedCount: number;
+  skippedCount: number;
+};
+
 export type ReviewScopeResult = {
   targets: ReviewTarget[];
   removed: ReviewRemovedPath[];
   skipped: ReviewScopeSkipped[];
   baseLocale: string;
   since: string | null;
+  sinceContext: ReviewSinceContext | null;
 };
 
 export type ResolveReviewScopeOptions = {
@@ -76,6 +96,45 @@ function filterLocales(locales: LocaleMessages[], localeFilter?: string[]): Loca
   }
   const allowed = new Set(localeFilter);
   return locales.filter((locale) => allowed.has(locale.locale));
+}
+
+function localeFileNames(locales: LocaleMessages[]): string[] {
+  return [...new Set(locales.map((locale) => path.basename(locale.filePath)))].sort();
+}
+
+async function resolveSinceGitContext(options: {
+  since: string;
+  cwd: string;
+  runGit?: GitRunner;
+  skipGitChecks: boolean;
+}): Promise<{
+  sinceSha: string | null;
+  currentBranch: string | null;
+  detachedHead: boolean;
+}> {
+  if (options.skipGitChecks) {
+    return {
+      sinceSha: null,
+      currentBranch: null,
+      detachedHead: false,
+    };
+  }
+
+  const currentBranch = await resolveCurrentBranch({
+    cwd: options.cwd,
+    runGit: options.runGit,
+  });
+  const sinceSha = await resolveRefSha({
+    cwd: options.cwd,
+    ref: options.since,
+    runGit: options.runGit,
+  });
+
+  return {
+    sinceSha,
+    currentBranch,
+    detachedHead: currentBranch === null,
+  };
 }
 
 async function defaultLoadWorkingTree(cwd: string, messagesDir: string): Promise<LocaleMessages[]> {
@@ -261,6 +320,7 @@ function buildFullCorpusScope(options: {
     skipped: sortByLocalePath(skipped),
     baseLocale: options.baseLocale,
     since: null,
+    sinceContext: null,
   };
 }
 
@@ -419,12 +479,33 @@ async function buildSinceScope(options: {
     removed,
   });
 
+  const targets = sortByLocalePath([...byKey.values()]);
+  const sortedRemoved = sortByLocalePath(removed);
+  const sortedSkipped = sortByLocalePath(skipped);
+  const gitContext = await resolveSinceGitContext({
+    since: options.since,
+    cwd: options.cwd,
+    runGit: options.runGit,
+    skipGitChecks: options.skipGitChecks,
+  });
+
   return {
-    targets: sortByLocalePath([...byKey.values()]),
-    removed: sortByLocalePath(removed),
-    skipped: sortByLocalePath(skipped),
+    targets,
+    removed: sortedRemoved,
+    skipped: sortedSkipped,
     baseLocale: options.baseLocale,
     since: options.since,
+    sinceContext: {
+      sinceRef: options.since,
+      sinceSha: gitContext.sinceSha,
+      currentBranch: gitContext.currentBranch,
+      detachedHead: gitContext.detachedHead,
+      filesAtRef: localeFileNames(previous),
+      filesWorkingTree: localeFileNames(current),
+      keyCount: targets.length,
+      removedCount: sortedRemoved.length,
+      skippedCount: sortedSkipped.length,
+    },
   };
 }
 

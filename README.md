@@ -190,6 +190,7 @@ With `--since`:
 - A change in the **base** locale file causes that path to be reviewed in every target locale.
 - A change only in a **sibling** locale file (e.g. `pt.json`) reviews that path only in that locale, compared to the current base value.
 - Removed keys are reported informatively and do not fail the gate.
+- The report includes a **Scope** summary: current branch (or detached HEAD), resolved `--since` SHA, compared message files, and key/removed/skipped counts.
 
 `--auto-fix` collects suggested values; without `--yes`, catlex shows proposals and asks before writing. With `--auto-fix --yes`, fixes are written and the command exits `0` only if every issue was fixed.
 

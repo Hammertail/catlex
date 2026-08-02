@@ -7,6 +7,8 @@ import {
   assertGitRepo,
   assertRefExists,
   readFileAtRef,
+  resolveCurrentBranch,
+  resolveRefSha,
   type GitRunner,
 } from "../../../src/core/git/show.ts";
 
@@ -69,6 +71,77 @@ describe("assertRefExists", () => {
       GitError,
     );
     await expect(assertRefExists({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
+      'Git ref not found: "missing"',
+    );
+  });
+});
+
+describe("resolveCurrentBranch", () => {
+  it("returns the branch name when HEAD points at a branch", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        expect(args).toEqual(["rev-parse", "--abbrev-ref", "HEAD"]);
+        return { stdout: "feature/review-feedback\n", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(resolveCurrentBranch({ cwd: "/repo", runGit })).resolves.toBe(
+      "feature/review-feedback",
+    );
+  });
+
+  it("returns null when HEAD is detached", async () => {
+    const runGit = createFakeRunner({
+      onArgs: () => ({ stdout: "HEAD\n", stderr: "", exitCode: 0 }),
+    });
+
+    await expect(resolveCurrentBranch({ cwd: "/repo", runGit })).resolves.toBeNull();
+  });
+
+  it("throws GitError when git cannot resolve HEAD", async () => {
+    const runGit = createFakeRunner({
+      onArgs: () => ({
+        stdout: "",
+        stderr: "fatal: not a git repository",
+        exitCode: 128,
+      }),
+    });
+
+    await expect(resolveCurrentBranch({ cwd: "/not-a-repo", runGit })).rejects.toThrow(GitError);
+  });
+});
+
+describe("resolveRefSha", () => {
+  it("returns the full commit SHA for a ref", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        expect(args).toEqual(["rev-parse", "--verify", "origin/main^{commit}"]);
+        return {
+          stdout: "abcdef0123456789abcdef0123456789abcdef01\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      },
+    });
+
+    await expect(resolveRefSha({ cwd: "/repo", ref: "origin/main", runGit })).resolves.toBe(
+      "abcdef0123456789abcdef0123456789abcdef01",
+    );
+  });
+
+  it("throws GitError when the ref does not resolve to a commit", async () => {
+    const runGit = createFakeRunner({
+      onArgs: () => ({
+        stdout: "",
+        stderr: "fatal: Needed a single revision",
+        exitCode: 128,
+      }),
+    });
+
+    await expect(resolveRefSha({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
+      GitError,
+    );
+    await expect(resolveRefSha({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
       'Git ref not found: "missing"',
     );
   });

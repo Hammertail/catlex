@@ -65,6 +65,57 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
   }
 }
 
+/**
+ * Returns the current branch name, or null when HEAD is detached.
+ */
+export async function resolveCurrentBranch(options: GitCwdOptions): Promise<string | null> {
+  const runGit = resolveRunner(options);
+  const result = await runGit(["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: options.cwd,
+  });
+
+  if (result.exitCode !== 0) {
+    throw new GitError(result.stderr.trim() || "Failed to resolve current branch", {
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+  }
+
+  const name = result.stdout.trim();
+  if (name.length === 0 || name === "HEAD") {
+    return null;
+  }
+
+  return name;
+}
+
+/**
+ * Resolves a git ref to a full commit SHA.
+ */
+export async function resolveRefSha(options: GitCwdOptions & { ref: string }): Promise<string> {
+  const runGit = resolveRunner(options);
+  const result = await runGit(["rev-parse", "--verify", `${options.ref}^{commit}`], {
+    cwd: options.cwd,
+  });
+
+  if (result.exitCode !== 0) {
+    throw new GitError(`Git ref not found: "${options.ref}"`, {
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+  }
+
+  const sha = result.stdout.trim();
+  if (sha.length === 0) {
+    throw new GitError(`Git ref not found: "${options.ref}"`, {
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+    });
+  }
+
+  return sha;
+}
+
 export type ReadFileAtRefOptions = GitCwdOptions & {
   ref: string;
   path: string;

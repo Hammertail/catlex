@@ -4,6 +4,7 @@ import { countReviewFixes } from "../../core/translate/review.ts";
 
 //* Types imports
 import type { ReviewResult } from "../../core/translate/review.ts";
+import type { ReviewSinceContext } from "../../core/translate/review-scope.ts";
 
 export { REVIEW_ALPHA_MESSAGE };
 
@@ -21,6 +22,12 @@ export type ReviewLocaleSectionView = {
   warningLines: string[];
 };
 
+export type ReviewScopeView = {
+  branchLine: string;
+  filesLine: string;
+  countsLine: string;
+};
+
 export type ReviewReportView = {
   baseLocale: string;
   messagesDir: string;
@@ -33,9 +40,40 @@ export type ReviewReportView = {
   writtenCount: number;
   fixCount: number;
   emptyMessage: string | null;
+  scope: ReviewScopeView | null;
+  removedLines: string[];
+  skippedLines: string[];
   sections: ReviewLocaleSectionView[];
   summaryLabel: string;
 };
+
+function shortSha(sha: string): string {
+  return sha.slice(0, 7);
+}
+
+function comparedFiles(context: ReviewSinceContext): string[] {
+  return [...new Set([...context.filesAtRef, ...context.filesWorkingTree])].sort();
+}
+
+/**
+ * Builds Ink-friendly lines for --since scope context.
+ */
+export function buildReviewScopeView(context: ReviewSinceContext): ReviewScopeView {
+  const branchLabel = context.detachedHead
+    ? "(detached HEAD)"
+    : (context.currentBranch ?? "(unknown)");
+  const sinceLabel =
+    context.sinceSha === null
+      ? context.sinceRef
+      : `${context.sinceRef} (${shortSha(context.sinceSha)})`;
+  const files = comparedFiles(context);
+
+  return {
+    branchLine: `branch: ${branchLabel} · since: ${sinceLabel} · working tree`,
+    filesLine: files.length === 0 ? "files: (none)" : `files: ${files.join(", ")}`,
+    countsLine: `keys: ${context.keyCount} in scope · ${context.removedCount} removed · ${context.skippedCount} skipped`,
+  };
+}
 
 /**
  * Builds a terminal-friendly view model for review results.
@@ -102,6 +140,13 @@ export function buildReviewReportView(result: ReviewResult): ReviewReportView {
     writtenCount: result.writtenFiles.length,
     fixCount,
     emptyMessage,
+    scope: result.sinceContext === null ? null : buildReviewScopeView(result.sinceContext),
+    removedLines: result.removed.map(
+      (item) => `${item.locale}:${item.path} (${item.source})`,
+    ),
+    skippedLines: result.skipped.map(
+      (item) => `${item.locale}:${item.path} (${item.reason})`,
+    ),
     sections,
     summaryLabel,
   };

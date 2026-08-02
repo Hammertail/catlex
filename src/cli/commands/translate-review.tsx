@@ -50,6 +50,7 @@ function printJson(result: ReviewResult): void {
         baseLocale: result.baseLocale,
         messagesDir: result.messagesDir,
         since: result.since,
+        sinceContext: result.sinceContext,
         autoFix: result.autoFix,
         dryRun: result.dryRun,
         cancelled: result.cancelled,

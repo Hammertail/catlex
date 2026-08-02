@@ -298,6 +298,17 @@ describe("reviewTranslations", () => {
     });
 
     expect(result.since).toBe("main");
+    expect(result.sinceContext).toEqual({
+      sinceRef: "main",
+      sinceSha: null,
+      currentBranch: null,
+      detachedHead: false,
+      filesAtRef: ["en.json", "pt.json"],
+      filesWorkingTree: ["en.json", "pt.json"],
+      keyCount: 1,
+      removedCount: 2,
+      skippedCount: 0,
+    });
     expect(result.reports[0]?.items).toEqual([
       {
         locale: "pt",
@@ -337,6 +348,14 @@ describe("reviewTranslations", () => {
     });
 
     expect(result.since).toBe("main");
+    expect(result.sinceContext).toEqual(
+      expect.objectContaining({
+        sinceRef: "main",
+        keyCount: 0,
+        removedCount: 0,
+        skippedCount: 0,
+      }),
+    );
     expect(result.reports).toEqual([]);
     expect(result.ok).toBe(true);
   });

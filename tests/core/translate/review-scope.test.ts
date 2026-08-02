@@ -68,6 +68,7 @@ describe("resolveReviewScope", () => {
       changeSources: [],
     });
     expect(result.skipped.some((s) => s.path === "meta.count")).toBe(true);
+    expect(result.sinceContext).toBeNull();
   });
 
   it("reviews all locales when a base key is added or modified", async () => {
@@ -107,6 +108,17 @@ describe("resolveReviewScope", () => {
     expect(
       result.targets.find((t) => t.locale === "es" && t.path === "nav.about")?.localeValue,
     ).toBe("Acerca");
+    expect(result.sinceContext).toEqual({
+      sinceRef: "main",
+      sinceSha: null,
+      currentBranch: null,
+      detachedHead: false,
+      filesAtRef: ["en.json", "es.json", "pt.json"],
+      filesWorkingTree: ["en.json", "es.json", "pt.json"],
+      keyCount: 4,
+      removedCount: 0,
+      skippedCount: 0,
+    });
   });
 
   it("reviews only the sibling locale when only that file changed", async () => {
@@ -376,6 +388,19 @@ describe.skipIf(!gitAvailable)("resolveReviewScope with real git", () => {
         changeSources: ["base"],
       },
     ]);
+    expect(result.sinceContext).toEqual(
+      expect.objectContaining({
+        sinceRef: "main",
+        currentBranch: "feature",
+        detachedHead: false,
+        filesAtRef: ["en.json", "pt.json"],
+        filesWorkingTree: ["en.json", "pt.json"],
+        keyCount: 1,
+        removedCount: 0,
+        skippedCount: 0,
+      }),
+    );
+    expect(result.sinceContext?.sinceSha).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it("throws GitError when --since references a missing ref without injected loaders", async () => {

@@ -16,6 +16,7 @@ function emptyResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
     baseLocale: "en",
     messagesDir: "messages",
     since: null,
+    sinceContext: null,
     autoFix: false,
     dryRun: true,
     cancelled: false,
@@ -194,5 +195,70 @@ describe("buildReviewReportView", () => {
         warningLines: ["greeting: placeholders {name} -> {user}"],
       }),
     );
+  });
+
+  it("omits the Scope block when since is not set", () => {
+    const view = buildReviewReportView(emptyResult());
+
+    expect(view.scope).toBeNull();
+    expect(view.removedLines).toEqual([]);
+    expect(view.skippedLines).toEqual([]);
+  });
+
+  it("builds Scope lines and surfaces removed/skipped paths for --since", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        since: "origin/main",
+        sinceContext: {
+          sinceRef: "origin/main",
+          sinceSha: "abcdef0123456789abcdef0123456789abcdef01",
+          currentBranch: "feature/review",
+          detachedHead: false,
+          filesAtRef: ["en.json", "pt.json"],
+          filesWorkingTree: ["en.json", "es.json", "pt.json"],
+          keyCount: 2,
+          removedCount: 1,
+          skippedCount: 1,
+        },
+        removed: [{ locale: "en", path: "old", value: "Old", source: "base" }],
+        skipped: [
+          {
+            locale: "pt",
+            path: "meta.count",
+            reason: "non-string-base",
+            baseValue: 1,
+          },
+        ],
+      }),
+    );
+
+    expect(view.scope).toEqual({
+      branchLine: "branch: feature/review · since: origin/main (abcdef0) · working tree",
+      filesLine: "files: en.json, es.json, pt.json",
+      countsLine: "keys: 2 in scope · 1 removed · 1 skipped",
+    });
+    expect(view.removedLines).toEqual(["en:old (base)"]);
+    expect(view.skippedLines).toEqual(["pt:meta.count (non-string-base)"]);
+  });
+
+  it("labels detached HEAD in the Scope branch line", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        since: "main",
+        sinceContext: {
+          sinceRef: "main",
+          sinceSha: null,
+          currentBranch: null,
+          detachedHead: true,
+          filesAtRef: ["en.json"],
+          filesWorkingTree: ["en.json"],
+          keyCount: 0,
+          removedCount: 0,
+          skippedCount: 0,
+        },
+      }),
+    );
+
+    expect(view.scope?.branchLine).toBe("branch: (detached HEAD) · since: main · working tree");
   });
 });
