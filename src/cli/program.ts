@@ -34,7 +34,7 @@ export function createProgram(): Command {
     .description(
       "CLI to validate next-intl translation JSON files and scan JSX/TSX/VUE for hardcoded strings",
     )
-    .version("0.3.0");
+    .version("0.3.1");
 
   program
     .command("validate")
