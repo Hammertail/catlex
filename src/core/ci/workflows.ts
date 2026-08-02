@@ -4,7 +4,7 @@ import type { CiWorkflowKind } from "./kinds.ts";
 const INSTALL_STEP = `      - name: Install catlex
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/Tamicktom/catlex/releases/latest/download/install.sh | bash
+          curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"`;
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;
