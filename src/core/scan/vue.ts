@@ -108,11 +108,15 @@ function normalizeAttributeName(name: string): string {
   return name;
 }
 
+function isStringQuote(char: string | undefined): char is '"' | "'" | "`" {
+  return char === '"' || char === "'" || char === "`";
+}
+
 /**
- * If `expression` is a bare string / no-substitution template literal, return its
- * decoded text (TypeScript escape rules). Otherwise return undefined.
+ * Returns the trimmed source when `expression` looks like a bare quoted string or
+ * no-substitution template literal. Otherwise returns undefined.
  */
-function literalText(expression: string): string | undefined {
+function quotedLiteralSource(expression: string): string | undefined {
   const trimmed = expression.trim();
 
   if (trimmed.length < 2) {
@@ -120,7 +124,7 @@ function literalText(expression: string): string | undefined {
   }
 
   const quote = trimmed[0];
-  if (quote !== '"' && quote !== "'" && quote !== "`") {
+  if (!isStringQuote(quote)) {
     return undefined;
   }
 
@@ -132,9 +136,17 @@ function literalText(expression: string): string | undefined {
     return undefined;
   }
 
+  return trimmed;
+}
+
+/**
+ * Decodes a quoted string / no-substitution template source with TypeScript
+ * escape rules. Returns undefined when the source is not a plain string literal.
+ */
+function decodeQuotedLiteral(quotedSource: string): string | undefined {
   const sourceFile = ts.createSourceFile(
     "literal.ts",
-    `export default ${trimmed}`,
+    `export default ${quotedSource}`,
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TS,
@@ -151,6 +163,19 @@ function literalText(expression: string): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * If `expression` is a bare string / no-substitution template literal, return its
+ * decoded text (TypeScript escape rules). Otherwise return undefined.
+ */
+function literalText(expression: string): string | undefined {
+  const quoted = quotedLiteralSource(expression);
+  if (quoted === undefined) {
+    return undefined;
+  }
+
+  return decodeQuotedLiteral(quoted);
 }
 
 function reportInterpolation(

@@ -113,6 +113,24 @@ describe("scanHardcoded detection", () => {
     ]);
   });
 
+  it("decodes Vue string-literal escapes and ignores non-literal expressions", async () => {
+    const result = await scanHardcoded(fixturesRoot);
+    const issues = issuesForFile(result.issues, "expression-escapes.vue");
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Line\nBreak",
+        line: 3,
+      }),
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "It's fine",
+        line: 4,
+      }),
+    ]);
+  });
+
   it("reports every obvious hardcoded string in a mixed file", async () => {
     const result = await scanHardcoded(fixturesRoot);
     const issues = issuesForFile(result.issues, "mixed.tsx");
