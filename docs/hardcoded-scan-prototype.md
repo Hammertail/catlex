@@ -1,4 +1,4 @@
-# Hardcoded JSX/TSX/Vue SFC scan prototype
+# Hardcoded JSX/TSX scan prototype
 
 Status notes for the experimental source scanner that finds obvious user-visible strings which should go through [next-intl](https://next-intl.dev/) instead of being hardcoded in JSX/TSX or Vue SFCs.
 
