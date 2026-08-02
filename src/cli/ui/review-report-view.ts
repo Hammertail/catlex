@@ -141,12 +141,8 @@ export function buildReviewReportView(result: ReviewResult): ReviewReportView {
     fixCount,
     emptyMessage,
     scope: result.sinceContext === null ? null : buildReviewScopeView(result.sinceContext),
-    removedLines: result.removed.map(
-      (item) => `${item.locale}:${item.path} (${item.source})`,
-    ),
-    skippedLines: result.skipped.map(
-      (item) => `${item.locale}:${item.path} (${item.reason})`,
-    ),
+    removedLines: result.removed.map((item) => `${item.locale}:${item.path} (${item.source})`),
+    skippedLines: result.skipped.map((item) => `${item.locale}:${item.path} (${item.reason})`),
     sections,
     summaryLabel,
   };

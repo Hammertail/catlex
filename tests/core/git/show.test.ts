@@ -138,9 +138,7 @@ describe("resolveRefSha", () => {
       }),
     });
 
-    await expect(resolveRefSha({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
-      GitError,
-    );
+    await expect(resolveRefSha({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(GitError);
     await expect(resolveRefSha({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
       'Git ref not found: "missing"',
     );
