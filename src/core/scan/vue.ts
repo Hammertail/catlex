@@ -92,6 +92,10 @@ function findTagEnd(content: string, startIndex: number): number {
   return -1;
 }
 
+function isAttributeBinding(rawName: string): boolean {
+  return rawName.startsWith(":") || rawName.startsWith("v-bind:");
+}
+
 function normalizeAttributeName(name: string): string {
   if (name.startsWith("v-bind:")) {
     return name.slice("v-bind:".length);
@@ -104,6 +108,10 @@ function normalizeAttributeName(name: string): string {
   return name;
 }
 
+/**
+ * If `expression` is a bare string / no-substitution template literal, return its
+ * decoded text (TypeScript escape rules). Otherwise return undefined.
+ */
 function literalText(expression: string): string | undefined {
   const trimmed = expression.trim();
 
@@ -124,7 +132,25 @@ function literalText(expression: string): string | undefined {
     return undefined;
   }
 
-  return trimmed.slice(1, -1);
+  const sourceFile = ts.createSourceFile(
+    "literal.ts",
+    `export default ${trimmed}`,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+  const statement = sourceFile.statements[0];
+  if (statement === undefined || !ts.isExportAssignment(statement)) {
+    return undefined;
+  }
+
+  const literal = statement.expression;
+  if (ts.isStringLiteral(literal) || ts.isNoSubstitutionTemplateLiteral(literal)) {
+    return literal.text;
+  }
+
+  return undefined;
 }
 
 function reportInterpolation(
@@ -141,10 +167,10 @@ function reportInterpolation(
     return;
   }
 
-  const offset = expression.indexOf(text);
+  const leadingWhitespace = expression.length - expression.trimStart().length;
   addIssue(
     collector,
-    absoluteBaseIndex + startIndex + (offset >= 0 ? offset : 0),
+    absoluteBaseIndex + startIndex + leadingWhitespace + 1,
     text,
     "jsx-text",
   );
@@ -198,7 +224,11 @@ function reportAttributes(
       continue;
     }
 
-    const text = literalText(rawValue) ?? rawValue;
+    const text = isAttributeBinding(rawName) ? literalText(rawValue) : rawValue;
+    if (text === undefined) {
+      continue;
+    }
+
     const valueOffset = match[0].indexOf(rawValue);
     const absoluteIndex = absoluteTagStart + match.index + (valueOffset >= 0 ? valueOffset : 0);
 

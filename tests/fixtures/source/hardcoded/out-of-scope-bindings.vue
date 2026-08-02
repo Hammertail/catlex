@@ -15,9 +15,5 @@ const label = "Save";
     <span>
       {{ ready ? "Yes" : "No" }}
     </span>
-
-    <button type="button">
-      Save
-    </button>
   </div>
 </template>
