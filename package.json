@@ -16,6 +16,7 @@
     "validate": "bun run src/bin/catlex.ts validate",
     "test": "bun test",
     "build": "bun build ./src/bin/catlex.ts --compile --outfile dist/catlex",
+    "install:local": "bun run build && mkdir -p \"$HOME/.local/bin\" && install -m 755 dist/catlex \"$HOME/.local/bin/catlex\" && echo \"Installed $HOME/.local/bin/catlex\"",
     "build:linux:x64": "bun build ./src/bin/catlex.ts --compile --target=bun-linux-x64 --outfile dist/catlex-linux-x64",
     "build:linux:arm64": "bun build ./src/bin/catlex.ts --compile --target=bun-linux-arm64 --outfile dist/catlex-linux-arm64",
     "build:mac:x64": "bun build ./src/bin/catlex.ts --compile --target=bun-darwin-x64 --outfile dist/catlex-darwin-x64",
@@ -31,10 +32,12 @@
     "fallow:audit": "bunx --yes fallow@3.9.1 audit --format json --quiet --explain --gate-marker agent"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.20",
+    "ai": "^7.0.37",
     "commander": "^14.0.2",
     "ink": "^6.6.0",
     "react": "^19.2.3",
-    "zod": "^4.3.5"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.5",

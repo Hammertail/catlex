@@ -6,9 +6,10 @@ import path from "node:path";
 import { flattenMessages } from "./flatten.ts";
 
 //* Types imports
+import type { Stats } from "node:fs";
 import type { LocaleMessages, MessageTree } from "../types.ts";
 
-class MessagesLoadError extends Error {
+export class MessagesLoadError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MessagesLoadError";
@@ -17,6 +18,40 @@ class MessagesLoadError extends Error {
 
 function localeFromFileName(fileName: string): string {
   return path.basename(fileName, ".json");
+}
+
+export type ParseLocaleMessagesOptions = {
+  locale: string;
+  filePath: string;
+};
+
+/**
+ * Parses raw JSON text into LocaleMessages with a flattened key map.
+ */
+export function parseLocaleMessages(
+  raw: string,
+  options: ParseLocaleMessagesOptions,
+): LocaleMessages {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new MessagesLoadError(`Invalid JSON: ${options.filePath}`);
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new MessagesLoadError(`Translation file must be a JSON object: ${options.filePath}`);
+  }
+
+  const tree = parsed as MessageTree;
+
+  return {
+    locale: options.locale,
+    filePath: options.filePath,
+    tree,
+    flat: flattenMessages(tree),
+  };
 }
 
 async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
@@ -28,34 +63,17 @@ async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
     throw new MessagesLoadError(`Cannot read translation file: ${filePath}`);
   }
 
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new MessagesLoadError(`Invalid JSON: ${filePath}`);
-  }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new MessagesLoadError(`Translation file must be a JSON object: ${filePath}`);
-  }
-
-  const tree = parsed as MessageTree;
-  const locale = localeFromFileName(filePath);
-
-  return {
-    locale,
+  return parseLocaleMessages(raw, {
+    locale: localeFromFileName(filePath),
     filePath,
-    tree,
-    flat: flattenMessages(tree),
-  };
+  });
 }
 
 /**
  * Loads all `*.json` translation files from a messages directory.
  */
 export async function loadMessagesDir(messagesDir: string): Promise<LocaleMessages[]> {
-  let dirStat: Awaited<ReturnType<typeof stat>>;
+  let dirStat: Stats;
 
   try {
     dirStat = await stat(messagesDir);
