@@ -211,6 +211,16 @@ describe("runTranslateReviewCommand", () => {
 });
 
 describe("createProgram translate review", () => {
+  const errorSpies: Array<ReturnType<typeof spyOn>> = [];
+
+  afterEach(() => {
+    for (const spy of errorSpies) {
+      spy.mockRestore();
+    }
+    errorSpies.length = 0;
+    process.exitCode = undefined;
+  });
+
   it("registers the translate review subcommand with expected options", () => {
     const program = createProgram();
     const translate = program.commands.find((command) => command.name() === "translate");
@@ -225,6 +235,50 @@ describe("createProgram translate review", () => {
     expect(optionFlags.has("--yes")).toBe(true);
     expect(optionFlags.has("--locale <locale>")).toBe(true);
     expect(optionFlags.has("--json")).toBe(true);
+  });
+
+  it("passes --dir and --json to review when flags follow the subcommand", async () => {
+    const program = createProgram();
+    const translate = program.commands.find((command) => command.name() === "translate");
+    const review = translate?.commands.find((command) => command.name() === "review");
+    expect(review).toBeDefined();
+
+    const messagesDir = "/tmp/catlex-review-locales";
+    let captured: { dir?: string; json?: boolean } | undefined;
+    review?.hook("preAction", (thisCommand) => {
+      captured = thisCommand.opts();
+    });
+
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    errorSpies.push(error);
+
+    await program.parseAsync(
+      ["node", "catlex", "translate", "review", "--json", "--dir", messagesDir],
+      { from: "node" },
+    );
+
+    expect(captured).toMatchObject({ dir: messagesDir, json: true });
+  });
+
+  it("still passes --dir and --json to translate fill when review is not used", async () => {
+    const program = createProgram();
+    const translate = program.commands.find((command) => command.name() === "translate");
+    expect(translate).toBeDefined();
+
+    const messagesDir = "/tmp/catlex-translate-locales";
+    let captured: { dir?: string; json?: boolean } | undefined;
+    translate?.hook("preAction", (thisCommand) => {
+      captured = thisCommand.opts();
+    });
+
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    errorSpies.push(error);
+
+    await program.parseAsync(["node", "catlex", "translate", "--json", "--dir", messagesDir], {
+      from: "node",
+    });
+
+    expect(captured).toMatchObject({ dir: messagesDir, json: true });
   });
 });
 
