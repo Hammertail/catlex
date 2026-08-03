@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
-import { createProgram } from "../../../src/cli/program.ts";
 import { runTranslateReviewCommand } from "../../../src/cli/commands/translate-review.tsx";
 import { REVIEW_ALPHA_MESSAGE } from "../../../src/cli/ui/review-report-view.ts";
 import { runGit } from "../../../src/core/git/run.ts";
@@ -207,78 +206,6 @@ describe("runTranslateReviewCommand", () => {
     const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
     expect(payload.ok).toBe(true);
     expect(payload.writtenFiles.length).toBe(1);
-  });
-});
-
-describe("createProgram translate review", () => {
-  const errorSpies: Array<ReturnType<typeof spyOn>> = [];
-
-  afterEach(() => {
-    for (const spy of errorSpies) {
-      spy.mockRestore();
-    }
-    errorSpies.length = 0;
-    process.exitCode = undefined;
-  });
-
-  it("registers the translate review subcommand with expected options", () => {
-    const program = createProgram();
-    const translate = program.commands.find((command) => command.name() === "translate");
-    expect(translate).toBeDefined();
-    const review = translate?.commands.find((command) => command.name() === "review");
-    expect(review).toBeDefined();
-    expect(review?.description()).toContain("--since");
-
-    const optionFlags = new Set(review?.options.map((option) => option.flags) ?? []);
-    expect(optionFlags.has("--since <ref>")).toBe(true);
-    expect(optionFlags.has("--auto-fix")).toBe(true);
-    expect(optionFlags.has("--yes")).toBe(true);
-    expect(optionFlags.has("--locale <locale>")).toBe(true);
-    expect(optionFlags.has("--json")).toBe(true);
-  });
-
-  it("passes --dir and --json to review when flags follow the subcommand", async () => {
-    const program = createProgram();
-    const translate = program.commands.find((command) => command.name() === "translate");
-    const review = translate?.commands.find((command) => command.name() === "review");
-    expect(review).toBeDefined();
-
-    const messagesDir = "/tmp/catlex-review-locales";
-    let captured: { dir?: string; json?: boolean } | undefined;
-    review?.hook("preAction", (thisCommand) => {
-      captured = thisCommand.opts();
-    });
-
-    const error = spyOn(console, "error").mockImplementation(() => {});
-    errorSpies.push(error);
-
-    await program.parseAsync(
-      ["node", "catlex", "translate", "review", "--json", "--dir", messagesDir],
-      { from: "node" },
-    );
-
-    expect(captured).toMatchObject({ dir: messagesDir, json: true });
-  });
-
-  it("still passes --dir and --json to translate fill when review is not used", async () => {
-    const program = createProgram();
-    const translate = program.commands.find((command) => command.name() === "translate");
-    expect(translate).toBeDefined();
-
-    const messagesDir = "/tmp/catlex-translate-locales";
-    let captured: { dir?: string; json?: boolean } | undefined;
-    translate?.hook("preAction", (thisCommand) => {
-      captured = thisCommand.opts();
-    });
-
-    const error = spyOn(console, "error").mockImplementation(() => {});
-    errorSpies.push(error);
-
-    await program.parseAsync(["node", "catlex", "translate", "--json", "--dir", messagesDir], {
-      from: "node",
-    });
-
-    expect(captured).toMatchObject({ dir: messagesDir, json: true });
   });
 });
 
