@@ -29,6 +29,10 @@ function parseLocaleOption(value: string, previous: string[]): string[] {
 export function createProgram(): Command {
   const program = new Command();
 
+  // Required so nested commands (translate → review) can share option names;
+  // each level that has children also needs enablePositionalOptions().
+  program.enablePositionalOptions();
+
   program
     .name("catlex")
     .description(
@@ -115,6 +119,10 @@ export function createProgram(): Command {
         }),
       );
     });
+
+  // Allow review to reuse the same option names without the parent stealing them
+  // (also requires program.enablePositionalOptions() above).
+  translate.enablePositionalOptions();
 
   translate
     .command("review")
