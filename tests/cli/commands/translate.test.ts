@@ -144,6 +144,43 @@ describe("runTranslateCommand", () => {
     expect(payload.writtenFiles).toEqual([]);
   });
 
+  it("does not write files when dry-run is combined with yes", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-dry-yes-"));
+    await writeMessages(cwd, {
+      en: { about: "About", welcome: "Welcome" },
+      pt: { welcome: "Bem-vindo" },
+    });
+    const before = await readFile(path.join(cwd, "messages", "pt.json"), "utf8");
+    const confirmMessages: string[] = [];
+    const translator = createTranslateSpy(async () => ({
+      locale: "pt",
+      translations: [{ path: "about", value: "Sobre" }],
+    }));
+    const log = captureLog();
+
+    const exitCode = await runTranslateCommand({
+      cwd,
+      json: true,
+      dryRun: true,
+      yes: true,
+      env: { OPENAI_API_KEY: "sk-test" },
+      confirm: async (message) => {
+        confirmMessages.push(message);
+        return true;
+      },
+      translateLocale: translator.translateLocale,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(confirmMessages).toEqual([]);
+    expect(translator.callCount()).toBe(1);
+    expect(await readFile(path.join(cwd, "messages", "pt.json"), "utf8")).toBe(before);
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.dryRun).toBe(true);
+    expect(payload.translatedCount).toBe(1);
+    expect(payload.writtenFiles).toEqual([]);
+  });
+
   it("writes files when --yes is set without prompting", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-yes-"));
     await writeMessages(cwd, {

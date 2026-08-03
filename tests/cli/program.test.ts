@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import type { Command } from "commander";
 
 //* Local imports
+import * as translateCommand from "../../src/cli/commands/translate.tsx";
 import { createProgram } from "../../src/cli/program.ts";
+
+//* Types imports
+import type { TranslateCommandOptions } from "../../src/cli/commands/translate.tsx";
 
 function findCommand(root: Command, pathSegments: string[]): Command {
   let current: Command = root;
@@ -45,18 +49,43 @@ async function captureCommandOpts(
 
 describe("createProgram", () => {
   const errorSpies: Array<ReturnType<typeof spyOn>> = [];
+  const actionSpies: Array<ReturnType<typeof spyOn>> = [];
 
   afterEach(() => {
     for (const spy of errorSpies) {
       spy.mockRestore();
     }
+    for (const spy of actionSpies) {
+      spy.mockRestore();
+    }
     errorSpies.length = 0;
+    actionSpies.length = 0;
     process.exitCode = undefined;
   });
 
   function silenceErrors(): void {
     const error = spyOn(console, "error").mockImplementation(() => {});
     errorSpies.push(error);
+  }
+
+  /**
+   * Parses argv through the real command actions, capturing options passed to runTranslateCommand.
+   */
+  async function captureTranslateActionOptions(
+    argv: string[],
+  ): Promise<TranslateCommandOptions | undefined> {
+    let captured: TranslateCommandOptions | undefined;
+    const spy = spyOn(translateCommand, "runTranslateCommand").mockImplementation(
+      async (options) => {
+        captured = options;
+        return 0;
+      },
+    );
+    actionSpies.push(spy);
+
+    const program = createProgram();
+    await program.parseAsync(["node", "catlex", ...argv], { from: "node" });
+    return captured;
   }
 
   describe("command registration", () => {
@@ -163,6 +192,43 @@ describe("createProgram", () => {
         cwd: "/tmp/translate-cwd",
         locale: ["pt", "es", "fr"],
         model: "gpt-test",
+        dryRun: true,
+        yes: true,
+        json: true,
+      });
+    });
+
+    it("forwards --dry-run from argv into runTranslateCommand", async () => {
+      silenceErrors();
+      const options = await captureTranslateActionOptions([
+        "translate",
+        "--cwd",
+        "/tmp/translate-dry-run-forward",
+        "--dry-run",
+        "--json",
+      ]);
+
+      expect(options).toMatchObject({
+        cwd: "/tmp/translate-dry-run-forward",
+        dryRun: true,
+        yes: false,
+        json: true,
+      });
+    });
+
+    it("forwards --dry-run ahead of --yes into runTranslateCommand", async () => {
+      silenceErrors();
+      const options = await captureTranslateActionOptions([
+        "translate",
+        "--cwd",
+        "/tmp/translate-dry-run-yes-forward",
+        "--yes",
+        "--dry-run",
+        "--json",
+      ]);
+
+      expect(options).toMatchObject({
+        cwd: "/tmp/translate-dry-run-yes-forward",
         dryRun: true,
         yes: true,
         json: true,
