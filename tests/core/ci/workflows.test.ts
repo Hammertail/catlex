@@ -16,6 +16,18 @@ const SINCE_EXPR =
   "${{" +
   " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
 const OPENAI_SECRET_LINE = "OPENAI_API_KEY: ${{" + " secrets.OPENAI_API_KEY }}";
+const SAME_REPO_COMMIT_GUARD =
+  "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
+
+/** Inline `run:` lines must not embed GitHub expressions (script-injection risk). */
+function assertNoGithubExpressionsInRunScripts(yaml: string): void {
+  for (const line of yaml.split("\n")) {
+    if (!line.includes("run:") || line.trimEnd().endsWith("|")) {
+      continue;
+    }
+    expect(line).not.toContain("${{");
+  }
+}
 
 describe("generateValidateMessagesWorkflow", () => {
   it("includes checkout, binary install via GITHUB_PATH, and validate --json", () => {
@@ -45,10 +57,15 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain("name: Review translations");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(INSTALL_URL);
-    expect(yaml).toContain(`catlex translate review --since "${SINCE_EXPR}" --json`);
+    expect(yaml).toContain('catlex translate review --since "$CATLEX_SINCE" --json');
+    expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).not.toContain("--auto-fix");
     expect(yaml).not.toContain("git-auto-commit-action");
+  });
+
+  it("passes the since ref through an env var instead of interpolating into the shell script", () => {
+    assertNoGithubExpressionsInRunScripts(generateReviewTranslationsWorkflow());
   });
 });
 
@@ -60,11 +77,25 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     expect(yaml).toContain("contents: write");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(
-      `catlex translate review --since "${SINCE_EXPR}" --auto-fix --yes --json`,
+      'catlex translate review --since "$CATLEX_SINCE" --auto-fix --yes --json',
     );
+    expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
     expect(yaml).toContain("chore: apply catlex translation review fixes");
+  });
+
+  it("skips auto-commit for pull requests from forks", () => {
+    const yaml = generateReviewFixTranslationsWorkflow();
+
+    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml.indexOf(`if: ${SAME_REPO_COMMIT_GUARD}`)).toBeLessThan(
+      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+    );
+  });
+
+  it("passes the since ref through an env var instead of interpolating into the shell script", () => {
+    assertNoGithubExpressionsInRunScripts(generateReviewFixTranslationsWorkflow());
   });
 });
 
@@ -78,6 +109,15 @@ describe("generateTranslateFillWorkflow", () => {
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
     expect(yaml).toContain("chore: fill missing translations with catlex");
+  });
+
+  it("skips auto-commit for pull requests from forks", () => {
+    const yaml = generateTranslateFillWorkflow();
+
+    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml.indexOf(`if: ${SAME_REPO_COMMIT_GUARD}`)).toBeLessThan(
+      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+    );
   });
 });
 

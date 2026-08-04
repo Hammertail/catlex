@@ -13,8 +13,8 @@ const SINCE_EXPR = GITHUB_EXPR(
   "github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main'",
 );
 
-const OPENAI_ENV = `        env:
-          OPENAI_API_KEY: ${GITHUB_EXPR("secrets.OPENAI_API_KEY")}`;
+const SAME_REPO_COMMIT_GUARD =
+  "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
 
 function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
   if (options?.fetchDepthZero) {
@@ -28,8 +28,19 @@ function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
         uses: actions/checkout@v4`;
 }
 
+function openaiEnvBlock(options?: { since?: boolean }): string {
+  const lines = [`          OPENAI_API_KEY: ${GITHUB_EXPR("secrets.OPENAI_API_KEY")}`];
+  if (options?.since) {
+    lines.push(`          CATLEX_SINCE: ${SINCE_EXPR}`);
+  }
+
+  return `        env:
+${lines.join("\n")}`;
+}
+
 function autoCommitStep(commitMessage: string): string {
   return `      - name: Commit changes
+        if: ${SAME_REPO_COMMIT_GUARD}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: ${commitMessage}`;
@@ -73,8 +84,8 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review translations
-        run: catlex translate review --since "${SINCE_EXPR}" --json
-${OPENAI_ENV}
+        run: catlex translate review --since "$CATLEX_SINCE" --json
+${openaiEnvBlock({ since: true })}
 `;
 }
 
@@ -98,8 +109,8 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review and auto-fix translations
-        run: catlex translate review --since "${SINCE_EXPR}" --auto-fix --yes --json
-${OPENAI_ENV}
+        run: catlex translate review --since "$CATLEX_SINCE" --auto-fix --yes --json
+${openaiEnvBlock({ since: true })}
 
 ${autoCommitStep("chore: apply catlex translation review fixes")}
 `;
@@ -126,7 +137,7 @@ ${INSTALL_STEP}
 
       - name: Fill missing translations
         run: catlex translate --yes --json
-${OPENAI_ENV}
+${openaiEnvBlock()}
 
 ${autoCommitStep("chore: fill missing translations with catlex")}
 `;
