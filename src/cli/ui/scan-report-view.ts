@@ -2,7 +2,7 @@
 import path from "node:path";
 
 //* Types imports
-import type { HardcodedIssue, ScanResult } from "../../core/scan/types.ts";
+import type { HardcodedIssue, ScanFileError, ScanResult } from "../../core/scan/types.ts";
 
 export const SCAN_ALPHA_MESSAGE =
   "Alpha: this scan is experimental. False positives and missed issues may occur.";
@@ -16,14 +16,22 @@ export type ScanIssueRow = {
   text: string;
 };
 
+export type ScanErrorRow = {
+  key: string;
+  location: string;
+  message: string;
+};
+
 export type ScanReportView = {
   rootDir: string;
   displayRootDir: string;
   alphaMessage: string;
   failed: boolean;
   issueCount: number;
+  errorCount: number;
   emptyMessage: string | null;
   rows: ScanIssueRow[];
+  errorRows: ScanErrorRow[];
 };
 
 function truncateText(text: string): string {
@@ -62,16 +70,30 @@ export function buildScanIssueRow(
   };
 }
 
+function buildScanErrorRow(error: ScanFileError, rootDir: string, index: number): ScanErrorRow {
+  const relativePath = toRelativePath(error.filePath, rootDir);
+
+  return {
+    key: `${relativePath}:error:${index}`,
+    location: relativePath,
+    message: error.message,
+  };
+}
+
 export function buildScanReportView(result: ScanResult): ScanReportView {
-  const failed = result.issues.length > 0;
+  const issueCount = result.issues.length;
+  const errorCount = result.errors.length;
+  const failed = issueCount > 0 || errorCount > 0;
 
   return {
     rootDir: result.rootDir,
     displayRootDir: result.rootDir,
     alphaMessage: SCAN_ALPHA_MESSAGE,
     failed,
-    issueCount: result.issues.length,
+    issueCount,
+    errorCount,
     emptyMessage: failed ? null : "No hardcoded user-visible strings found",
     rows: result.issues.map((issue, index) => buildScanIssueRow(issue, result.rootDir, index)),
+    errorRows: result.errors.map((error, index) => buildScanErrorRow(error, result.rootDir, index)),
   };
 }

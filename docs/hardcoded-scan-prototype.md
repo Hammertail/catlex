@@ -44,6 +44,8 @@ Fixture files under `tests/fixtures/source/hardcoded/` and `hardcoded-broken/` a
 4. **Filter** — keep only strings that look user-visible (`isLikelyUserVisible`).
 5. **Report** — emit `HardcodedIssue` with file, 1-based line/column, text, and kind.
 
+Per-file parse/walk failures (for example `Maximum call stack size exceeded` on deeply nested generated Vue/JSX) are recorded as `ScanFileError` entries. The scan continues so findings from other files are still returned. CLI exit codes: `0` clean, `1` findings only, `2` one or more file-level scanner errors.
+
 ```text
 discover → parse (TS AST) → walk JSX → filter → HardcodedIssue[]
 ```

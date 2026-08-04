@@ -217,7 +217,8 @@ On `push` (no PR base), use a stable branch such as `--since origin/main`.
 | Code | Meaning |
 |------|---------|
 | `0` | Validation/scan/translate completed (including cancel / nothing to do), or review passed (including successful auto-fix) |
-| `1` | Validation/scan/review failed, missing API key, or an error occurred |
+| `1` | Validation failed, scan found hardcoded strings, review failed, missing API key, or an unexpected command error |
+| `2` | `scan` completed with one or more per-file scanner errors (partial results may still be reported) |
 
 For pipelines, prefer `--json`:
 

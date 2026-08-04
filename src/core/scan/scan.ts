@@ -8,7 +8,7 @@ import { scanVueFile } from "./vue.ts";
 import { walkSourceFile } from "./walk.ts";
 
 //* Types imports
-import type { HardcodedIssue, ScanResult } from "./types.ts";
+import type { HardcodedIssue, ScanFileError, ScanResult } from "./types.ts";
 
 const IGNORE_DIR_NAMES = new Set(["node_modules", "dist", ".next", ".git"]);
 
@@ -53,28 +53,59 @@ function parseSourceFile(filePath: string, content: string): ts.SourceFile {
   );
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function scanSourceContent(filePath: string, content: string): HardcodedIssue[] {
+  if (path.extname(filePath) === ".vue") {
+    return scanVueFile(filePath, content);
+  }
+
+  const sourceFile = parseSourceFile(filePath, content);
+  return walkSourceFile(sourceFile, filePath);
+}
+
+async function scanOneFile(
+  filePath: string,
+): Promise<{ issues: HardcodedIssue[]; error?: ScanFileError }> {
+  try {
+    const content = await Bun.file(filePath).text();
+    return { issues: scanSourceContent(filePath, content) };
+  } catch (error) {
+    return {
+      issues: [],
+      error: {
+        filePath,
+        message: errorMessage(error),
+      },
+    };
+  }
+}
+
 /**
  * Scan a directory tree for obvious hardcoded user-visible strings in JSX/TSX/Vue SFCs.
+ *
+ * Per-file parse/walk failures are collected in `errors` so one bad file does not
+ * abort the rest of the scan or discard findings already collected.
  */
 export async function scanHardcoded(rootDir: string): Promise<ScanResult> {
   const absoluteRoot = path.resolve(rootDir);
   const sourceFiles = await collectSourceFiles(absoluteRoot);
   const issues: HardcodedIssue[] = [];
+  const errors: ScanFileError[] = [];
 
   for (const filePath of sourceFiles) {
-    const content = await Bun.file(filePath).text();
-
-    if (path.extname(filePath) === ".vue") {
-      issues.push(...scanVueFile(filePath, content));
-      continue;
+    const scanned = await scanOneFile(filePath);
+    issues.push(...scanned.issues);
+    if (scanned.error !== undefined) {
+      errors.push(scanned.error);
     }
-
-    const sourceFile = parseSourceFile(filePath, content);
-    issues.push(...walkSourceFile(sourceFile, filePath));
   }
 
   return {
     rootDir: absoluteRoot,
     issues,
+    errors,
   };
 }

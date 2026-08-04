@@ -22,8 +22,12 @@ function issue(
   };
 }
 
-function result(issues: HardcodedIssue[], rootDir = "/app"): ScanResult {
-  return { rootDir, issues };
+function result(
+  issues: HardcodedIssue[],
+  rootDir = "/app",
+  errors: ScanResult["errors"] = [],
+): ScanResult {
+  return { rootDir, issues, errors };
 }
 
 describe("ScanReport", () => {
@@ -75,6 +79,29 @@ describe("ScanReport", () => {
     expect(frame).toContain("Form.tsx:2:1");
     expect(frame).toContain("Failed");
     expect(frame).toContain("2 hardcoded");
+
+    unmount();
+  });
+
+  it("renders file-level scan errors alongside a failed verdict", () => {
+    const { lastFrame, unmount } = render(
+      <ScanReport
+        result={result([], "/app", [
+          {
+            filePath: "/app/generated/Huge.vue",
+            message: "Maximum call stack size exceeded",
+          },
+        ])}
+      />,
+    );
+
+    const frame = lastFrame() ?? "";
+
+    expect(frame).toContain("scan-error");
+    expect(frame).toContain("generated/Huge.vue");
+    expect(frame).toContain("Maximum call stack size exceeded");
+    expect(frame).toContain("Failed");
+    expect(frame).toContain("1 scan error(s)");
 
     unmount();
   });

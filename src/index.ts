@@ -123,6 +123,7 @@ export type { ValidateOptions } from "./core/validate.ts";
 export type {
   HardcodedIssue,
   HardcodedIssueKind,
+  ScanFileError,
   ScanResult,
 } from "./core/scan/types.ts";
 export type { CiWorkflowKind, CiWorkflowOption } from "./core/ci/kinds.ts";
