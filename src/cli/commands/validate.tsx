@@ -14,6 +14,7 @@ export type ValidateCommandOptions = {
   base?: string;
   cwd?: string;
   strictExtra?: boolean;
+  noConfig?: boolean;
   json?: boolean;
 };
 
@@ -32,11 +33,13 @@ function printJson(result: ValidationResult, strictExtra: boolean, failed: boole
 
 export async function runValidateCommand(options: ValidateCommandOptions): Promise<number> {
   const cwd = options.cwd ?? process.cwd();
+  const noConfig = options.noConfig === true;
 
   const config = await loadConfig(cwd, {
     messagesDir: options.dir,
     baseLocale: options.base,
     strictExtra: options.strictExtra,
+    noConfig,
   });
 
   const result = await validateTranslations({
@@ -44,6 +47,8 @@ export async function runValidateCommand(options: ValidateCommandOptions): Promi
     messagesDir: config.messagesDir,
     baseLocale: config.baseLocale,
     strictExtra: config.strictExtra,
+    // Config was already resolved above; skip a second import of project modules.
+    noConfig: true,
   });
 
   const failed = hasFailingIssues(result.issues, config.strictExtra);

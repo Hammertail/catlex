@@ -81,14 +81,16 @@ async function loadConfigFile(cwd: string): Promise<Partial<CatlexConfig>> {
 
 /**
  * Merges config in order: defaults < config file < CLI flags.
+ * Pass `noConfig: true` to skip loading and executing project config modules.
  */
 export async function loadConfig(cwd: string, flags: ConfigFlags = {}): Promise<CatlexConfig> {
-  const fileConfig = await loadConfigFile(cwd);
+  const { noConfig, ...configFlags } = flags;
+  const fileConfig = noConfig === true ? {} : await loadConfigFile(cwd);
 
   const merged = {
     ...DEFAULT_CONFIG,
     ...fileConfig,
-    ...Object.fromEntries(Object.entries(flags).filter(([, value]) => value !== undefined)),
+    ...Object.fromEntries(Object.entries(configFlags).filter(([, value]) => value !== undefined)),
   };
 
   const parsed = catlexConfigSchema.safeParse(merged);

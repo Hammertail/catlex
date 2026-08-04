@@ -20,28 +20,29 @@ export const CI_WORKFLOW_OPTIONS: readonly CiWorkflowOption[] = [
     kind: "validate",
     relativePath: VALIDATE_WORKFLOW_RELATIVE_PATH,
     title: "Validate messages",
-    description: "Run catlex validate --json on every push and pull request (no OpenAI key).",
+    description:
+      "Run catlex validate --no-config --json on every push and pull request (no OpenAI key).",
   },
   {
     kind: "review",
     relativePath: REVIEW_WORKFLOW_RELATIVE_PATH,
     title: "Review translations",
     description:
-      "Gate PRs/pushes with catlex translate review --since (requires OPENAI_API_KEY; no auto-fix).",
+      "Gate PRs/pushes with catlex translate review --no-config --since (requires OPENAI_API_KEY; no auto-fix).",
   },
   {
     kind: "review-fix",
     relativePath: REVIEW_FIX_WORKFLOW_RELATIVE_PATH,
     title: "Review, auto-fix, and commit",
     description:
-      "Review changed keys, apply --auto-fix --yes, and commit fixes (requires OPENAI_API_KEY and write access).",
+      "Review changed keys with --no-config, apply --auto-fix --yes, and commit fixes (requires OPENAI_API_KEY and write access).",
   },
   {
     kind: "translate",
     relativePath: TRANSLATE_WORKFLOW_RELATIVE_PATH,
     title: "Fill missing translations and commit",
     description:
-      "Run catlex translate --yes to fill missing keys and commit (requires OPENAI_API_KEY and write access).",
+      "Run catlex translate --no-config --yes to fill missing keys and commit (requires OPENAI_API_KEY and write access).",
   },
 ] as const;
 

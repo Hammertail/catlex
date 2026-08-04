@@ -52,7 +52,7 @@ ${checkoutStep()}
 ${INSTALL_STEP}
 
       - name: Validate translations
-        run: catlex validate --json
+        run: catlex validate --no-config --json
 `;
 }
 
@@ -73,7 +73,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review translations
-        run: catlex translate review --since "${SINCE_EXPR}" --json
+        run: catlex translate review --no-config --since "${SINCE_EXPR}" --json
 ${OPENAI_ENV}
 `;
 }
@@ -98,7 +98,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review and auto-fix translations
-        run: catlex translate review --since "${SINCE_EXPR}" --auto-fix --yes --json
+        run: catlex translate review --no-config --since "${SINCE_EXPR}" --auto-fix --yes --json
 ${OPENAI_ENV}
 
 ${autoCommitStep("chore: apply catlex translation review fixes")}
@@ -125,7 +125,7 @@ ${checkoutStep()}
 ${INSTALL_STEP}
 
       - name: Fill missing translations
-        run: catlex translate --yes --json
+        run: catlex translate --no-config --yes --json
 ${OPENAI_ENV}
 
 ${autoCommitStep("chore: fill missing translations with catlex")}
