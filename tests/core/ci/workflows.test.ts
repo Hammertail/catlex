@@ -51,9 +51,7 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain("name: Review translations");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(INSTALL_URL);
-    expect(yaml).toContain(
-      `catlex translate review --no-config --since "${SINCE_EXPR}" --json`,
-    );
+    expect(yaml).toContain(`catlex translate review --no-config --since "${SINCE_EXPR}" --json`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).not.toContain("--auto-fix");
     expect(yaml).not.toContain("git-auto-commit-action");
