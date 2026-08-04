@@ -3,6 +3,7 @@ import { render } from "ink";
 
 //* Local imports
 import { MultiSelect, type MultiSelectOption } from "./MultiSelect.tsx";
+import { assertInteractiveTerminal } from "./interactive.ts";
 
 export type MultiSelectFn<T extends string = string> = (
   message: string,
@@ -16,6 +17,8 @@ export async function promptMultiSelect<T extends string = string>(
   message: string,
   options: readonly MultiSelectOption<T>[],
 ): Promise<T[]> {
+  assertInteractiveTerminal();
+
   return new Promise((resolve) => {
     let settled = false;
 
