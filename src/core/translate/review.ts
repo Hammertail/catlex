@@ -532,6 +532,7 @@ export async function reviewTranslations(
           unexpectedPaths: [],
           placeholderWarnings: [],
         })),
+        { allowedDir: messagesDir },
       )
     : [];
 
