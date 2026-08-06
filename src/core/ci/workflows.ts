@@ -63,7 +63,7 @@ ${checkoutStep()}
 ${INSTALL_STEP}
 
       - name: Validate translations
-        run: catlex validate --json
+        run: catlex validate --no-config --json
 `;
 }
 
@@ -84,7 +84,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review translations
-        run: catlex translate review --since "$CATLEX_SINCE" --json
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
 ${openaiEnvBlock({ since: true })}
 `;
 }
@@ -109,7 +109,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review and auto-fix translations
-        run: catlex translate review --since "$CATLEX_SINCE" --auto-fix --yes --json
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json
 ${openaiEnvBlock({ since: true })}
 
 ${autoCommitStep("chore: apply catlex translation review fixes")}
@@ -136,7 +136,7 @@ ${checkoutStep()}
 ${INSTALL_STEP}
 
       - name: Fill missing translations
-        run: catlex translate --yes --json
+        run: catlex translate --no-config --yes --json
 ${openaiEnvBlock()}
 
 ${autoCommitStep("chore: fill missing translations with catlex")}

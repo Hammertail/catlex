@@ -74,6 +74,7 @@ catlex validate [options]
 | `--base <locale>` | Base locale file stem (e.g. `en` → `en.json`) |
 | `--cwd <path>` | Project root (default: current directory) |
 | `--strict-extra` | Treat extra keys as errors |
+| `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
 
 Examples:
@@ -83,6 +84,7 @@ catlex validate
 catlex validate --dir locales --base en
 catlex validate --strict-extra
 catlex validate --json
+catlex validate --no-config --json
 ```
 
 ## Configuration
@@ -111,6 +113,8 @@ Example `catlex.config.json`:
   "strictExtra": false
 }
 ```
+
+`.js` / `.mjs` / `.ts` configs are **executable code** (loaded via dynamic `import`). Only use them in trusted local environments. In CI, prefer `--no-config` and pass settings with CLI flags such as `--dir` and `--base`. Generated GitHub Actions workflows from `catlex ci` include `--no-config` by default.
 
 ## Source scan (alpha)
 
@@ -151,6 +155,7 @@ catlex translate --json
 | `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
 | `--dry-run` | Propose translations without writing files |
 | `--yes` | Skip both interactive prompts and write files |
+| `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
@@ -180,6 +185,7 @@ catlex translate review --since main --auto-fix --yes --json
 | `--since <ref>` | Only review keys changed between `<ref>` and the current working tree (**recommended in CI**) |
 | `--auto-fix` | Propose fixes for `wrong` / missing keys |
 | `--yes` | Apply auto-fix writes without interactive confirmation |
+| `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
 
 Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI.
@@ -205,7 +211,7 @@ Use a full git history (or fetch the base ref) so `--since` can resolve:
   with:
     fetch-depth: 0
 
-- run: catlex translate review --since "$CATLEX_SINCE" --json
+- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
@@ -220,13 +226,13 @@ Pass GitHub context values through `env` (never interpolate `${{ }}` directly in
 | `0` | Validation/scan/translate completed (including cancel / nothing to do), or review passed (including successful auto-fix) |
 | `1` | Validation/scan/review failed, missing API key, or an error occurred |
 
-For pipelines, prefer `--json`:
+For pipelines, prefer `--json` and `--no-config` (so project JS/TS config is not executed on the runner):
 
 ```bash
-catlex validate --json
+catlex validate --no-config --json
 catlex scan --json
-catlex translate --dry-run --json
-catlex translate review --since origin/main --json
+catlex translate --no-config --dry-run --json
+catlex translate review --no-config --since origin/main --json
 ```
 
 ### Add GitHub Actions workflows
@@ -241,10 +247,10 @@ catlex ci
 
 | Workflow | File | What it does |
 |----------|------|--------------|
-| Validate messages | `.github/workflows/validate-messages.yml` | `catlex validate --json` |
-| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --since … --json` (gate only) |
-| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes`, then commit |
-| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --yes`, then commit |
+| Validate messages | `.github/workflows/validate-messages.yml` | `catlex validate --no-config --json` |
+| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --no-config --since … --json` (gate only) |
+| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit |
+| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes`, then commit |
 
 AI workflows require repository secret `OPENAI_API_KEY`. Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 

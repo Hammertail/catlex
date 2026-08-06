@@ -38,7 +38,7 @@ describe("generateValidateMessagesWorkflow", () => {
     expect(yaml).toContain(INSTALL_URL);
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');
-    expect(yaml).toContain("catlex validate --json");
+    expect(yaml).toContain("catlex validate --no-config --json");
   });
 
   it("does not set up Bun or run scan", () => {
@@ -47,6 +47,12 @@ describe("generateValidateMessagesWorkflow", () => {
     expect(yaml).not.toContain("setup-bun");
     expect(yaml).not.toContain("oven-sh");
     expect(yaml).not.toContain("catlex scan");
+  });
+
+  it("disables project config execution in CI", () => {
+    const yaml = generateValidateMessagesWorkflow();
+
+    expect(yaml).toContain("--no-config");
   });
 });
 
@@ -57,7 +63,9 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain("name: Review translations");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(INSTALL_URL);
-    expect(yaml).toContain('catlex translate review --since "$CATLEX_SINCE" --json');
+    expect(yaml).toContain(
+      'catlex translate review --no-config --since "$CATLEX_SINCE" --json',
+    );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).not.toContain("--auto-fix");
@@ -77,7 +85,7 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     expect(yaml).toContain("contents: write");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(
-      'catlex translate review --since "$CATLEX_SINCE" --auto-fix --yes --json',
+      'catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json',
     );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
@@ -105,7 +113,7 @@ describe("generateTranslateFillWorkflow", () => {
 
     expect(yaml).toContain("name: Fill missing translations");
     expect(yaml).toContain("contents: write");
-    expect(yaml).toContain("catlex translate --yes --json");
+    expect(yaml).toContain("catlex translate --no-config --yes --json");
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
     expect(yaml).toContain("chore: fill missing translations with catlex");
@@ -118,6 +126,29 @@ describe("generateTranslateFillWorkflow", () => {
     expect(yaml.indexOf(`if: ${SAME_REPO_COMMIT_GUARD}`)).toBeLessThan(
       yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
     );
+  });
+});
+
+describe("generated CI workflows", () => {
+  it("runs every workflow command with --no-config", () => {
+    const workflows = [
+      generateValidateMessagesWorkflow(),
+      generateReviewTranslationsWorkflow(),
+      generateReviewFixTranslationsWorkflow(),
+      generateTranslateFillWorkflow(),
+    ];
+
+    for (const yaml of workflows) {
+      const runLines = yaml
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("run: catlex"));
+
+      expect(runLines.length).toBeGreaterThan(0);
+      for (const line of runLines) {
+        expect(line).toContain("--no-config");
+      }
+    }
   });
 });
 

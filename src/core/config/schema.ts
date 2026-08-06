@@ -15,4 +15,9 @@ export type ConfigFlags = {
   messagesDir?: string;
   baseLocale?: string;
   strictExtra?: boolean;
+  /**
+   * When true, skip loading and executing project `catlex.config.*` files.
+   * Prefer this in CI so repository-controlled JavaScript is not run automatically.
+   */
+  noConfig?: boolean;
 };
