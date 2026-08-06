@@ -211,12 +211,13 @@ Use a full git history (or fetch the base ref) so `--since` can resolve:
   with:
     fetch-depth: 0
 
-- run: catlex translate review --no-config --since "origin/${{ github.base_ref }}" --json
+- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
 
-On `push` (no PR base), use a stable branch such as `--since origin/main`.
+Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`.
 
 ## Exit codes and CI
 
@@ -251,7 +252,7 @@ catlex ci
 | Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes`, then commit |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action` (same-repo branches; fork PRs typically cannot push). If a selected file already exists, you are asked whether to overwrite it.
+AI workflows require repository secret `OPENAI_API_KEY`. Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 
 ## Building from source
 
