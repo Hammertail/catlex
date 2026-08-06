@@ -15,7 +15,7 @@ describe("generateValidateMessagesWorkflow", () => {
     );
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');
-    expect(yaml).toContain("catlex validate --json");
+    expect(yaml).toContain("catlex validate --no-config --json");
   });
 
   it("does not set up Bun or run scan", () => {

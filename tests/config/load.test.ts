@@ -83,4 +83,66 @@ describe("loadConfig", () => {
     expect(config.baseLocale).toBe("es");
     expect(config.messagesDir).toBe("messages");
   });
+
+  it("executes JavaScript config modules when loading config by default", async () => {
+    const cwd = await createTempDir();
+    const markerPath = path.join(cwd, "config-executed.txt");
+    await writeFile(
+      path.join(cwd, "catlex.config.js"),
+      `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(markerPath)}, "executed");
+export default { messagesDir: "locales", baseLocale: "pt" };
+`,
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(await Bun.file(markerPath).text()).toBe("executed");
+    expect(config).toEqual({
+      messagesDir: "locales",
+      baseLocale: "pt",
+      strictExtra: false,
+    });
+  });
+
+  it("does not load or execute config files when noConfig is true", async () => {
+    const cwd = await createTempDir();
+    const markerPath = path.join(cwd, "config-executed.txt");
+    await writeFile(
+      path.join(cwd, "catlex.config.js"),
+      `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(markerPath)}, "executed");
+export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
+`,
+    );
+
+    const config = await loadConfig(cwd, { noConfig: true });
+
+    expect(await Bun.file(markerPath).exists()).toBe(false);
+    expect(config).toEqual(DEFAULT_CONFIG);
+  });
+
+  it("still applies CLI flags when noConfig is true", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        messagesDir: "locales",
+        baseLocale: "pt",
+        strictExtra: true,
+      }),
+    );
+
+    const config = await loadConfig(cwd, {
+      noConfig: true,
+      messagesDir: "i18n",
+      baseLocale: "es",
+    });
+
+    expect(config).toEqual({
+      messagesDir: "i18n",
+      baseLocale: "es",
+      strictExtra: false,
+    });
+  });
 });

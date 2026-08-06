@@ -9,10 +9,21 @@ import { writeLocaleMessages } from "../messages/write.ts";
 import type { MessageTree } from "../types.ts";
 import type { LocaleTranslateReport } from "./translate.ts";
 
+export type WriteTranslatedReportsOptions = {
+  /**
+   * Directory that locale files must remain inside after path resolution.
+   * Typically the configured messages directory.
+   */
+  allowedDir: string;
+};
+
 /**
  * Writes accepted translations from translate reports onto locale JSON files.
  */
-export async function writeTranslatedReports(reports: LocaleTranslateReport[]): Promise<string[]> {
+export async function writeTranslatedReports(
+  reports: LocaleTranslateReport[],
+  options: WriteTranslatedReportsOptions,
+): Promise<string[]> {
   const writtenFiles: string[] = [];
 
   for (const report of reports) {
@@ -29,7 +40,7 @@ export async function writeTranslatedReports(reports: LocaleTranslateReport[]): 
         value: item.value,
       })),
     );
-    await writeLocaleMessages(report.filePath, next);
+    await writeLocaleMessages(report.filePath, next, { allowedDir: options.allowedDir });
     writtenFiles.push(report.filePath);
   }
 

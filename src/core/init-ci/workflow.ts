@@ -20,6 +20,6 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Validate translations
-        run: catlex validate --json
+        run: catlex validate --no-config --json
 `;
 }

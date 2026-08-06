@@ -106,6 +106,17 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--yes")).toBe(true);
       expect(reviewFlags.has("--locale <locale>")).toBe(true);
       expect(reviewFlags.has("--json")).toBe(true);
+      expect(reviewFlags.has("--no-config")).toBe(true);
+
+      const validateFlags = new Set(
+        findCommand(program, ["validate"]).options.map((option) => option.flags),
+      );
+      expect(validateFlags.has("--no-config")).toBe(true);
+
+      const translateFlags = new Set(
+        findCommand(program, ["translate"]).options.map((option) => option.flags),
+      );
+      expect(translateFlags.has("--no-config")).toBe(true);
 
       const ci = findCommand(program, ["ci"]);
       expect(ci.aliases()).toContain("init-ci");
@@ -126,6 +137,7 @@ describe("createProgram", () => {
           "--cwd",
           "/tmp/validate-cwd",
           "--strict-extra",
+          "--no-config",
           "--json",
         ],
       );
@@ -134,6 +146,7 @@ describe("createProgram", () => {
         base: "pt",
         cwd: "/tmp/validate-cwd",
         strictExtra: true,
+        config: false,
         json: true,
       });
     });
@@ -183,6 +196,7 @@ describe("createProgram", () => {
           "gpt-test",
           "--dry-run",
           "--yes",
+          "--no-config",
           "--json",
         ],
       );
@@ -194,6 +208,7 @@ describe("createProgram", () => {
         model: "gpt-test",
         dryRun: true,
         yes: true,
+        config: false,
         json: true,
       });
     });
@@ -256,6 +271,7 @@ describe("createProgram", () => {
           "main",
           "--auto-fix",
           "--yes",
+          "--no-config",
           "--json",
         ],
       );
@@ -268,6 +284,7 @@ describe("createProgram", () => {
         since: "main",
         autoFix: true,
         yes: true,
+        config: false,
         json: true,
       });
     });
@@ -280,6 +297,7 @@ describe("createProgram", () => {
       expect(opts).toMatchObject({
         cwd: process.cwd(),
         strictExtra: false,
+        config: true,
         json: false,
       });
       expect(opts.dir).toBeUndefined();
@@ -310,6 +328,7 @@ describe("createProgram", () => {
         locale: [],
         dryRun: false,
         yes: false,
+        config: true,
         json: false,
       });
       expect(opts.dir).toBeUndefined();
@@ -325,6 +344,7 @@ describe("createProgram", () => {
         locale: [],
         autoFix: false,
         yes: false,
+        config: true,
         json: false,
       });
       expect(opts.dir).toBeUndefined();

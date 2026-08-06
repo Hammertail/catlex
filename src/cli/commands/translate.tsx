@@ -31,6 +31,7 @@ export type TranslateCommandOptions = {
   model?: string;
   dryRun?: boolean;
   yes?: boolean;
+  noConfig?: boolean;
   json?: boolean;
   confirm?: ConfirmFn;
   translateLocale?: TranslateLocaleFn;
@@ -73,6 +74,7 @@ async function collectMissingTranslationPlan(options: {
   messagesDir?: string;
   baseLocale?: string;
   locales?: string[];
+  noConfig?: boolean;
 }): Promise<{
   baseLocale: string;
   messagesDir: string;
@@ -82,6 +84,7 @@ async function collectMissingTranslationPlan(options: {
   const config = await loadConfig(options.cwd, {
     messagesDir: options.messagesDir,
     baseLocale: options.baseLocale,
+    noConfig: options.noConfig,
   });
   const messagesDir = path.resolve(options.cwd, config.messagesDir);
   const allLocales = await loadMessagesDir(messagesDir);
@@ -175,11 +178,13 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     return 1;
   }
 
+  const noConfig = options.noConfig === true;
   const plan = await collectMissingTranslationPlan({
     cwd,
     messagesDir: options.dir,
     baseLocale: options.base,
     locales: options.locale,
+    noConfig,
   });
   const translateLocale = resolveTranslator(options, env);
 
@@ -190,6 +195,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       baseLocale: options.base,
       locales: options.locale,
       dryRun: true,
+      noConfig,
       translateLocale,
     });
     emitOutput({ ...emptyResult, dryRun }, json);
@@ -207,6 +213,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     baseLocale: options.base,
     locales: options.locale,
     dryRun: true,
+    noConfig,
     translateLocale,
   });
 
@@ -225,7 +232,9 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     return 0;
   }
 
-  const writtenFiles = await writeTranslatedReports(result.reports);
+  const writtenFiles = await writeTranslatedReports(result.reports, {
+    allowedDir: path.resolve(cwd, result.messagesDir),
+  });
   result = { ...result, dryRun: false, cancelled: false, writtenFiles };
   emitOutput(result, json);
   return 0;
