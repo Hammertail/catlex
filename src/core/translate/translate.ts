@@ -208,7 +208,9 @@ export async function translateMissingKeys(
   const messagesDir = path.resolve(cwd, config.messagesDir);
   const dryRun = options.dryRun === true;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
-  const writeLocale = options.writeLocale ?? writeLocaleMessages;
+  const writeLocale =
+    options.writeLocale ??
+    ((filePath, tree) => writeLocaleMessages(filePath, tree, { allowedDir: messagesDir }));
 
   const allLocales = await loadMessagesDir(messagesDir);
   const { base, others } = splitBaseAndLocales(allLocales, config.baseLocale);

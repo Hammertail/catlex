@@ -82,6 +82,7 @@ export {
   translateMissingKeys,
 } from "./core/translate/translate.ts";
 export { writeTranslatedReports } from "./core/translate/write-reports.ts";
+export type { WriteTranslatedReportsOptions } from "./core/translate/write-reports.ts";
 export { resolveReviewScope } from "./core/translate/review-scope.ts";
 export {
   REVIEW_INSTRUCTIONS,
@@ -104,7 +105,12 @@ export {
   applyTranslationsToTree,
   setPathInTree,
 } from "./core/messages/unflatten.ts";
-export { writeLocaleMessages } from "./core/messages/write.ts";
+export {
+  assertSafeLocaleWritePath,
+  UnsafeLocaleWritePathError,
+  writeLocaleMessages,
+} from "./core/messages/write.ts";
+export type { WriteLocaleMessagesOptions } from "./core/messages/write.ts";
 
 export type {
   CatlexConfig,
