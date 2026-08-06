@@ -225,7 +225,9 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     return 0;
   }
 
-  const writtenFiles = await writeTranslatedReports(result.reports);
+  const writtenFiles = await writeTranslatedReports(result.reports, {
+    allowedDir: path.resolve(cwd, result.messagesDir),
+  });
   result = { ...result, dryRun: false, cancelled: false, writtenFiles };
   emitOutput(result, json);
   return 0;

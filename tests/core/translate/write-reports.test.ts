@@ -15,17 +15,20 @@ describe("writeTranslatedReports", () => {
     const filePath = path.join(messagesDir, "pt.json");
     await writeFile(filePath, `${JSON.stringify({ welcome: "Bem-vindo" }, null, 2)}\n`, "utf8");
 
-    const written = await writeTranslatedReports([
-      {
-        locale: "pt",
-        filePath,
-        translated: [{ path: "about", value: "Sobre", baseValue: "About" }],
-        skipped: [],
-        incompletePaths: [],
-        unexpectedPaths: [],
-        placeholderWarnings: [],
-      },
-    ]);
+    const written = await writeTranslatedReports(
+      [
+        {
+          locale: "pt",
+          filePath,
+          translated: [{ path: "about", value: "Sobre", baseValue: "About" }],
+          skipped: [],
+          incompletePaths: [],
+          unexpectedPaths: [],
+          placeholderWarnings: [],
+        },
+      ],
+      { allowedDir: messagesDir },
+    );
 
     expect(written).toEqual([filePath]);
     expect(JSON.parse(await readFile(filePath, "utf8"))).toEqual({

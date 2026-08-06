@@ -24,11 +24,12 @@ jobs:
 
       - name: Validate version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${{ inputs.version }}"
-          VERSION="${VERSION#v}"
+          VERSION="${INPUT_VERSION#v}"
           if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid semver version: ${{ inputs.version }}"
+            echo "Invalid semver version: ${INPUT_VERSION}"
             exit 1
           fi
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
@@ -48,11 +49,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Bump version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           bun -e "
             const pkg = await Bun.file('package.json').json();
-            pkg.version = '${VERSION}';
+            pkg.version = process.env.VERSION;
             await Bun.write('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
           sed -i "s/\.version(\"[^\"]*\")/.version(\"${VERSION}\")/" src/cli/program.ts
@@ -78,9 +80,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Commit, tag and push
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
           git add package.json src/cli/program.ts
           git commit -m "chore: release ${TAG}"
           git tag "${TAG}"
@@ -90,8 +92,9 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
           gh release create "${TAG}" \
             catlex-linux-x64 \
             catlex-linux-arm64 \
@@ -115,7 +118,7 @@ jobs:
           To install a specific version:
 
           \`\`\`bash
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${{ steps.version.outputs.version }} bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${VERSION} bash
           \`\`\`
 
           ### Windows (x64)
@@ -129,7 +132,7 @@ jobs:
           To install a specific version:
 
           \`\`\`powershell
-          \$env:CATLEX_VERSION='${{ steps.version.outputs.version }}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
+          \$env:CATLEX_VERSION='${VERSION}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
           \`\`\`
           EOF
           )"
