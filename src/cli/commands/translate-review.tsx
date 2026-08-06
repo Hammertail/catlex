@@ -33,6 +33,7 @@ export type TranslateReviewCommandOptions = {
   since?: string;
   autoFix?: boolean;
   yes?: boolean;
+  noConfig?: boolean;
   json?: boolean;
   confirm?: ConfirmFn;
   reviewLocale?: ReviewLocaleFn;
@@ -130,6 +131,7 @@ export async function runTranslateReviewCommand(
     since: options.since,
     autoFix,
     dryRun: true,
+    noConfig: options.noConfig === true,
     reviewLocale:
       options.reviewLocale ??
       createOpenAiReviewer({
