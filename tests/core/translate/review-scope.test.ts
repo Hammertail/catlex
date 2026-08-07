@@ -421,4 +421,58 @@ describe.skipIf(!gitAvailable)("resolveReviewScope with real git", () => {
       }),
     ).rejects.toThrow(GitError);
   });
+
+  it("resolves --since scope when cwd is a package subdirectory in a monorepo", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(
+      cwd,
+      "packages/app/messages/en.json",
+      `${JSON.stringify({ welcome: "Welcome" }, null, 2)}\n`,
+    );
+    await writeRepoFile(
+      cwd,
+      "packages/app/messages/pt.json",
+      `${JSON.stringify({ welcome: "Olá" }, null, 2)}\n`,
+    );
+    await commitAll(cwd, "initial monorepo messages");
+    await runGit(["branch", "-M", "main"], { cwd });
+
+    await checkoutBranch(cwd, "feature");
+    await writeRepoFile(
+      cwd,
+      "packages/app/messages/en.json",
+      `${JSON.stringify({ welcome: "Hello" }, null, 2)}\n`,
+    );
+    await commitAll(cwd, "change base from package");
+
+    const packageCwd = path.join(cwd, "packages", "app");
+    const result = await resolveReviewScope({
+      cwd: packageCwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      since: "main",
+    });
+
+    expect(result.targets).toEqual([
+      {
+        locale: "pt",
+        path: "welcome",
+        baseValue: "Hello",
+        localeValue: "Olá",
+        changeSources: ["base"],
+      },
+    ]);
+    expect(result.sinceContext).toEqual(
+      expect.objectContaining({
+        sinceRef: "main",
+        currentBranch: "feature",
+        detachedHead: false,
+        filesAtRef: ["en.json", "pt.json"],
+        filesWorkingTree: ["en.json", "pt.json"],
+        keyCount: 1,
+        removedCount: 0,
+        skippedCount: 0,
+      }),
+    );
+  });
 });

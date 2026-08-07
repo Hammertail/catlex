@@ -10,6 +10,7 @@ import {
   readFileAtRef,
   resolveCurrentBranch,
   resolveRefSha,
+  toGitTreePath,
   type GitRunner,
 } from "../../../src/core/git/show.ts";
 
@@ -146,6 +147,17 @@ describe("resolveRefSha", () => {
   });
 });
 
+describe("toGitTreePath", () => {
+  it("prefixes relative paths with ./ so git resolves them from cwd", () => {
+    expect(toGitTreePath("messages/en.json")).toBe("./messages/en.json");
+  });
+
+  it("normalizes Windows separators and strips an existing ./ prefix", () => {
+    expect(toGitTreePath("messages\\en.json")).toBe("./messages/en.json");
+    expect(toGitTreePath("./messages/en.json")).toBe("./messages/en.json");
+  });
+});
+
 describe("readFileAtRef", () => {
   it("returns file contents from git show after confirming the object exists", async () => {
     const calls: string[][] = [];
@@ -153,10 +165,10 @@ describe("readFileAtRef", () => {
       onArgs: (args) => {
         calls.push(args);
         if (args[0] === "cat-file") {
-          expect(args).toEqual(["cat-file", "-e", "main:messages/en.json"]);
+          expect(args).toEqual(["cat-file", "-e", "main:./messages/en.json"]);
           return { stdout: "", stderr: "", exitCode: 0 };
         }
-        expect(args).toEqual(["show", "main:messages/en.json"]);
+        expect(args).toEqual(["show", "main:./messages/en.json"]);
         return {
           stdout: '{"welcome":"Welcome"}\n',
           stderr: "",
@@ -174,8 +186,8 @@ describe("readFileAtRef", () => {
 
     expect(content).toBe('{"welcome":"Welcome"}\n');
     expect(calls).toEqual([
-      ["cat-file", "-e", "main:messages/en.json"],
-      ["show", "main:messages/en.json"],
+      ["cat-file", "-e", "main:./messages/en.json"],
+      ["show", "main:./messages/en.json"],
     ]);
   });
 
@@ -200,13 +212,13 @@ describe("readFileAtRef", () => {
     });
 
     expect(content).toBeNull();
-    expect(calls[0]).toEqual(["cat-file", "-e", "main:messages/pt.json"]);
+    expect(calls[0]).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
   });
 
   it("returns null when git reports a missing path in a non-English locale", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "main:messages/pt.json"]);
+        expect(args).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
         return {
           stdout: "",
           // Portuguese localization of: path '…' does not exist in '…'
@@ -229,7 +241,7 @@ describe("readFileAtRef", () => {
   it("returns null when the path exists on disk but not in the ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "HEAD:messages/new.json"]);
+        expect(args).toEqual(["cat-file", "-e", "HEAD:./messages/new.json"]);
         return {
           stdout: "",
           stderr: "fatal: path 'messages/new.json' exists on disk, but not in 'HEAD'",
@@ -256,7 +268,7 @@ describe("readFileAtRef", () => {
         if (args[0] === "cat-file") {
           return { stdout: "", stderr: "", exitCode: 0 };
         }
-        expect(args).toEqual(["show", "HEAD:messages/my locale.json"]);
+        expect(args).toEqual(["show", "HEAD:./messages/my locale.json"]);
         return { stdout: "{}", stderr: "", exitCode: 0 };
       },
     });
@@ -270,8 +282,8 @@ describe("readFileAtRef", () => {
 
     expect(content).toBe("{}");
     expect(calls).toEqual([
-      ["cat-file", "-e", "HEAD:messages/my locale.json"],
-      ["show", "HEAD:messages/my locale.json"],
+      ["cat-file", "-e", "HEAD:./messages/my locale.json"],
+      ["show", "HEAD:./messages/my locale.json"],
     ]);
   });
 
@@ -326,7 +338,7 @@ describe("listFilesAtRef", () => {
 
     expect(files).toEqual(["messages/en.json", "messages/pt.json"]);
     expect(calls).toEqual([
-      ["cat-file", "-e", "main:messages"],
+      ["cat-file", "-e", "main:./messages"],
       ["ls-tree", "-r", "--name-only", "main", "--", "messages"],
     ]);
   });
@@ -334,7 +346,7 @@ describe("listFilesAtRef", () => {
   it("returns an empty list when the directory is absent at the ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "main:messages"]);
+        expect(args).toEqual(["cat-file", "-e", "main:./messages"]);
         return {
           stdout: "",
           // German localization must not affect missing-path detection

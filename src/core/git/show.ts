@@ -57,14 +57,31 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
 }
 
 /**
+ * Normalizes a path for `git show <ref>:<path>` / `git cat-file -e <ref>:<path>`.
+ *
+ * Git resolves bare paths after `:` from the repository root. Prefixing with `./`
+ * makes the path relative to `cwd`, which is required when Catlex runs from a
+ * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
+ */
+export function toGitTreePath(relativePath: string): string {
+  const normalized = relativePath
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/^\/+/, "");
+  return `./${normalized}`;
+}
+
+/**
  * Returns whether a path (blob or tree) exists at a git ref.
  * Uses exit status only so it stays locale-independent.
+ * Paths are normalized with `toGitTreePath` so resolution is relative to cwd.
  */
 async function pathExistsAtRef(
   options: GitCwdOptions & { ref: string; path: string },
 ): Promise<boolean> {
   const runGit = resolveRunner(options);
-  const result = await runGit(["cat-file", "-e", `${options.ref}:${options.path}`], {
+  const gitPath = toGitTreePath(options.path);
+  const result = await runGit(["cat-file", "-e", `${options.ref}:${gitPath}`], {
     cwd: options.cwd,
   });
   return result.exitCode === 0;
@@ -131,7 +148,8 @@ export type ReadFileAtRefOptions = GitCwdOptions & {
  */
 export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<string | null> {
   const runGit = resolveRunner(options);
-  const object = `${options.ref}:${options.path}`;
+  const gitPath = toGitTreePath(options.path);
+  const object = `${options.ref}:${gitPath}`;
 
   const exists = await pathExistsAtRef(options);
   if (!exists) {
@@ -155,7 +173,7 @@ export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<stri
 export type ListFilesAtRefOptions = GitCwdOptions & {
   ref: string;
   /**
-   * Directory path relative to the repository root.
+   * Directory path relative to cwd (resolved from the repository root when bare).
    */
   directory: string;
 };
