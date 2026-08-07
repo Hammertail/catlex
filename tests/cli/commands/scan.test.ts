@@ -107,5 +107,54 @@ describe("runScanCommand", () => {
     const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
     expect(payload.rootDir).toBe(path.resolve(root));
     expect(payload.issues).toEqual([]);
+    expect(payload.errors).toEqual([]);
+  });
+
+  it("returns 2 and includes partial findings when a file fails to scan", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-scan-error-exit-"));
+    await writeFile(
+      path.join(root, "a-good.tsx"),
+      "export const B = () => <button>Save</button>;\n",
+    );
+
+    const depth = 12_000;
+    const jsx = `${"<div>".repeat(depth)}Hi${"</div>".repeat(depth)}`;
+    await writeFile(
+      path.join(root, "b-deep.vue"),
+      `<script lang="tsx">export default function C(){return (${jsx});}</script>\n`,
+    );
+    await writeFile(path.join(root, "c-good.tsx"), "export const C = () => <span>Cancel</span>;\n");
+
+    const log = captureLog();
+    const exitCode = await runScanCommand({
+      cwd: root,
+      json: true,
+    });
+
+    expect(exitCode).toBe(2);
+    expect(log).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.ok).toBe(false);
+    expect(payload.errors).toHaveLength(1);
+    expect(payload.errors[0]).toMatchObject({
+      filePath: expect.stringMatching(/b-deep\.vue$/),
+      message: expect.stringMatching(/Maximum call stack size exceeded/i),
+    });
+    expect(payload.issues.map((issue: { text: string }) => issue.text).sort()).toEqual([
+      "Cancel",
+      "Save",
+    ]);
+  });
+
+  it("throws when the scan root does not exist so the CLI can exit with 1", async () => {
+    const missing = path.join(tmpdir(), `catlex-scan-missing-${Date.now()}`);
+
+    await expect(
+      runScanCommand({
+        cwd: missing,
+        json: true,
+      }),
+    ).rejects.toThrow(/ENOENT|no such file or directory/i);
   });
 });

@@ -16,6 +16,13 @@ export type ScanCommandOptions = {
   json?: boolean;
 };
 
+/** Exit codes for `catlex scan` (distinct from unexpected CLI wrapper failures). */
+const SCAN_EXIT = {
+  ok: 0,
+  findings: 1,
+  error: 2,
+} as const;
+
 function resolveScanRoot(options: ScanCommandOptions): string {
   const cwd = options.cwd ?? process.cwd();
   const dir = options.dir ?? ".";
@@ -23,13 +30,15 @@ function resolveScanRoot(options: ScanCommandOptions): string {
 }
 
 function printJson(result: ScanResult): void {
-  const failed = result.issues.length > 0;
+  const hasErrors = result.errors.length > 0;
+  const hasFindings = result.issues.length > 0;
   const payload = {
-    ok: !failed,
+    ok: !hasErrors && !hasFindings,
     alpha: true,
     alphaMessage: SCAN_ALPHA_MESSAGE,
     rootDir: result.rootDir,
     issues: result.issues,
+    errors: result.errors,
   };
 
   console.log(JSON.stringify(payload, null, 2));
@@ -49,8 +58,22 @@ function emitScanOutput(result: ScanResult, json: boolean): void {
   renderReport(result);
 }
 
+function exitCodeForScanResult(result: ScanResult): number {
+  if (result.errors.length > 0) {
+    return SCAN_EXIT.error;
+  }
+
+  if (result.issues.length > 0) {
+    return SCAN_EXIT.findings;
+  }
+
+  return SCAN_EXIT.ok;
+}
+
 export async function runScanCommand(options: ScanCommandOptions): Promise<number> {
+  // Let unexpected failures propagate to program.ts (`setExitCodeFrom` → exit 1).
+  // Exit 2 is only for completed scans with per-file errors.
   const result = await scanHardcoded(resolveScanRoot(options));
   emitScanOutput(result, options.json === true);
-  return result.issues.length > 0 ? 1 : 0;
+  return exitCodeForScanResult(result);
 }

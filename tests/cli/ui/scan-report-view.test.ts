@@ -24,8 +24,12 @@ function issue(
   };
 }
 
-function scanResult(issues: HardcodedIssue[], rootDir = "/app"): ScanResult {
-  return { rootDir, issues };
+function scanResult(
+  issues: HardcodedIssue[],
+  rootDir = "/app",
+  errors: ScanResult["errors"] = [],
+): ScanResult {
+  return { rootDir, issues, errors };
 }
 
 describe("buildScanIssueRow", () => {
@@ -76,8 +80,10 @@ describe("buildScanReportView", () => {
 
     expect(view.failed).toBe(false);
     expect(view.issueCount).toBe(0);
+    expect(view.errorCount).toBe(0);
     expect(view.emptyMessage).toBe("No hardcoded user-visible strings found");
     expect(view.rows).toEqual([]);
+    expect(view.errorRows).toEqual([]);
     expect(view.alphaMessage).toBe(SCAN_ALPHA_MESSAGE);
   });
 
@@ -103,9 +109,31 @@ describe("buildScanReportView", () => {
 
     expect(view.failed).toBe(true);
     expect(view.issueCount).toBe(2);
+    expect(view.errorCount).toBe(0);
     expect(view.emptyMessage).toBeNull();
     expect(view.rows).toHaveLength(2);
     expect(view.rows[0]?.location).toBe("Button.tsx:3:8");
     expect(view.rows[1]?.kindLabel).toBe("placeholder");
+  });
+
+  it("includes file-level scan errors in the report view", () => {
+    const view = buildScanReportView(
+      scanResult([], "/app", [
+        {
+          filePath: "/app/generated/Huge.vue",
+          message: "Maximum call stack size exceeded",
+        },
+      ]),
+    );
+
+    expect(view.failed).toBe(true);
+    expect(view.errorCount).toBe(1);
+    expect(view.errorRows).toEqual([
+      {
+        key: "generated/Huge.vue:error:0",
+        location: "generated/Huge.vue",
+        message: "Maximum call stack size exceeded",
+      },
+    ]);
   });
 });
