@@ -1,10 +1,11 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
+import { UnsafeLocaleWritePathError } from "../../../src/core/messages/write.ts";
 import { translateMissingKeys } from "../../../src/core/translate/translate.ts";
 
 async function writeMessages(root: string, files: Record<string, unknown>): Promise<string> {
@@ -155,5 +156,40 @@ describe("translateMissingKeys", () => {
         valuePlaceholders: ["{nome}"],
       },
     ]);
+  });
+
+  it("refuses to overwrite files outside the messages directory through a locale symlink", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-symlink-"));
+    const messagesDir = path.join(cwd, "messages");
+    const victimPath = path.join(cwd, "package.json");
+
+    await mkdir(messagesDir);
+    await writeFile(
+      path.join(messagesDir, "en.json"),
+      `${JSON.stringify({ welcome: "Welcome", about: "About" }, null, 2)}\n`,
+      "utf8",
+    );
+    await writeFile(victimPath, `${JSON.stringify({ name: "victim" }, null, 2)}\n`, "utf8");
+    await symlink(victimPath, path.join(messagesDir, "pt.json"));
+
+    const victimBefore = await readFile(victimPath, "utf8");
+
+    await expect(
+      translateMissingKeys({
+        cwd,
+        messagesDir: "messages",
+        baseLocale: "en",
+        dryRun: false,
+        translateLocale: async (input) => ({
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        }),
+      }),
+    ).rejects.toBeInstanceOf(UnsafeLocaleWritePathError);
+
+    expect(await readFile(victimPath, "utf8")).toBe(victimBefore);
   });
 });

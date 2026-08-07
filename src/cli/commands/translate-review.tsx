@@ -1,4 +1,5 @@
 //* Libraries imports
+import path from "node:path";
 import { render } from "ink";
 
 //* Local imports
@@ -32,6 +33,7 @@ export type TranslateReviewCommandOptions = {
   since?: string;
   autoFix?: boolean;
   yes?: boolean;
+  noConfig?: boolean;
   json?: boolean;
   confirm?: ConfirmFn;
   reviewLocale?: ReviewLocaleFn;
@@ -79,7 +81,10 @@ function exitFromReview(result: ReviewResult): number {
   return result.ok ? 0 : 1;
 }
 
-async function writeReviewFixes(result: ReviewResult): Promise<ReviewResult> {
+async function writeReviewFixes(
+  result: ReviewResult,
+  options: { cwd: string },
+): Promise<ReviewResult> {
   const writtenFiles = await writeTranslatedReports(
     result.reports.map((report) => ({
       locale: report.locale,
@@ -90,6 +95,7 @@ async function writeReviewFixes(result: ReviewResult): Promise<ReviewResult> {
       unexpectedPaths: [],
       placeholderWarnings: [],
     })),
+    { allowedDir: path.resolve(options.cwd, result.messagesDir) },
   );
   return withReviewFixesApplied(result, writtenFiles);
 }
@@ -125,6 +131,7 @@ export async function runTranslateReviewCommand(
     since: options.since,
     autoFix,
     dryRun: true,
+    noConfig: options.noConfig === true,
     reviewLocale:
       options.reviewLocale ??
       createOpenAiReviewer({
@@ -160,7 +167,7 @@ export async function runTranslateReviewCommand(
     }
   }
 
-  result = await writeReviewFixes(result);
+  result = await writeReviewFixes(result, { cwd });
   emitOutput(result, json);
   return exitFromReview(result);
 }

@@ -475,6 +475,7 @@ export async function reviewTranslations(
     messagesDir: options.messagesDir,
     baseLocale: options.baseLocale,
     strictExtra: options.strictExtra,
+    noConfig: options.noConfig,
   });
   const messagesDir = path.resolve(cwd, config.messagesDir);
   const autoFix = options.autoFix === true;
@@ -532,6 +533,7 @@ export async function reviewTranslations(
           unexpectedPaths: [],
           placeholderWarnings: [],
         })),
+        { allowedDir: messagesDir },
       )
     : [];
 

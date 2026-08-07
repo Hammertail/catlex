@@ -47,6 +47,7 @@ export function createProgram(): Command {
     .option("--base <locale>", "Base locale file stem (e.g. en)")
     .option("--cwd <path>", "Project root directory", process.cwd())
     .option("--strict-extra", "Treat keys missing from the base locale as errors", false)
+    .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
@@ -55,6 +56,7 @@ export function createProgram(): Command {
           base: options.base,
           cwd: options.cwd,
           strictExtra: options.strictExtra === true,
+          noConfig: options.config === false,
           json: options.json === true,
         }),
       );
@@ -104,6 +106,7 @@ export function createProgram(): Command {
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
     .option("--dry-run", "Propose translations without writing files", false)
     .option("--yes", "Write files without interactive confirmation", false)
+    .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
@@ -115,6 +118,7 @@ export function createProgram(): Command {
           model: options.model,
           dryRun: options.dryRun === true,
           yes: options.yes === true,
+          noConfig: options.config === false,
           json: options.json === true,
         }),
       );
@@ -145,6 +149,7 @@ export function createProgram(): Command {
     )
     .option("--auto-fix", "Propose fixes for wrong/missing translations", false)
     .option("--yes", "Apply auto-fix writes without interactive confirmation", false)
+    .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
@@ -157,6 +162,7 @@ export function createProgram(): Command {
           since: options.since,
           autoFix: options.autoFix === true,
           yes: options.yes === true,
+          noConfig: options.config === false,
           json: options.json === true,
         }),
       );

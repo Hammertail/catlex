@@ -1,6 +1,14 @@
 //* Types imports
 import type { MessageTree } from "../types.ts";
 
+const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+function assertSafeKey(key: string): void {
+  if (FORBIDDEN_KEYS.has(key)) {
+    throw new Error(`Unsafe message key: ${key}`);
+  }
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -20,6 +28,10 @@ export function setPathInTree(tree: MessageTree, path: string, value: unknown): 
     throw new Error(`Invalid message path: ${path}`);
   }
 
+  for (const segment of segments) {
+    assertSafeKey(segment);
+  }
+
   let cursor: Record<string, unknown> = next;
 
   for (let index = 0; index < segments.length - 1; index += 1) {
@@ -30,7 +42,7 @@ export function setPathInTree(tree: MessageTree, path: string, value: unknown): 
 
     const existing = cursor[segment];
     if (!isPlainObject(existing)) {
-      cursor[segment] = {};
+      cursor[segment] = Object.create(null);
     }
 
     const child = cursor[segment];
