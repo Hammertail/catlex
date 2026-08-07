@@ -1,38 +1,17 @@
 //* Libraries imports
 import { access } from "node:fs/promises";
-import { render } from "ink";
 
 //* Local imports
-import { Confirm } from "../ui/Confirm.tsx";
+import { promptConfirm, type ConfirmFn } from "../ui/prompt-confirm.tsx";
 import { WORKFLOW_RELATIVE_PATH, resolveWorkflowPath } from "../../core/init-ci/paths.ts";
 import { writeGithubWorkflow } from "../../core/init-ci/write.ts";
 
-export type ConfirmFn = (message: string) => Promise<boolean>;
+export type { ConfirmFn };
 
 export type InitCiCommandOptions = {
   cwd?: string;
   confirm?: ConfirmFn;
 };
-
-async function promptConfirm(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-
-    const instance = render(
-      <Confirm
-        message={message}
-        onResolve={(accepted) => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          instance.unmount();
-          resolve(accepted);
-        }}
-      />,
-    );
-  });
-}
 
 async function fileExists(absolutePath: string): Promise<boolean> {
   try {
