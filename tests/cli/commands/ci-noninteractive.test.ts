@@ -31,7 +31,8 @@ describe("catlex ci non-interactive stdin", () => {
 
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not interactive");
-    expect(stderr).toContain("--yes");
+    expect(stderr).toContain("interactive terminal");
+    expect(stderr).not.toContain("--yes");
     expect(elapsedMs).toBeLessThan(2500);
   });
 });
