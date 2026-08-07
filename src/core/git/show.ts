@@ -24,15 +24,6 @@ function resolveRunner(options: GitCwdOptions): GitRunner {
   return options.runGit ?? defaultRunGit;
 }
 
-function isMissingPathError(stderr: string): boolean {
-  const normalized = stderr.toLowerCase();
-  return (
-    normalized.includes("does not exist") ||
-    normalized.includes("exists on disk, but not in") ||
-    normalized.includes("path not in")
-  );
-}
-
 /**
  * Ensures cwd is inside a git work tree.
  */
@@ -63,6 +54,20 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
       exitCode: result.exitCode,
     });
   }
+}
+
+/**
+ * Returns whether a path (blob or tree) exists at a git ref.
+ * Uses exit status only so it stays locale-independent.
+ */
+async function pathExistsAtRef(
+  options: GitCwdOptions & { ref: string; path: string },
+): Promise<boolean> {
+  const runGit = resolveRunner(options);
+  const result = await runGit(["cat-file", "-e", `${options.ref}:${options.path}`], {
+    cwd: options.cwd,
+  });
+  return result.exitCode === 0;
 }
 
 /**
@@ -126,16 +131,19 @@ export type ReadFileAtRefOptions = GitCwdOptions & {
  */
 export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<string | null> {
   const runGit = resolveRunner(options);
-  const result = await runGit(["show", `${options.ref}:${options.path}`], {
+  const object = `${options.ref}:${options.path}`;
+
+  const exists = await pathExistsAtRef(options);
+  if (!exists) {
+    return null;
+  }
+
+  const result = await runGit(["show", object], {
     cwd: options.cwd,
   });
 
   if (result.exitCode === 0) {
     return result.stdout;
-  }
-
-  if (isMissingPathError(result.stderr)) {
-    return null;
   }
 
   throw new GitError(result.stderr.trim() || `Failed to read ${options.path} at ${options.ref}`, {
@@ -157,15 +165,23 @@ export type ListFilesAtRefOptions = GitCwdOptions & {
  */
 export async function listFilesAtRef(options: ListFilesAtRefOptions): Promise<string[]> {
   const runGit = resolveRunner(options);
+
+  const exists = await pathExistsAtRef({
+    cwd: options.cwd,
+    ref: options.ref,
+    path: options.directory,
+    runGit: options.runGit,
+  });
+  if (!exists) {
+    return [];
+  }
+
   const result = await runGit(
     ["ls-tree", "-r", "--name-only", options.ref, "--", options.directory],
     { cwd: options.cwd },
   );
 
   if (result.exitCode !== 0) {
-    if (result.stderr.toLowerCase().includes("not a tree") || isMissingPathError(result.stderr)) {
-      return [];
-    }
     throw new GitError(
       result.stderr.trim() || `Failed to list files at ${options.ref}:${options.directory}`,
       { stderr: result.stderr, exitCode: result.exitCode },
