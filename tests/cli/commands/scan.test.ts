@@ -146,4 +146,15 @@ describe("runScanCommand", () => {
       "Save",
     ]);
   });
+
+  it("throws when the scan root does not exist so the CLI can exit with 1", async () => {
+    const missing = path.join(tmpdir(), `catlex-scan-missing-${Date.now()}`);
+
+    await expect(
+      runScanCommand({
+        cwd: missing,
+        json: true,
+      }),
+    ).rejects.toThrow(/ENOENT|no such file or directory/i);
+  });
 });

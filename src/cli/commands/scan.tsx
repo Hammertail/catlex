@@ -71,13 +71,9 @@ function exitCodeForScanResult(result: ScanResult): number {
 }
 
 export async function runScanCommand(options: ScanCommandOptions): Promise<number> {
-  try {
-    const result = await scanHardcoded(resolveScanRoot(options));
-    emitScanOutput(result, options.json === true);
-    return exitCodeForScanResult(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`Error: ${message}`);
-    return SCAN_EXIT.error;
-  }
+  // Let unexpected failures propagate to program.ts (`setExitCodeFrom` → exit 1).
+  // Exit 2 is only for completed scans with per-file errors.
+  const result = await scanHardcoded(resolveScanRoot(options));
+  emitScanOutput(result, options.json === true);
+  return exitCodeForScanResult(result);
 }
