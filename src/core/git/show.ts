@@ -122,11 +122,27 @@ export type ReadFileAtRefOptions = GitCwdOptions & {
 };
 
 /**
+ * Normalizes a path for `git show <ref>:<path>`.
+ *
+ * Git resolves bare paths after `:` from the repository root. Prefixing with `./`
+ * makes the path relative to `cwd`, which is required when Catlex runs from a
+ * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
+ */
+export function toGitTreePath(relativePath: string): string {
+  const normalized = relativePath
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/^\/+/, "");
+  return `./${normalized}`;
+}
+
+/**
  * Reads a file blob at a git ref. Returns null when the path is absent at that ref.
  */
 export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<string | null> {
   const runGit = resolveRunner(options);
-  const result = await runGit(["show", `${options.ref}:${options.path}`], {
+  const gitPath = toGitTreePath(options.path);
+  const result = await runGit(["show", `${options.ref}:${gitPath}`], {
     cwd: options.cwd,
   });
 
