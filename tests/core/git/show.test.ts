@@ -6,6 +6,7 @@ import {
   GitError,
   assertGitRepo,
   assertRefExists,
+  listFilesAtRef,
   readFileAtRef,
   resolveCurrentBranch,
   resolveRefSha,
@@ -158,9 +159,15 @@ describe("toGitTreePath", () => {
 });
 
 describe("readFileAtRef", () => {
-  it("returns file contents from git show", async () => {
+  it("returns file contents from git show after confirming the object exists", async () => {
+    const calls: string[][] = [];
     const runGit = createFakeRunner({
       onArgs: (args) => {
+        calls.push(args);
+        if (args[0] === "cat-file") {
+          expect(args).toEqual(["cat-file", "-e", "main:./messages/en.json"]);
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
         expect(args).toEqual(["show", "main:./messages/en.json"]);
         return {
           stdout: '{"welcome":"Welcome"}\n',
@@ -178,15 +185,47 @@ describe("readFileAtRef", () => {
     });
 
     expect(content).toBe('{"welcome":"Welcome"}\n');
+    expect(calls).toEqual([
+      ["cat-file", "-e", "main:./messages/en.json"],
+      ["show", "main:./messages/en.json"],
+    ]);
   });
 
   it("returns null when the file is missing at the ref", async () => {
+    const calls: string[][] = [];
     const runGit = createFakeRunner({
-      onArgs: () => ({
-        stdout: "",
-        stderr: "fatal: path 'messages/pt.json' does not exist in 'main'",
-        exitCode: 128,
-      }),
+      onArgs: (args) => {
+        calls.push(args);
+        return {
+          stdout: "",
+          stderr: "fatal: path 'messages/pt.json' does not exist in 'main'",
+          exitCode: 128,
+        };
+      },
+    });
+
+    const content = await readFileAtRef({
+      cwd: "/repo",
+      ref: "main",
+      path: "messages/pt.json",
+      runGit,
+    });
+
+    expect(content).toBeNull();
+    expect(calls[0]).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
+  });
+
+  it("returns null when git reports a missing path in a non-English locale", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        expect(args).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
+        return {
+          stdout: "",
+          // Portuguese localization of: path '…' does not exist in '…'
+          stderr: "fatal: o caminho 'messages/pt.json' não existe em 'main'",
+          exitCode: 128,
+        };
+      },
     });
 
     const content = await readFileAtRef({
@@ -199,9 +238,36 @@ describe("readFileAtRef", () => {
     expect(content).toBeNull();
   });
 
-  it("supports paths that contain spaces", async () => {
+  it("returns null when the path exists on disk but not in the ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
+        expect(args).toEqual(["cat-file", "-e", "HEAD:./messages/new.json"]);
+        return {
+          stdout: "",
+          stderr: "fatal: path 'messages/new.json' exists on disk, but not in 'HEAD'",
+          exitCode: 128,
+        };
+      },
+    });
+
+    const content = await readFileAtRef({
+      cwd: "/repo",
+      ref: "HEAD",
+      path: "messages/new.json",
+      runGit,
+    });
+
+    expect(content).toBeNull();
+  });
+
+  it("supports paths that contain spaces", async () => {
+    const calls: string[][] = [];
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        calls.push(args);
+        if (args[0] === "cat-file") {
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
         expect(args).toEqual(["show", "HEAD:./messages/my locale.json"]);
         return { stdout: "{}", stderr: "", exitCode: 0 };
       },
@@ -215,22 +281,110 @@ describe("readFileAtRef", () => {
     });
 
     expect(content).toBe("{}");
+    expect(calls).toEqual([
+      ["cat-file", "-e", "HEAD:./messages/my locale.json"],
+      ["show", "HEAD:./messages/my locale.json"],
+    ]);
   });
 
-  it("throws GitError for unexpected non-zero exits", async () => {
+  it("throws GitError when the object exists but git show fails unexpectedly", async () => {
     const runGit = createFakeRunner({
-      onArgs: () => ({
-        stdout: "",
-        stderr: "fatal: bad object",
-        exitCode: 128,
-      }),
+      onArgs: (args) => {
+        if (args[0] === "cat-file") {
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        return {
+          stdout: "",
+          stderr: "fatal: unable to read tree",
+          exitCode: 128,
+        };
+      },
     });
 
     await expect(
       readFileAtRef({
         cwd: "/repo",
-        ref: "bad",
+        ref: "main",
         path: "messages/en.json",
+        runGit,
+      }),
+    ).rejects.toThrow(GitError);
+  });
+});
+
+describe("listFilesAtRef", () => {
+  it("lists files under a directory after confirming the tree exists", async () => {
+    const calls: string[][] = [];
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        calls.push(args);
+        if (args[0] === "cat-file") {
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        return {
+          stdout: "messages/en.json\nmessages/pt.json\n",
+          stderr: "",
+          exitCode: 0,
+        };
+      },
+    });
+
+    const files = await listFilesAtRef({
+      cwd: "/repo",
+      ref: "main",
+      directory: "messages",
+      runGit,
+    });
+
+    expect(files).toEqual(["messages/en.json", "messages/pt.json"]);
+    expect(calls).toEqual([
+      ["cat-file", "-e", "main:./messages"],
+      ["ls-tree", "-r", "--name-only", "main", "--", "messages"],
+    ]);
+  });
+
+  it("returns an empty list when the directory is absent at the ref", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        expect(args).toEqual(["cat-file", "-e", "main:./messages"]);
+        return {
+          stdout: "",
+          // German localization must not affect missing-path detection
+          stderr: "fatal: Pfad 'messages' existiert nicht in 'main'",
+          exitCode: 128,
+        };
+      },
+    });
+
+    const files = await listFilesAtRef({
+      cwd: "/repo",
+      ref: "main",
+      directory: "messages",
+      runGit,
+    });
+
+    expect(files).toEqual([]);
+  });
+
+  it("throws GitError when the tree exists but ls-tree fails unexpectedly", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        if (args[0] === "cat-file") {
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        return {
+          stdout: "",
+          stderr: "fatal: unable to read tree",
+          exitCode: 128,
+        };
+      },
+    });
+
+    await expect(
+      listFilesAtRef({
+        cwd: "/repo",
+        ref: "main",
+        directory: "messages",
         runGit,
       }),
     ).rejects.toThrow(GitError);

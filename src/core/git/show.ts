@@ -24,15 +24,6 @@ function resolveRunner(options: GitCwdOptions): GitRunner {
   return options.runGit ?? defaultRunGit;
 }
 
-function isMissingPathError(stderr: string): boolean {
-  const normalized = stderr.toLowerCase();
-  return (
-    normalized.includes("does not exist") ||
-    normalized.includes("exists on disk, but not in") ||
-    normalized.includes("path not in")
-  );
-}
-
 /**
  * Ensures cwd is inside a git work tree.
  */
@@ -63,6 +54,37 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
       exitCode: result.exitCode,
     });
   }
+}
+
+/**
+ * Normalizes a path for `git show <ref>:<path>` / `git cat-file -e <ref>:<path>`.
+ *
+ * Git resolves bare paths after `:` from the repository root. Prefixing with `./`
+ * makes the path relative to `cwd`, which is required when Catlex runs from a
+ * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
+ */
+export function toGitTreePath(relativePath: string): string {
+  const normalized = relativePath
+    .replaceAll("\\", "/")
+    .replace(/^\.\/+/, "")
+    .replace(/^\/+/, "");
+  return `./${normalized}`;
+}
+
+/**
+ * Returns whether a path (blob or tree) exists at a git ref.
+ * Uses exit status only so it stays locale-independent.
+ * Paths are normalized with `toGitTreePath` so resolution is relative to cwd.
+ */
+async function pathExistsAtRef(
+  options: GitCwdOptions & { ref: string; path: string },
+): Promise<boolean> {
+  const runGit = resolveRunner(options);
+  const gitPath = toGitTreePath(options.path);
+  const result = await runGit(["cat-file", "-e", `${options.ref}:${gitPath}`], {
+    cwd: options.cwd,
+  });
+  return result.exitCode === 0;
 }
 
 /**
@@ -122,36 +144,24 @@ export type ReadFileAtRefOptions = GitCwdOptions & {
 };
 
 /**
- * Normalizes a path for `git show <ref>:<path>`.
- *
- * Git resolves bare paths after `:` from the repository root. Prefixing with `./`
- * makes the path relative to `cwd`, which is required when Catlex runs from a
- * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
- */
-export function toGitTreePath(relativePath: string): string {
-  const normalized = relativePath
-    .replaceAll("\\", "/")
-    .replace(/^\.\/+/, "")
-    .replace(/^\/+/, "");
-  return `./${normalized}`;
-}
-
-/**
  * Reads a file blob at a git ref. Returns null when the path is absent at that ref.
  */
 export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<string | null> {
   const runGit = resolveRunner(options);
   const gitPath = toGitTreePath(options.path);
-  const result = await runGit(["show", `${options.ref}:${gitPath}`], {
+  const object = `${options.ref}:${gitPath}`;
+
+  const exists = await pathExistsAtRef(options);
+  if (!exists) {
+    return null;
+  }
+
+  const result = await runGit(["show", object], {
     cwd: options.cwd,
   });
 
   if (result.exitCode === 0) {
     return result.stdout;
-  }
-
-  if (isMissingPathError(result.stderr)) {
-    return null;
   }
 
   throw new GitError(result.stderr.trim() || `Failed to read ${options.path} at ${options.ref}`, {
@@ -163,7 +173,7 @@ export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<stri
 export type ListFilesAtRefOptions = GitCwdOptions & {
   ref: string;
   /**
-   * Directory path relative to the repository root.
+   * Directory path relative to cwd (resolved from the repository root when bare).
    */
   directory: string;
 };
@@ -173,15 +183,23 @@ export type ListFilesAtRefOptions = GitCwdOptions & {
  */
 export async function listFilesAtRef(options: ListFilesAtRefOptions): Promise<string[]> {
   const runGit = resolveRunner(options);
+
+  const exists = await pathExistsAtRef({
+    cwd: options.cwd,
+    ref: options.ref,
+    path: options.directory,
+    runGit: options.runGit,
+  });
+  if (!exists) {
+    return [];
+  }
+
   const result = await runGit(
     ["ls-tree", "-r", "--name-only", options.ref, "--", options.directory],
     { cwd: options.cwd },
   );
 
   if (result.exitCode !== 0) {
-    if (result.stderr.toLowerCase().includes("not a tree") || isMissingPathError(result.stderr)) {
-      return [];
-    }
     throw new GitError(
       result.stderr.trim() || `Failed to list files at ${options.ref}:${options.directory}`,
       { stderr: result.stderr, exitCode: result.exitCode },
