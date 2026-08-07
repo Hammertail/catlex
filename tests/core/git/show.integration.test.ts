@@ -10,6 +10,7 @@ import {
   assertRefExists,
   readFileAtRef,
 } from "../../../src/core/git/show.ts";
+import { runGit } from "../../../src/core/git/run.ts";
 import {
   checkoutBranch,
   commitAll,
@@ -156,5 +157,40 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
     });
 
     expect(JSON.parse(atHead ?? "")).toEqual({ welcome: "Welcome" });
+  });
+
+  it("reads a file when cwd is a subdirectory of the repository", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(
+      cwd,
+      "packages/app/messages/en.json",
+      `${JSON.stringify({ welcome: "Welcome" }, null, 2)}\n`,
+    );
+    await commitAll(cwd, "initial monorepo messages");
+    await runGit(["branch", "-M", "main"], { cwd });
+
+    const packageCwd = path.join(cwd, "packages", "app");
+    const atMain = await readFileAtRef({
+      cwd: packageCwd,
+      ref: "main",
+      path: "messages/en.json",
+    });
+
+    expect(JSON.parse(atMain ?? "")).toEqual({ welcome: "Welcome" });
+  });
+
+  it("returns null for a missing path when cwd is a subdirectory", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "packages/app/messages/en.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    const packageCwd = path.join(cwd, "packages", "app");
+    const missing = await readFileAtRef({
+      cwd: packageCwd,
+      ref: "HEAD",
+      path: "messages/missing.json",
+    });
+
+    expect(missing).toBeNull();
   });
 });

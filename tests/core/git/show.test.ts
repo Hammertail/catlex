@@ -9,6 +9,7 @@ import {
   readFileAtRef,
   resolveCurrentBranch,
   resolveRefSha,
+  toGitTreePath,
   type GitRunner,
 } from "../../../src/core/git/show.ts";
 
@@ -145,11 +146,22 @@ describe("resolveRefSha", () => {
   });
 });
 
+describe("toGitTreePath", () => {
+  it("prefixes relative paths with ./ so git resolves them from cwd", () => {
+    expect(toGitTreePath("messages/en.json")).toBe("./messages/en.json");
+  });
+
+  it("normalizes Windows separators and strips an existing ./ prefix", () => {
+    expect(toGitTreePath("messages\\en.json")).toBe("./messages/en.json");
+    expect(toGitTreePath("./messages/en.json")).toBe("./messages/en.json");
+  });
+});
+
 describe("readFileAtRef", () => {
   it("returns file contents from git show", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["show", "main:messages/en.json"]);
+        expect(args).toEqual(["show", "main:./messages/en.json"]);
         return {
           stdout: '{"welcome":"Welcome"}\n',
           stderr: "",
@@ -190,7 +202,7 @@ describe("readFileAtRef", () => {
   it("supports paths that contain spaces", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["show", "HEAD:messages/my locale.json"]);
+        expect(args).toEqual(["show", "HEAD:./messages/my locale.json"]);
         return { stdout: "{}", stderr: "", exitCode: 0 };
       },
     });
