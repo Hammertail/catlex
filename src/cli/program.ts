@@ -160,6 +160,7 @@ export function createProgram(): Command {
     .option("--yes", "Apply auto-fix writes without interactive confirmation", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
+    .option("--verbose", "Print per-chunk review progress details", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateReviewCommand({
@@ -174,6 +175,7 @@ export function createProgram(): Command {
           yes: options.yes === true,
           noConfig: options.config === false,
           json: options.json === true,
+          verbose: options.verbose === true,
         }),
       );
     });

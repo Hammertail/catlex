@@ -69,6 +69,28 @@ export type ReviewResult = {
   writtenFiles: string[];
 };
 
+export type ReviewProgressStartEvent = {
+  type: "start";
+  baseLocale: string;
+  messagesDir: string;
+  locales: string[];
+  totalKeys: number;
+  since: string | null;
+};
+
+export type ReviewProgressUpdateEvent = {
+  type: "progress";
+  completedKeys: number;
+  totalKeys: number;
+  locale: string;
+  phase: "review" | "translate-missing";
+  chunkPaths?: string[];
+};
+
+export type ReviewProgressEvent = ReviewProgressStartEvent | ReviewProgressUpdateEvent;
+
+export type ReviewProgressFn = (event: ReviewProgressEvent) => void;
+
 export type ReviewTranslationsOptions = ConfigFlags & {
   cwd?: string;
   locales?: string[];
@@ -78,9 +100,16 @@ export type ReviewTranslationsOptions = ConfigFlags & {
   chunkSize?: number;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
+  onProgress?: ReviewProgressFn;
   runGit?: GitRunner;
   loadWorkingTree?: () => Promise<LocaleMessages[]>;
   loadAtRef?: (ref: string) => Promise<LocaleMessages[]>;
+};
+
+type ReviewProgressState = {
+  totalKeys: number;
+  completedKeys: number;
+  onProgress?: ReviewProgressFn;
 };
 
 function chunkItems<T>(items: T[], size: number): T[][] {
@@ -155,6 +184,25 @@ function maybeAutoFixFromReview(
   };
 }
 
+function emitReviewProgress(
+  state: ReviewProgressState,
+  options: {
+    locale: string;
+    phase: "review" | "translate-missing";
+    chunkPaths: string[];
+  },
+): void {
+  state.completedKeys += options.chunkPaths.length;
+  state.onProgress?.({
+    type: "progress",
+    completedKeys: state.completedKeys,
+    totalKeys: state.totalKeys,
+    locale: options.locale,
+    phase: options.phase,
+    chunkPaths: options.chunkPaths,
+  });
+}
+
 async function reviewPresentTargets(options: {
   baseLocale: string;
   targetLocale: string;
@@ -162,6 +210,7 @@ async function reviewPresentTargets(options: {
   chunkSize: number;
   autoFix: boolean;
   reviewLocale: ReviewLocaleFn;
+  progress: ReviewProgressState;
 }): Promise<{
   items: ReviewItemResult[];
   fixes: TranslatedItem[];
@@ -218,6 +267,12 @@ async function reviewPresentTargets(options: {
         fixes.push(fix);
       }
     }
+
+    emitReviewProgress(options.progress, {
+      locale: options.targetLocale,
+      phase: "review",
+      chunkPaths: chunk.map((target) => target.path),
+    });
   }
 
   return {
@@ -238,6 +293,7 @@ async function translateMissingTargets(options: {
   missing: ReviewTarget[];
   chunkSize: number;
   translateLocale: TranslateLocaleFn;
+  progress: ReviewProgressState;
 }): Promise<{
   items: ReviewItemResult[];
   fixes: TranslatedItem[];
@@ -309,6 +365,12 @@ async function translateMissingTargets(options: {
         item.suggestedValue = accepted.value;
       }
     }
+
+    emitReviewProgress(options.progress, {
+      locale: options.targetLocale,
+      phase: "translate-missing",
+      chunkPaths: chunk.map((target) => target.path),
+    });
   }
 
   return {
@@ -375,6 +437,7 @@ async function buildLocaleReviewReport(options: {
   chunkSize: number;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
+  progress: ReviewProgressState;
 }): Promise<LocaleReviewReport> {
   const missing = options.targets.filter((target) => target.localeValue === undefined);
   const present = options.targets.filter((target) => target.localeValue !== undefined);
@@ -394,6 +457,7 @@ async function buildLocaleReviewReport(options: {
       chunkSize: options.chunkSize,
       autoFix: options.autoFix,
       reviewLocale: options.reviewLocale,
+      progress: options.progress,
     });
     items.push(...reviewed.items);
     fixes.push(...reviewed.fixes);
@@ -426,6 +490,11 @@ async function buildLocaleReviewReport(options: {
         changeSources: target.changeSources,
       })),
     );
+    emitReviewProgress(options.progress, {
+      locale: options.localeId,
+      phase: "review",
+      chunkPaths: missing.map((target) => target.path),
+    });
   } else {
     if (options.translateLocale === undefined) {
       throw new Error(
@@ -444,6 +513,7 @@ async function buildLocaleReviewReport(options: {
       missing,
       chunkSize: options.chunkSize,
       translateLocale: options.translateLocale,
+      progress: options.progress,
     });
     items.push(...translated.items);
     fixes.push(...translated.fixes);
@@ -501,9 +571,25 @@ export async function reviewTranslations(
   });
 
   const targetsByLocale = groupTargetsByLocale(scope.targets);
+  const locales = [...targetsByLocale.keys()].sort();
+  const progress: ReviewProgressState = {
+    totalKeys: scope.targets.length,
+    completedKeys: 0,
+    onProgress: options.onProgress,
+  };
+
+  options.onProgress?.({
+    type: "start",
+    baseLocale: config.baseLocale,
+    messagesDir: config.messagesDir,
+    locales,
+    totalKeys: scope.targets.length,
+    since: scope.since,
+  });
+
   const reports: LocaleReviewReport[] = [];
 
-  for (const localeId of [...targetsByLocale.keys()].sort()) {
+  for (const localeId of locales) {
     const locale = localeById.get(localeId);
     reports.push(
       await buildLocaleReviewReport({
@@ -517,6 +603,7 @@ export async function reviewTranslations(
         chunkSize,
         reviewLocale: options.reviewLocale,
         translateLocale: options.translateLocale,
+        progress,
       }),
     );
   }

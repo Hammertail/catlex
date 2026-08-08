@@ -3,7 +3,11 @@ import { REVIEW_ALPHA_MESSAGE } from "../../core/translate/alpha.ts";
 import { countReviewFixes } from "../../core/translate/review.ts";
 
 //* Types imports
-import type { ReviewResult } from "../../core/translate/review.ts";
+import type {
+  LocaleReviewReport,
+  ReviewItemResult,
+  ReviewResult,
+} from "../../core/translate/review.ts";
 import type { ReviewSinceContext } from "../../core/translate/review-scope.ts";
 
 export { REVIEW_ALPHA_MESSAGE };
@@ -39,12 +43,22 @@ export type ReviewReportView = {
   ok: boolean;
   writtenCount: number;
   fixCount: number;
+  keysReviewed: number;
+  issuesFound: number;
+  fixesApplied: number;
+  filesChanged: number;
+  targetLocales: string[];
+  model: string | null;
   emptyMessage: string | null;
   scope: ReviewScopeView | null;
   removedLines: string[];
   skippedLines: string[];
   sections: ReviewLocaleSectionView[];
   summaryLabel: string;
+};
+
+export type BuildReviewReportViewOptions = {
+  model?: string;
 };
 
 function shortSha(sha: string): string {
@@ -75,58 +89,89 @@ function buildReviewScopeView(context: ReviewSinceContext): ReviewScopeView {
   };
 }
 
+function formatItemLine(item: ReviewItemResult): string {
+  if (item.verdict === "ok") {
+    return `ok ${item.path}`;
+  }
+  if (item.verdict === "missing") {
+    return `missing ${item.path}: "${item.baseValue}"`;
+  }
+  const reason = item.reason ? ` (${item.reason})` : "";
+  return `wrong ${item.path}${reason}`;
+}
+
+function buildLocaleSection(report: LocaleReviewReport): ReviewLocaleSectionView {
+  return {
+    locale: report.locale,
+    okCount: report.items.filter((item) => item.verdict === "ok").length,
+    wrongCount: report.items.filter((item) => item.verdict === "wrong").length,
+    missingCount: report.items.filter((item) => item.verdict === "missing").length,
+    fixCount: report.fixes.length,
+    incompleteCount: report.incompletePaths.length,
+    warningCount: report.placeholderWarnings.length,
+    itemLines: report.items.map(formatItemLine),
+    fixLines: report.fixes.map((fix) => `${fix.path}: "${fix.baseValue}" -> "${fix.value}"`),
+    incompleteLines: [...report.incompletePaths],
+    warningLines: report.placeholderWarnings.map(
+      (warning) =>
+        `${warning.path}: placeholders ${warning.basePlaceholders.join(", ")} -> ${warning.valuePlaceholders.join(", ")}`,
+    ),
+  };
+}
+
+function resolveEmptyMessage(result: ReviewResult): string | null {
+  if (result.cancelled) {
+    return "Cancelled. No files were written.";
+  }
+  if (result.reports.length === 0) {
+    return "No translation keys in review scope.";
+  }
+  return null;
+}
+
+function resolveSummaryLabel(result: ReviewResult): string {
+  if (result.cancelled) {
+    return "Cancelled";
+  }
+  if (result.autoFix && result.dryRun) {
+    return result.ok ? "Passed" : "Auto-fix proposed";
+  }
+  if (result.writtenFiles.length > 0) {
+    return result.ok ? "Fixed" : "Partially fixed";
+  }
+  return result.ok ? "Passed" : "Failed";
+}
+
+function countKeysReviewed(result: ReviewResult): number {
+  return result.reports.reduce((total, report) => total + report.items.length, 0);
+}
+
+function countIssuesFound(result: ReviewResult): number {
+  return result.reports.reduce(
+    (total, report) =>
+      total +
+      report.items.filter((item) => item.verdict === "wrong" || item.verdict === "missing").length,
+    0,
+  );
+}
+
+function countFixesApplied(result: ReviewResult, fixCount: number): number {
+  const filesChanged = result.writtenFiles.length;
+  if (filesChanged > 0 || (result.autoFix && result.dryRun && !result.cancelled)) {
+    return fixCount;
+  }
+  return 0;
+}
+
 /**
  * Builds a terminal-friendly view model for review results.
  */
-export function buildReviewReportView(result: ReviewResult): ReviewReportView {
+export function buildReviewReportView(
+  result: ReviewResult,
+  options: BuildReviewReportViewOptions = {},
+): ReviewReportView {
   const fixCount = countReviewFixes(result);
-  const sections = result.reports.map((report) => {
-    const okCount = report.items.filter((item) => item.verdict === "ok").length;
-    const wrongCount = report.items.filter((item) => item.verdict === "wrong").length;
-    const missingCount = report.items.filter((item) => item.verdict === "missing").length;
-
-    return {
-      locale: report.locale,
-      okCount,
-      wrongCount,
-      missingCount,
-      fixCount: report.fixes.length,
-      incompleteCount: report.incompletePaths.length,
-      warningCount: report.placeholderWarnings.length,
-      itemLines: report.items.map((item) => {
-        if (item.verdict === "ok") {
-          return `ok ${item.path}`;
-        }
-        if (item.verdict === "missing") {
-          return `missing ${item.path}: "${item.baseValue}"`;
-        }
-        const reason = item.reason ? ` (${item.reason})` : "";
-        return `wrong ${item.path}${reason}`;
-      }),
-      fixLines: report.fixes.map((fix) => `${fix.path}: "${fix.baseValue}" -> "${fix.value}"`),
-      incompleteLines: [...report.incompletePaths],
-      warningLines: report.placeholderWarnings.map(
-        (warning) =>
-          `${warning.path}: placeholders ${warning.basePlaceholders.join(", ")} -> ${warning.valuePlaceholders.join(", ")}`,
-      ),
-    };
-  });
-
-  let emptyMessage: string | null = null;
-  if (result.cancelled) {
-    emptyMessage = "Cancelled. No files were written.";
-  } else if (result.reports.length === 0) {
-    emptyMessage = "No translation keys in review scope.";
-  }
-
-  let summaryLabel = result.ok ? "Passed" : "Failed";
-  if (result.cancelled) {
-    summaryLabel = "Cancelled";
-  } else if (result.autoFix && result.dryRun) {
-    summaryLabel = result.ok ? "Passed" : "Auto-fix proposed";
-  } else if (result.writtenFiles.length > 0) {
-    summaryLabel = result.ok ? "Fixed" : "Partially fixed";
-  }
+  const filesChanged = result.writtenFiles.length;
 
   return {
     baseLocale: result.baseLocale,
@@ -137,13 +182,19 @@ export function buildReviewReportView(result: ReviewResult): ReviewReportView {
     dryRun: result.dryRun,
     cancelled: result.cancelled,
     ok: result.ok,
-    writtenCount: result.writtenFiles.length,
+    writtenCount: filesChanged,
     fixCount,
-    emptyMessage,
+    keysReviewed: countKeysReviewed(result),
+    issuesFound: countIssuesFound(result),
+    fixesApplied: countFixesApplied(result, fixCount),
+    filesChanged,
+    targetLocales: result.reports.map((report) => report.locale).sort(),
+    model: options.model ?? null,
+    emptyMessage: resolveEmptyMessage(result),
     scope: result.sinceContext === null ? null : buildReviewScopeView(result.sinceContext),
     removedLines: result.removed.map((item) => `${item.locale}:${item.path} (${item.source})`),
     skippedLines: result.skipped.map((item) => `${item.locale}:${item.path} (${item.reason})`),
-    sections,
-    summaryLabel,
+    sections: result.reports.map(buildLocaleSection),
+    summaryLabel: resolveSummaryLabel(result),
   };
 }

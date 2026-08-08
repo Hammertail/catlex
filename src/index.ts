@@ -202,6 +202,10 @@ export type {
   LocaleReviewReport,
   ReviewItemResult,
   ReviewItemVerdict,
+  ReviewProgressEvent,
+  ReviewProgressFn,
+  ReviewProgressStartEvent,
+  ReviewProgressUpdateEvent,
   ReviewResult,
   ReviewTranslationsOptions,
 } from "./core/translate/review.ts";

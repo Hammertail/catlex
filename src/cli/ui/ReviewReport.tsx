@@ -15,6 +15,7 @@ import type {
 
 type ReviewReportProps = {
   result: ReviewResult;
+  model?: string;
 };
 
 function ScopeSection(props: { scope: ReviewScopeView }) {
@@ -114,8 +115,36 @@ function Verdict(props: { view: ReviewReportView }) {
   );
 }
 
+function CompletionSummary(props: { view: ReviewReportView }) {
+  const targetLabel =
+    props.view.targetLocales.length === 0
+      ? "(none)"
+      : props.view.targetLocales.length === 1
+        ? (props.view.targetLocales[0] ?? "(none)")
+        : props.view.targetLocales.join(", ");
+
+  return (
+    <Box flexDirection="column" paddingTop={1}>
+      <Text bold>Review complete</Text>
+      <Text color={theme.muted}>Keys reviewed: {props.view.keysReviewed}</Text>
+      <Text color={theme.muted}>Issues found: {props.view.issuesFound}</Text>
+      <Text color={theme.muted}>Fixes applied: {props.view.fixesApplied}</Text>
+      <Text color={theme.muted}>Files changed: {props.view.filesChanged}</Text>
+      <Text color={theme.muted}>Source locale: {props.view.baseLocale}</Text>
+      <Text color={theme.muted}>
+        {props.view.targetLocales.length <= 1
+          ? `Target locale: ${targetLabel}`
+          : `Target locales: ${targetLabel}`}
+      </Text>
+      {props.view.model !== null ? (
+        <Text color={theme.muted}>Model: {props.view.model}</Text>
+      ) : null}
+    </Box>
+  );
+}
+
 export function ReviewReport(props: ReviewReportProps) {
-  const view = buildReviewReportView(props.result);
+  const view = buildReviewReportView(props.result, { model: props.model });
 
   return (
     <Box flexDirection="column" paddingY={1}>
@@ -126,6 +155,7 @@ export function ReviewReport(props: ReviewReportProps) {
         {view.since !== null ? ` · since: ${view.since}` : ""}
         {view.autoFix ? " · auto-fix" : ""}
         {view.dryRun ? " · dry-run" : ""}
+        {view.model !== null ? ` · model: ${view.model}` : ""}
       </Text>
       <Box paddingTop={1} flexDirection="column">
         {view.scope !== null ? <ScopeSection scope={view.scope} /> : null}
@@ -140,6 +170,7 @@ export function ReviewReport(props: ReviewReportProps) {
       <Box paddingTop={1}>
         <Verdict view={view} />
       </Box>
+      <CompletionSummary view={view} />
     </Box>
   );
 }
