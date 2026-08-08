@@ -10,6 +10,7 @@ import { reviewTranslations } from "../../../src/core/translate/review.ts";
 
 //* Types imports
 import type { ReviewLocaleFn } from "../../../src/core/translate/review-openai.ts";
+import type { ReviewProgressEvent } from "../../../src/core/translate/review.ts";
 import type { TranslateLocaleFn } from "../../../src/core/translate/translate.ts";
 import type { LocaleMessages } from "../../../src/core/types.ts";
 
@@ -238,6 +239,216 @@ describe("reviewTranslations", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reports[0]?.incompletePaths).toEqual(["title"]);
+  });
+
+  it("emits start then monotonic progress events ending at totalKeys", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-progress-"));
+    await writeMessages(cwd, {
+      en: { a: "A", b: "B", c: "C" },
+      pt: { a: "A", b: "B", c: "C" },
+    });
+
+    const events: ReviewProgressEvent[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      chunkSize: 2,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      reviewLocale: async (input) => ({
+        locale: input.targetLocale,
+        reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+      }),
+    });
+
+    expect(events[0]).toEqual({
+      type: "start",
+      baseLocale: "en",
+      messagesDir: "messages",
+      locales: ["pt"],
+      totalKeys: 3,
+      since: null,
+    });
+
+    const progress = events.slice(1);
+    expect(progress.every((event) => event.type === "progress")).toBe(true);
+    expect(progress.map((event) => (event.type === "progress" ? event.completedKeys : -1))).toEqual(
+      [2, 3],
+    );
+    expect(progress.at(-1)).toEqual(
+      expect.objectContaining({
+        type: "progress",
+        completedKeys: 3,
+        totalKeys: 3,
+        locale: "pt",
+        phase: "review",
+      }),
+    );
+  });
+
+  it("counts missing keys toward progress without auto-fix using the review phase", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-progress-missing-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome", about: "About" },
+      pt: { welcome: "Olá" },
+    });
+
+    const events: ReviewProgressEvent[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      reviewLocale: async (input) => ({
+        locale: input.targetLocale,
+        reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+      }),
+    });
+
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        type: "start",
+        totalKeys: 2,
+        locales: ["pt"],
+      }),
+    );
+
+    const progress = events.filter((event) => event.type === "progress");
+    expect(progress.map((event) => event.completedKeys)).toEqual([1, 2]);
+    expect(progress.at(-1)).toEqual(
+      expect.objectContaining({
+        type: "progress",
+        completedKeys: 2,
+        totalKeys: 2,
+        locale: "pt",
+        phase: "review",
+        chunkPaths: ["about"],
+      }),
+    );
+  });
+
+  it("emits translate-missing progress when auto-fixing missing keys", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-progress-translate-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome", about: "About" },
+      pt: { welcome: "Olá" },
+    });
+
+    const events: ReviewProgressEvent[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      autoFix: true,
+      dryRun: true,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      reviewLocale: async (input) => ({
+        locale: input.targetLocale,
+        reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+      }),
+      translateLocale: async (input) => ({
+        locale: input.targetLocale,
+        translations: input.missing.map((item) => ({
+          path: item.path,
+          value: `PT:${item.baseValue}`,
+        })),
+      }),
+    });
+
+    const progress = events.filter((event) => event.type === "progress");
+    expect(progress.at(-1)?.completedKeys).toBe(2);
+    expect(progress.at(-1)?.totalKeys).toBe(2);
+    expect(progress.some((event) => event.phase === "translate-missing")).toBe(true);
+    expect(progress.find((event) => event.phase === "translate-missing")).toEqual(
+      expect.objectContaining({
+        type: "progress",
+        locale: "pt",
+        phase: "translate-missing",
+        chunkPaths: ["about"],
+      }),
+    );
+  });
+
+  it("emits sorted multi-locale progress with chunkPaths", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-progress-multi-"));
+    await writeMessages(cwd, {
+      en: { a: "A", b: "B" },
+      pt: { a: "A", b: "B" },
+      es: { a: "A", b: "B" },
+    });
+
+    const events: ReviewProgressEvent[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      chunkSize: 1,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      reviewLocale: async (input) => ({
+        locale: input.targetLocale,
+        reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+      }),
+    });
+
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        type: "start",
+        locales: ["es", "pt"],
+        totalKeys: 4,
+      }),
+    );
+
+    const progress = events.filter((event) => event.type === "progress");
+    expect(progress.map((event) => event.completedKeys)).toEqual([1, 2, 3, 4]);
+    expect(progress.some((event) => (event.chunkPaths?.length ?? 0) > 0)).toBe(true);
+    expect(progress.map((event) => event.locale)).toEqual(["es", "es", "pt", "pt"]);
+  });
+
+  it("emits start with zero keys when --since finds an empty scope", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-progress-empty-"));
+    const locales = [
+      localeMessages("en", { welcome: "Welcome" }, path.join(cwd, "messages/en.json")),
+      localeMessages("pt", { welcome: "Olá" }, path.join(cwd, "messages/pt.json")),
+    ];
+
+    const events: ReviewProgressEvent[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      since: "main",
+      dryRun: true,
+      loadWorkingTree: async () => locales,
+      loadAtRef: async () => locales,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      reviewLocale: async () => {
+        throw new Error("reviewer should not be called for empty scope");
+      },
+    });
+
+    expect(events).toEqual([
+      {
+        type: "start",
+        baseLocale: "en",
+        messagesDir: "messages",
+        locales: [],
+        totalKeys: 0,
+        since: "main",
+      },
+    ]);
   });
 
   it("chunks review requests by chunkSize", async () => {

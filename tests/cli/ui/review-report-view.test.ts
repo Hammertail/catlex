@@ -197,6 +197,177 @@ describe("buildReviewReportView", () => {
     );
   });
 
+  it("aggregates completion summary counts and accepts a model override", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        ok: false,
+        autoFix: true,
+        dryRun: true,
+        reports: [
+          localeReport({
+            items: [
+              {
+                locale: "pt",
+                path: "welcome",
+                verdict: "ok",
+                baseValue: "Welcome",
+                localeValue: "Olá",
+                changeSources: [],
+              },
+              {
+                locale: "pt",
+                path: "title",
+                verdict: "wrong",
+                baseValue: "Title",
+                localeValue: "Title",
+                changeSources: [],
+              },
+              {
+                locale: "pt",
+                path: "about",
+                verdict: "missing",
+                baseValue: "About",
+                changeSources: [],
+              },
+            ],
+            fixes: [
+              { path: "title", value: "Título", baseValue: "Title" },
+              { path: "about", value: "Sobre", baseValue: "About" },
+            ],
+          }),
+        ],
+      }),
+      { model: "gpt-test" },
+    );
+
+    expect(view.keysReviewed).toBe(3);
+    expect(view.issuesFound).toBe(2);
+    expect(view.fixesApplied).toBe(2);
+    expect(view.filesChanged).toBe(0);
+    expect(view.targetLocales).toEqual(["pt"]);
+    expect(view.model).toBe("gpt-test");
+  });
+
+  it("reports fixesApplied as zero without auto-fix even when issues exist", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        ok: false,
+        autoFix: false,
+        dryRun: true,
+        reports: [
+          localeReport({
+            items: [
+              {
+                locale: "pt",
+                path: "welcome",
+                verdict: "wrong",
+                baseValue: "Welcome",
+                localeValue: "Welcome",
+                changeSources: [],
+              },
+              {
+                locale: "pt",
+                path: "about",
+                verdict: "missing",
+                baseValue: "About",
+                changeSources: [],
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+
+    expect(view.keysReviewed).toBe(2);
+    expect(view.issuesFound).toBe(2);
+    expect(view.fixCount).toBe(0);
+    expect(view.fixesApplied).toBe(0);
+    expect(view.filesChanged).toBe(0);
+  });
+
+  it("counts written fixes as applied and sorts target locales", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        ok: true,
+        autoFix: true,
+        dryRun: false,
+        writtenFiles: ["/messages/es.json", "/messages/pt.json"],
+        reports: [
+          localeReport({
+            locale: "pt",
+            filePath: "/messages/pt.json",
+            items: [
+              {
+                locale: "pt",
+                path: "welcome",
+                verdict: "wrong",
+                baseValue: "Welcome",
+                localeValue: "Welcome",
+                changeSources: [],
+              },
+            ],
+            fixes: [{ path: "welcome", value: "Olá", baseValue: "Welcome" }],
+          }),
+          localeReport({
+            locale: "es",
+            filePath: "/messages/es.json",
+            items: [
+              {
+                locale: "es",
+                path: "welcome",
+                verdict: "wrong",
+                baseValue: "Welcome",
+                localeValue: "Welcome",
+                changeSources: [],
+              },
+            ],
+            fixes: [{ path: "welcome", value: "Hola", baseValue: "Welcome" }],
+          }),
+        ],
+      }),
+    );
+
+    expect(view.keysReviewed).toBe(2);
+    expect(view.issuesFound).toBe(2);
+    expect(view.fixesApplied).toBe(2);
+    expect(view.filesChanged).toBe(2);
+    expect(view.targetLocales).toEqual(["es", "pt"]);
+  });
+
+  it("keeps reviewed counts on cancel but reports zero applied fixes and files", () => {
+    const view = buildReviewReportView(
+      emptyResult({
+        ok: false,
+        autoFix: true,
+        dryRun: false,
+        cancelled: true,
+        writtenFiles: [],
+        reports: [
+          localeReport({
+            items: [
+              {
+                locale: "pt",
+                path: "welcome",
+                verdict: "wrong",
+                baseValue: "Welcome",
+                localeValue: "Welcome",
+                changeSources: [],
+              },
+            ],
+            fixes: [{ path: "welcome", value: "Olá", baseValue: "Welcome" }],
+          }),
+        ],
+      }),
+    );
+
+    expect(view.keysReviewed).toBe(1);
+    expect(view.issuesFound).toBe(1);
+    expect(view.fixCount).toBe(1);
+    expect(view.fixesApplied).toBe(0);
+    expect(view.filesChanged).toBe(0);
+    expect(view.cancelled).toBe(true);
+  });
+
   it("omits the Scope block when since is not set", () => {
     const view = buildReviewReportView(emptyResult());
 
