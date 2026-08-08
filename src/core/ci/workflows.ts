@@ -29,7 +29,10 @@ function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
 }
 
 function openaiEnvBlock(options?: { since?: boolean }): string {
-  const lines = [`          OPENAI_API_KEY: ${GITHUB_EXPR("secrets.OPENAI_API_KEY")}`];
+  const lines = [
+    `          OPENAI_API_KEY: ${GITHUB_EXPR("secrets.OPENAI_API_KEY")}`,
+    `          OPENAI_BASE_URL: ${GITHUB_EXPR("vars.OPENAI_BASE_URL")}`,
+  ];
   if (options?.since) {
     lines.push(`          CATLEX_SINCE: ${SINCE_EXPR}`);
   }

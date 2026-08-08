@@ -38,11 +38,66 @@ export function assertOpenAiApiKey(
   return apiKey;
 }
 
+function trimNonEmpty(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+export type ResolveOpenAiBaseUrlOptions = {
+  /** CLI `--base-url` (highest precedence). */
+  baseUrl?: string;
+  /** `openai.baseUrl` from catlex.config (when config is loaded). */
+  configBaseUrl?: string;
+  env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
+};
+
+/**
+ * Resolves an OpenAI-compatible API base URL.
+ * Precedence: CLI > config file > OPENAI_BASE_URL env > unset (SDK default).
+ */
+export function resolveOpenAiBaseUrl(
+  options: ResolveOpenAiBaseUrlOptions = {},
+): string | undefined {
+  const env = options.env ?? process.env;
+  return (
+    trimNonEmpty(options.baseUrl) ??
+    trimNonEmpty(options.configBaseUrl) ??
+    trimNonEmpty(env.OPENAI_BASE_URL)
+  );
+}
+
+export type OpenAiProviderSettingsInput = {
+  apiKey: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
+};
+
+/**
+ * Builds settings for `createOpenAI`, omitting empty base URL / headers.
+ */
+export function buildOpenAiProviderSettings(input: OpenAiProviderSettingsInput): {
+  apiKey: string;
+  baseURL?: string;
+  headers?: Record<string, string>;
+} {
+  const baseURL = trimNonEmpty(input.baseUrl);
+  const headers =
+    input.headers && Object.keys(input.headers).length > 0 ? input.headers : undefined;
+
+  return {
+    apiKey: input.apiKey,
+    ...(baseURL ? { baseURL } : {}),
+    ...(headers ? { headers } : {}),
+  };
+}
+
 type GenerateTextFn = typeof defaultGenerateText;
 
 export type CreateOpenAiTranslatorOptions = {
   model?: string;
   apiKey?: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   generateText?: GenerateTextFn;
   createModel?: (modelId: string) => Parameters<GenerateTextFn>[0]["model"];
@@ -58,9 +113,19 @@ export function createOpenAiTranslator(
   const generate = options.generateText ?? defaultGenerateText;
 
   return async (input: TranslateLocaleInput): Promise<SubmitTranslationsInput> => {
-    const apiKey = options.apiKey ?? assertOpenAiApiKey(options.env ?? process.env);
+    const env = options.env ?? process.env;
+    const apiKey = options.apiKey ?? assertOpenAiApiKey(env);
+    const baseUrl = resolveOpenAiBaseUrl({ baseUrl: options.baseUrl, env });
 
-    const model = options.createModel?.(modelId) ?? createOpenAI({ apiKey })(modelId);
+    const model =
+      options.createModel?.(modelId) ??
+      createOpenAI(
+        buildOpenAiProviderSettings({
+          apiKey,
+          baseUrl,
+          headers: options.headers,
+        }),
+      )(modelId);
 
     let submitted: SubmitTranslationsInput | null = null;
 

@@ -104,6 +104,10 @@ export function createProgram(): Command {
       [] as string[],
     )
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
+    .option(
+      "--base-url <url>",
+      "OpenAI-compatible API base URL (default: official OpenAI endpoint)",
+    )
     .option("--dry-run", "Propose translations without writing files", false)
     .option("--yes", "Write files without interactive confirmation", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
@@ -116,6 +120,7 @@ export function createProgram(): Command {
           cwd: options.cwd,
           locale: options.locale.length > 0 ? options.locale : undefined,
           model: options.model,
+          baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           yes: options.yes === true,
           noConfig: options.config === false,
@@ -144,6 +149,10 @@ export function createProgram(): Command {
     )
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
     .option(
+      "--base-url <url>",
+      "OpenAI-compatible API base URL (default: official OpenAI endpoint)",
+    )
+    .option(
       "--since <ref>",
       "Only review keys changed between <ref> and the working tree (recommended in CI)",
     )
@@ -159,6 +168,7 @@ export function createProgram(): Command {
           cwd: options.cwd,
           locale: options.locale.length > 0 ? options.locale : undefined,
           model: options.model,
+          baseUrl: options.baseUrl,
           since: options.since,
           autoFix: options.autoFix === true,
           yes: options.yes === true,

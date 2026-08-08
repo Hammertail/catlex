@@ -13,11 +13,13 @@ import {
   MissingOpenAiApiKeyError,
   assertOpenAiApiKey,
   createOpenAiTranslator,
+  resolveOpenAiBaseUrl,
 } from "../../core/translate/openai.ts";
 import { translateMissingKeys } from "../../core/translate/translate.ts";
 import { writeTranslatedReports } from "../../core/translate/write-reports.ts";
 
 //* Types imports
+import type { CatlexConfig } from "../../core/config/schema.ts";
 import type { TranslateLocaleFn } from "../../core/translate/translate.ts";
 import type { TranslateResult } from "../../core/translate/translate.ts";
 
@@ -29,6 +31,7 @@ export type TranslateCommandOptions = {
   cwd?: string;
   locale?: string[];
   model?: string;
+  baseUrl?: string;
   dryRun?: boolean;
   yes?: boolean;
   noConfig?: boolean;
@@ -107,11 +110,18 @@ async function collectMissingTranslationPlan(options: {
 function resolveTranslator(
   options: TranslateCommandOptions,
   env: NodeJS.ProcessEnv | Record<string, string | undefined>,
+  config: CatlexConfig,
 ): TranslateLocaleFn {
   return (
     options.translateLocale ??
     createOpenAiTranslator({
       model: options.model,
+      baseUrl: resolveOpenAiBaseUrl({
+        baseUrl: options.baseUrl,
+        configBaseUrl: config.openai?.baseUrl,
+        env,
+      }),
+      headers: config.openai?.headers,
       env,
     })
   );
@@ -179,6 +189,11 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
   }
 
   const noConfig = options.noConfig === true;
+  const config = await loadConfig(cwd, {
+    messagesDir: options.dir,
+    baseLocale: options.base,
+    noConfig,
+  });
   const plan = await collectMissingTranslationPlan({
     cwd,
     messagesDir: options.dir,
@@ -186,7 +201,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     locales: options.locale,
     noConfig,
   });
-  const translateLocale = resolveTranslator(options, env);
+  const translateLocale = resolveTranslator(options, env, config);
 
   if (plan.missingCount === 0) {
     const emptyResult = await translateMissingKeys({
