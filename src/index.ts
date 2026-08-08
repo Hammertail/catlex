@@ -66,7 +66,9 @@ export {
   MissingOpenAiApiKeyError,
   MissingSubmitTranslationsError,
   assertOpenAiApiKey,
+  buildOpenAiProviderSettings,
   createOpenAiTranslator,
+  resolveOpenAiBaseUrl,
 } from "./core/translate/openai.ts";
 export {
   TRANSLATE_INSTRUCTIONS,

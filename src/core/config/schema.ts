@@ -1,10 +1,16 @@
 //* Libraries imports
 import { z } from "zod";
 
+const openaiConfigSchema = z.object({
+  baseUrl: z.string().min(1).optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+
 export const catlexConfigSchema = z.object({
   messagesDir: z.string().min(1).default("messages"),
   baseLocale: z.string().min(1).default("en"),
   strictExtra: z.boolean().default(false),
+  openai: openaiConfigSchema.optional(),
 });
 
 export type CatlexConfig = z.infer<typeof catlexConfigSchema>;

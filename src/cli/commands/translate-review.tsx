@@ -6,10 +6,12 @@ import { render } from "ink";
 import { ReviewReport } from "../ui/ReviewReport.tsx";
 import { promptConfirm, type ConfirmFn } from "../ui/prompt-confirm.tsx";
 import { REVIEW_ALPHA_MESSAGE, buildReviewReportView } from "../ui/review-report-view.ts";
+import { loadConfig } from "../../core/config/load.ts";
 import {
   MissingOpenAiApiKeyError,
   assertOpenAiApiKey,
   createOpenAiTranslator,
+  resolveOpenAiBaseUrl,
 } from "../../core/translate/openai.ts";
 import { createOpenAiReviewer } from "../../core/translate/review-openai.ts";
 import {
@@ -30,6 +32,7 @@ export type TranslateReviewCommandOptions = {
   cwd?: string;
   locale?: string[];
   model?: string;
+  baseUrl?: string;
   since?: string;
   autoFix?: boolean;
   yes?: boolean;
@@ -123,6 +126,19 @@ export async function runTranslateReviewCommand(
     throw error;
   }
 
+  const noConfig = options.noConfig === true;
+  const config = await loadConfig(cwd, {
+    messagesDir: options.dir,
+    baseLocale: options.base,
+    noConfig,
+  });
+  const baseUrl = resolveOpenAiBaseUrl({
+    baseUrl: options.baseUrl,
+    configBaseUrl: config.openai?.baseUrl,
+    env,
+  });
+  const headers = config.openai?.headers;
+
   let result = await reviewTranslations({
     cwd,
     messagesDir: options.dir,
@@ -131,17 +147,21 @@ export async function runTranslateReviewCommand(
     since: options.since,
     autoFix,
     dryRun: true,
-    noConfig: options.noConfig === true,
+    noConfig,
     reviewLocale:
       options.reviewLocale ??
       createOpenAiReviewer({
         model: options.model,
+        baseUrl,
+        headers,
         env,
       }),
     translateLocale: autoFix
       ? (options.translateLocale ??
         createOpenAiTranslator({
           model: options.model,
+          baseUrl,
+          headers,
           env,
         }))
       : undefined,

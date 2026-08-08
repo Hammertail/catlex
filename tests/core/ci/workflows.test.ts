@@ -16,6 +16,7 @@ const SINCE_EXPR =
   "${{" +
   " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
 const OPENAI_SECRET_LINE = "OPENAI_API_KEY: ${{" + " secrets.OPENAI_API_KEY }}";
+const OPENAI_BASE_URL_LINE = "OPENAI_BASE_URL: ${{" + " vars.OPENAI_BASE_URL }}";
 const SAME_REPO_COMMIT_GUARD =
   "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
 
@@ -66,6 +67,7 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain('catlex translate review --no-config --since "$CATLEX_SINCE" --json');
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
+    expect(yaml).toContain(OPENAI_BASE_URL_LINE);
     expect(yaml).not.toContain("--auto-fix");
     expect(yaml).not.toContain("git-auto-commit-action");
   });
@@ -87,6 +89,7 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
+    expect(yaml).toContain(OPENAI_BASE_URL_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
     expect(yaml).toContain("chore: apply catlex translation review fixes");
   });
@@ -113,6 +116,7 @@ describe("generateTranslateFillWorkflow", () => {
     expect(yaml).toContain("contents: write");
     expect(yaml).toContain("catlex translate --no-config --yes --json");
     expect(yaml).toContain(OPENAI_SECRET_LINE);
+    expect(yaml).toContain(OPENAI_BASE_URL_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
     expect(yaml).toContain("chore: fill missing translations with catlex");
   });

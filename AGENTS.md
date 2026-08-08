@@ -148,7 +148,7 @@ Non-obvious caveats:
 
 - **`.gitignore` only hides the *root* `messages/`.** The rule is root-anchored (`/messages`), so it hides only top-level test-fixture message dirs, not `src/core/messages/` (verify with `git check-ignore -v src/core/messages/load.ts` → not ignored). Keep it anchored: an unanchored `messages` pattern would silently untrack the `src/core/messages/` source. For a local `validate` smoke test, put sample locales outside the repo (e.g. a temp dir) and target them with `--cwd`, since a root `messages/` would be git-ignored.
 - **A single missing module breaks the whole CLI.** `src/bin/catlex.ts` → `src/cli/program.ts` eagerly imports every command, so any unresolved import under `src/core` makes `bun run build`, `bun run dev`, and *all* subcommands (including `scan` and `--help`) fail to load, not just the affected command.
-- **`translate` / `translate review` need OpenAI.** These alpha commands call OpenAI via the AI SDK and require an `OPENAI_API_KEY`; `validate`, `scan`, and `ci`/`init-ci` run fully offline.
+- **`translate` / `translate review` need OpenAI (or an OpenAI-compatible API).** These alpha commands call the AI SDK with `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` / `--base-url` / config `openai.baseUrl` for compatible providers; `validate`, `scan`, and `ci`/`init-ci` run fully offline.
 
 ### Before opening a PR
 

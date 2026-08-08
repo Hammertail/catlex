@@ -143,6 +143,7 @@ export OPENAI_API_KEY=sk-...
 catlex translate --dry-run
 catlex translate --yes
 catlex translate --locale pt --model gpt-5.4-mini
+catlex translate --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.4-mini
 catlex translate --json
 ```
 
@@ -153,12 +154,31 @@ catlex translate --json
 | `--cwd <path>` | Project root (default: current directory) |
 | `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
 | `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
+| `--base-url <url>` | OpenAI-compatible API base URL (default: official OpenAI endpoint) |
 | `--dry-run` | Propose translations without writing files |
 | `--yes` | Skip both interactive prompts and write files |
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
+
+To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only:
+
+```json
+{
+  "openai": {
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "headers": {
+      "HTTP-Referer": "https://example.com",
+      "X-Title": "My App"
+    }
+  }
+}
+```
+
+```bash
+OPENAI_API_KEY=... OPENAI_BASE_URL=https://openrouter.ai/api/v1 catlex translate --model openai/gpt-5.4-mini
+```
 
 In interactive mode (no `--yes` / `--dry-run`), catlex asks whether to run automatic translation **before** calling the model, then shows the proposals and asks again before writing files. `--yes` skips both prompts.
 
@@ -182,6 +202,7 @@ catlex translate review --since main --auto-fix --yes --json
 | `--cwd <path>` | Project root (default: current directory) |
 | `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
 | `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
+| `--base-url <url>` | OpenAI-compatible API base URL (default: official OpenAI endpoint) |
 | `--since <ref>` | Only review keys changed between `<ref>` and the current working tree (**recommended in CI**) |
 | `--auto-fix` | Propose fixes for `wrong` / missing keys |
 | `--yes` | Apply auto-fix writes without interactive confirmation |
@@ -214,10 +235,11 @@ Use a full git history (or fetch the base ref) so `--since` can resolve:
 - run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
 
-Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`.
+Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`. Set optional repository variable `OPENAI_BASE_URL` when using an OpenAI-compatible endpoint in CI; leave it unset to use the official OpenAI API.
 
 ## Exit codes and CI
 
@@ -253,7 +275,7 @@ catlex ci
 | Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes`, then commit |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
+AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 
 ## Building from source
 

@@ -7,7 +7,9 @@ import {
   MissingOpenAiApiKeyError,
   MissingSubmitTranslationsError,
   assertOpenAiApiKey,
+  buildOpenAiProviderSettings,
   createOpenAiTranslator,
+  resolveOpenAiBaseUrl,
 } from "../../../src/core/translate/openai.ts";
 import { TRANSLATE_INSTRUCTIONS } from "../../../src/core/translate/prompt.ts";
 
@@ -19,6 +21,73 @@ describe("assertOpenAiApiKey", () => {
   it("throws MissingOpenAiApiKeyError when the key is missing", () => {
     expect(() => assertOpenAiApiKey({})).toThrow(MissingOpenAiApiKeyError);
     expect(() => assertOpenAiApiKey({ OPENAI_API_KEY: "   " })).toThrow(MissingOpenAiApiKeyError);
+  });
+});
+
+describe("resolveOpenAiBaseUrl", () => {
+  it("prefers CLI baseUrl over config and env", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        baseUrl: "https://cli.example/v1",
+        configBaseUrl: "https://config.example/v1",
+        env: { OPENAI_BASE_URL: "https://env.example/v1" },
+      }),
+    ).toBe("https://cli.example/v1");
+  });
+
+  it("prefers config baseUrl over env when CLI is unset", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://config.example/v1",
+        env: { OPENAI_BASE_URL: "https://env.example/v1" },
+      }),
+    ).toBe("https://config.example/v1");
+  });
+
+  it("uses OPENAI_BASE_URL when CLI and config are unset", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        env: { OPENAI_BASE_URL: "https://env.example/v1" },
+      }),
+    ).toBe("https://env.example/v1");
+  });
+
+  it("treats blank values as unset", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        baseUrl: "   ",
+        configBaseUrl: "",
+        env: { OPENAI_BASE_URL: "  " },
+      }),
+    ).toBeUndefined();
+  });
+});
+
+describe("buildOpenAiProviderSettings", () => {
+  it("includes baseURL and headers when provided", () => {
+    expect(
+      buildOpenAiProviderSettings({
+        apiKey: "sk-test",
+        baseUrl: "https://openrouter.ai/api/v1",
+        headers: { "X-Title": "Catlex" },
+      }),
+    ).toEqual({
+      apiKey: "sk-test",
+      baseURL: "https://openrouter.ai/api/v1",
+      headers: { "X-Title": "Catlex" },
+    });
+  });
+
+  it("omits empty baseUrl and empty headers", () => {
+    expect(
+      buildOpenAiProviderSettings({
+        apiKey: "sk-test",
+        baseUrl: "  ",
+        headers: {},
+      }),
+    ).toEqual({
+      apiKey: "sk-test",
+    });
   });
 });
 

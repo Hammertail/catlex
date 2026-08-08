@@ -145,4 +145,44 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
       strictExtra: false,
     });
   });
+
+  it("loads optional openai baseUrl and headers from config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        openai: {
+          baseUrl: "https://openrouter.ai/api/v1",
+          headers: {
+            "HTTP-Referer": "https://example.com",
+            "X-Title": "Catlex",
+          },
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.openai).toEqual({
+      baseUrl: "https://openrouter.ai/api/v1",
+      headers: {
+        "HTTP-Referer": "https://example.com",
+        "X-Title": "Catlex",
+      },
+    });
+  });
+
+  it("rejects invalid openai config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        openai: {
+          baseUrl: "",
+        },
+      }),
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
+  });
 });

@@ -3,7 +3,12 @@ import { generateText as defaultGenerateText, isStepCount, tool } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 
 //* Local imports
-import { DEFAULT_OPENAI_TRANSLATE_MODEL, assertOpenAiApiKey } from "./openai.ts";
+import {
+  DEFAULT_OPENAI_TRANSLATE_MODEL,
+  assertOpenAiApiKey,
+  buildOpenAiProviderSettings,
+  resolveOpenAiBaseUrl,
+} from "./openai.ts";
 import { REVIEW_INSTRUCTIONS } from "./review-prompt.ts";
 import { submitTranslationReviewsSchema } from "./review-schema.ts";
 
@@ -32,6 +37,8 @@ type GenerateTextFn = typeof defaultGenerateText;
 export type CreateOpenAiReviewerOptions = {
   model?: string;
   apiKey?: string;
+  baseUrl?: string;
+  headers?: Record<string, string>;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   generateText?: GenerateTextFn;
   createModel?: (modelId: string) => Parameters<GenerateTextFn>[0]["model"];
@@ -45,9 +52,19 @@ export function createOpenAiReviewer(options: CreateOpenAiReviewerOptions = {}):
   const generate = options.generateText ?? defaultGenerateText;
 
   return async (input: ReviewLocaleInput): Promise<SubmitTranslationReviewsInput> => {
-    const apiKey = options.apiKey ?? assertOpenAiApiKey(options.env ?? process.env);
+    const env = options.env ?? process.env;
+    const apiKey = options.apiKey ?? assertOpenAiApiKey(env);
+    const baseUrl = resolveOpenAiBaseUrl({ baseUrl: options.baseUrl, env });
 
-    const model = options.createModel?.(modelId) ?? createOpenAI({ apiKey })(modelId);
+    const model =
+      options.createModel?.(modelId) ??
+      createOpenAI(
+        buildOpenAiProviderSettings({
+          apiKey,
+          baseUrl,
+          headers: options.headers,
+        }),
+      )(modelId);
 
     let submitted: SubmitTranslationReviewsInput | null = null;
 
