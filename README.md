@@ -188,11 +188,14 @@ This command is **alpha**: translations may be incorrect and bugs may occur. Onl
 
 Review existing translations with OpenAI. Missing keys in scope are errors. Present keys are judged `ok` or `wrong`.
 
+Before API calls, the command prints the resolved source locale, target locale(s), messages directory, and model, then streams key progress. With `--json`, that banner and progress go to **stderr** so stdout stays pure JSON. At the end it prints a compact summary (keys reviewed, issues found, fixes, files changed, locales, model).
+
 ```bash
 export OPENAI_API_KEY=sk-...
 catlex translate review --json
 catlex translate review --since main --json
 catlex translate review --since main --auto-fix --yes --json
+catlex translate review --verbose
 ```
 
 | Option | Description |
@@ -208,6 +211,7 @@ catlex translate review --since main --auto-fix --yes --json
 | `--yes` | Apply auto-fix writes without interactive confirmation |
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
+| `--verbose` | Print per-chunk progress details (paths reviewed in each batch) |
 
 Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI.
 
