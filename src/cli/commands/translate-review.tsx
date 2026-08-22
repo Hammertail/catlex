@@ -102,6 +102,7 @@ async function writeReviewFixes(
       locale: report.locale,
       filePath: report.filePath,
       translated: report.fixes,
+      pending: [],
       skipped: [],
       incompletePaths: [],
       unexpectedPaths: [],

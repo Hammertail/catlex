@@ -21,6 +21,7 @@ function LocaleSection(props: { section: TranslateLocaleSectionView }) {
         <Text color={theme.muted}>
           {" "}
           · {props.section.translatedCount} translated
+          {props.section.pendingCount > 0 ? ` · ${props.section.pendingCount} pending` : ""}
           {props.section.skippedCount > 0 ? ` · ${props.section.skippedCount} skipped` : ""}
           {props.section.incompleteCount > 0
             ? ` · ${props.section.incompleteCount} incomplete`
@@ -31,6 +32,11 @@ function LocaleSection(props: { section: TranslateLocaleSectionView }) {
       {props.section.translatedLines.map((line) => (
         <Box key={line} paddingLeft={2}>
           <Text color={theme.success}>{line}</Text>
+        </Box>
+      ))}
+      {props.section.pendingLines.map((line) => (
+        <Box key={`pending-${line}`} paddingLeft={2}>
+          <Text color={theme.info}>pending {line}</Text>
         </Box>
       ))}
       {props.section.skippedLines.map((line) => (
@@ -61,6 +67,7 @@ function Verdict(props: { view: TranslateReportView }) {
       <Text color={theme.muted}>
         {" "}
         · {props.view.translatedCount} translated
+        {props.view.pendingCount > 0 ? ` · ${props.view.pendingCount} pending` : ""}
         {props.view.writtenCount > 0 ? ` · ${props.view.writtenCount} files written` : ""}
       </Text>
     </Text>

@@ -155,7 +155,7 @@ catlex translate --json
 | `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
 | `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
 | `--base-url <url>` | OpenAI-compatible API base URL (default: official OpenAI endpoint) |
-| `--dry-run` | Propose translations without writing files |
+| `--dry-run` | List missing keys without calling the API or writing files |
 | `--yes` | Skip both interactive prompts and write files |
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
@@ -179,6 +179,8 @@ To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways)
 ```bash
 OPENAI_API_KEY=... OPENAI_BASE_URL=https://openrouter.ai/api/v1 catlex translate --model openai/gpt-5.4-mini
 ```
+
+`--dry-run` only reports which string keys are missing (and which non-string leaves are skipped). It does **not** call the model and does not require `OPENAI_API_KEY`.
 
 In interactive mode (no `--yes` / `--dry-run`), catlex asks whether to run automatic translation **before** calling the model, then shows the proposals and asks again before writing files. `--yes` skips both prompts.
 

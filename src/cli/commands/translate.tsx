@@ -5,7 +5,11 @@ import { render } from "ink";
 //* Local imports
 import { TranslateReport } from "../ui/TranslateReport.tsx";
 import { promptConfirm, type ConfirmFn } from "../ui/prompt-confirm.tsx";
-import { TRANSLATE_ALPHA_MESSAGE, countTranslatedKeys } from "../ui/translate-report-view.ts";
+import {
+  TRANSLATE_ALPHA_MESSAGE,
+  countPendingKeys,
+  countTranslatedKeys,
+} from "../ui/translate-report-view.ts";
 import { loadConfig } from "../../core/config/load.ts";
 import { loadMessagesDir, splitBaseAndLocales } from "../../core/messages/load.ts";
 import { collectMissingTranslations } from "../../core/translate/collect.ts";
@@ -43,6 +47,7 @@ export type TranslateCommandOptions = {
 
 function printJson(result: TranslateResult): void {
   const translatedCount = countTranslatedKeys(result);
+  const pendingCount = countPendingKeys(result);
   const payload = {
     ok: !result.cancelled,
     alpha: true,
@@ -52,6 +57,7 @@ function printJson(result: TranslateResult): void {
     dryRun: result.dryRun,
     cancelled: result.cancelled,
     translatedCount,
+    pendingCount,
     writtenFiles: result.writtenFiles,
     reports: result.reports,
   };
@@ -184,7 +190,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
   const confirm = options.confirm ?? promptConfirm;
   const env = options.env ?? process.env;
 
-  if (!requireApiKey(env)) {
+  if (!dryRun && !requireApiKey(env)) {
     return 1;
   }
 
@@ -201,6 +207,21 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     locales: options.locale,
     noConfig,
   });
+
+  if (dryRun) {
+    const planResult = await translateMissingKeys({
+      cwd,
+      messagesDir: options.dir,
+      baseLocale: options.base,
+      locales: options.locale,
+      dryRun: true,
+      noConfig,
+      translateLocale: options.translateLocale ?? (async () => ({ locale: "", translations: [] })),
+    });
+    emitOutput({ ...planResult, dryRun: true }, json);
+    return 0;
+  }
+
   const translateLocale = resolveTranslator(options, env, config);
 
   if (plan.missingCount === 0) {
@@ -209,15 +230,15 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       messagesDir: options.dir,
       baseLocale: options.base,
       locales: options.locale,
-      dryRun: true,
+      skipWrite: true,
       noConfig,
       translateLocale,
     });
-    emitOutput({ ...emptyResult, dryRun }, json);
+    emitOutput({ ...emptyResult, dryRun: false }, json);
     return 0;
   }
 
-  if (!dryRun && !yes && !(await confirmStartTranslation(plan, confirm))) {
+  if (!yes && !(await confirmStartTranslation(plan, confirm))) {
     emitOutput(cancelledTranslateResult(plan), json);
     return 0;
   }
@@ -227,14 +248,14 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     messagesDir: options.dir,
     baseLocale: options.base,
     locales: options.locale,
-    dryRun: true,
+    skipWrite: true,
     noConfig,
     translateLocale,
   });
 
   const translatedCount = countTranslatedKeys(result);
-  if (translatedCount === 0 || dryRun) {
-    emitOutput({ ...result, dryRun }, json);
+  if (translatedCount === 0) {
+    emitOutput({ ...result, dryRun: false }, json);
     return 0;
   }
 

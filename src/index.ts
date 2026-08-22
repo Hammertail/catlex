@@ -159,6 +159,7 @@ export type {
 } from "./core/translate/schema.ts";
 export type {
   LocaleTranslateReport,
+  PendingTranslation,
   TranslateLocaleFn,
   TranslateLocaleInput,
   TranslateMissingKeysOptions,

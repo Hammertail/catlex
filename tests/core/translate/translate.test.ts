@@ -47,31 +47,103 @@ describe("translateMissingKeys", () => {
     expect(result.cancelled).toBe(false);
   });
 
-  it("does not write files in dry-run mode", async () => {
+  it("does not call the translator or write files in dry-run mode", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-dry-"));
     const messagesDir = await writeMessages(cwd, {
       en: { welcome: "Welcome", about: "About" },
       pt: { welcome: "Bem-vindo" },
     });
     const before = await readFile(path.join(messagesDir, "pt.json"), "utf8");
+    let translatorCalls = 0;
 
     const result = await translateMissingKeys({
       cwd,
       messagesDir: "messages",
       baseLocale: "en",
       dryRun: true,
-      translateLocale: async (input) => ({
-        locale: input.targetLocale,
-        translations: input.missing.map((item) => ({
-          path: item.path,
-          value: `PT:${item.baseValue}`,
-        })),
-      }),
+      translateLocale: async (input) => {
+        translatorCalls += 1;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
     });
 
     const after = await readFile(path.join(messagesDir, "pt.json"), "utf8");
+    expect(translatorCalls).toBe(0);
     expect(after).toBe(before);
     expect(result.writtenFiles).toEqual([]);
+    expect(result.dryRun).toBe(true);
+    expect(result.reports[0]?.translated).toEqual([]);
+    expect(result.reports[0]?.pending).toEqual([{ path: "about", baseValue: "About" }]);
+  });
+
+  it("reports skipped non-string leaves in dry-run without calling the translator", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-dry-skip-"));
+    await writeMessages(cwd, {
+      en: { title: "Hello", flags: ["a", "b"] },
+      pt: {},
+    });
+    let translatorCalls = 0;
+
+    const result = await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      translateLocale: async () => {
+        translatorCalls += 1;
+        return { locale: "pt", translations: [] };
+      },
+    });
+
+    expect(translatorCalls).toBe(0);
+    expect(result.reports[0]?.pending).toEqual([{ path: "title", baseValue: "Hello" }]);
+    expect(result.reports[0]?.skipped).toEqual([
+      {
+        locale: "pt",
+        path: "flags",
+        reason: "non-string",
+        baseValue: ["a", "b"],
+      },
+    ]);
+  });
+
+  it("calls the translator but skips writing when skipWrite is set", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-skip-write-"));
+    const messagesDir = await writeMessages(cwd, {
+      en: { welcome: "Welcome", about: "About" },
+      pt: { welcome: "Bem-vindo" },
+    });
+    const before = await readFile(path.join(messagesDir, "pt.json"), "utf8");
+    let translatorCalls = 0;
+
+    const result = await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      translateLocale: async (input) => {
+        translatorCalls += 1;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(translatorCalls).toBe(1);
+    expect(await readFile(path.join(messagesDir, "pt.json"), "utf8")).toBe(before);
+    expect(result.writtenFiles).toEqual([]);
+    expect(result.dryRun).toBe(false);
+    expect(result.reports[0]?.pending).toEqual([]);
     expect(result.reports[0]?.translated).toEqual([
       { path: "about", value: "PT:About", baseValue: "About" },
     ]);
@@ -111,7 +183,7 @@ describe("translateMissingKeys", () => {
       cwd,
       messagesDir: "messages",
       baseLocale: "en",
-      dryRun: true,
+      skipWrite: true,
       translateLocale: async (input) => ({
         locale: input.targetLocale,
         translations: [{ path: "title", value: "Olá" }],
@@ -142,7 +214,7 @@ describe("translateMissingKeys", () => {
       cwd,
       messagesDir: "messages",
       baseLocale: "en",
-      dryRun: true,
+      skipWrite: true,
       translateLocale: async () => ({
         locale: "pt",
         translations: [{ path: "greeting", value: "Olá {nome}" }],
