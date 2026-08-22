@@ -9,10 +9,12 @@ export { TRANSLATE_ALPHA_MESSAGE };
 export type TranslateLocaleSectionView = {
   locale: string;
   translatedCount: number;
+  pendingCount: number;
   skippedCount: number;
   incompleteCount: number;
   warningCount: number;
   translatedLines: string[];
+  pendingLines: string[];
   skippedLines: string[];
   incompleteLines: string[];
   warningLines: string[];
@@ -26,6 +28,7 @@ export type TranslateReportView = {
   cancelled: boolean;
   writtenCount: number;
   translatedCount: number;
+  pendingCount: number;
   emptyMessage: string | null;
   sections: TranslateLocaleSectionView[];
   summaryLabel: string;
@@ -35,20 +38,27 @@ export function countTranslatedKeys(result: TranslateResult): number {
   return result.reports.reduce((total, report) => total + report.translated.length, 0);
 }
 
+export function countPendingKeys(result: TranslateResult): number {
+  return result.reports.reduce((total, report) => total + report.pending.length, 0);
+}
+
 /**
  * Builds a terminal-friendly view model for translate results.
  */
 export function buildTranslateReportView(result: TranslateResult): TranslateReportView {
   const translatedCount = countTranslatedKeys(result);
+  const pendingCount = countPendingKeys(result);
   const sections = result.reports.map((report) => ({
     locale: report.locale,
     translatedCount: report.translated.length,
+    pendingCount: report.pending.length,
     skippedCount: report.skipped.length,
     incompleteCount: report.incompletePaths.length,
     warningCount: report.placeholderWarnings.length,
     translatedLines: report.translated.map(
       (item) => `${item.path}: "${item.baseValue}" -> "${item.value}"`,
     ),
+    pendingLines: report.pending.map((item) => `${item.path}: "${item.baseValue}"`),
     skippedLines: report.skipped.map((item) => `${item.path} (${item.reason})`),
     incompleteLines: report.incompletePaths.map((path) => path),
     warningLines: report.placeholderWarnings.map(
@@ -60,7 +70,11 @@ export function buildTranslateReportView(result: TranslateResult): TranslateRepo
   let emptyMessage: string | null = null;
   if (result.cancelled) {
     emptyMessage = "Cancelled. No files were written.";
-  } else if (translatedCount === 0 && sections.every((section) => section.skippedCount === 0)) {
+  } else if (
+    translatedCount === 0 &&
+    pendingCount === 0 &&
+    sections.every((section) => section.skippedCount === 0)
+  ) {
     emptyMessage = "No missing string translations to fill.";
   }
 
@@ -81,6 +95,7 @@ export function buildTranslateReportView(result: TranslateResult): TranslateRepo
     cancelled: result.cancelled,
     writtenCount: result.writtenFiles.length,
     translatedCount,
+    pendingCount,
     emptyMessage,
     sections,
     summaryLabel,

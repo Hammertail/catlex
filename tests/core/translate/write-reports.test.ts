@@ -21,6 +21,7 @@ describe("writeTranslatedReports", () => {
           locale: "pt",
           filePath,
           translated: [{ path: "about", value: "Sobre", baseValue: "About" }],
+          pending: [],
           skipped: [],
           incompletePaths: [],
           unexpectedPaths: [],

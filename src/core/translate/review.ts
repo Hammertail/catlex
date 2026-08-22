@@ -612,6 +612,7 @@ export async function reviewTranslations(
           locale: report.locale,
           filePath: report.filePath,
           translated: report.fixes,
+          pending: [],
           skipped: [],
           incompletePaths: [],
           unexpectedPaths: [],

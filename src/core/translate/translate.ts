@@ -27,10 +27,16 @@ export type TranslatedItem = {
   baseValue: string;
 };
 
+export type PendingTranslation = {
+  path: string;
+  baseValue: string;
+};
+
 export type LocaleTranslateReport = {
   locale: string;
   filePath: string;
   translated: TranslatedItem[];
+  pending: PendingTranslation[];
   skipped: SkippedTranslation[];
   incompletePaths: string[];
   unexpectedPaths: string[];
@@ -59,7 +65,16 @@ export type TranslateLocaleFn = (input: TranslateLocaleInput) => Promise<SubmitT
 export type TranslateMissingKeysOptions = ConfigFlags & {
   cwd?: string;
   locales?: string[];
+  /**
+   * Plan-only mode: collect missing/skipped keys without calling the translator
+   * or writing files. Does not incur API usage.
+   */
   dryRun?: boolean;
+  /**
+   * Call the translator but do not write locale files. Used by the CLI to
+   * separate proposal generation from the interactive write confirmation.
+   */
+  skipWrite?: boolean;
   chunkSize?: number;
   translateLocale: TranslateLocaleFn;
   writeLocale?: (filePath: string, tree: LocaleMessages["tree"]) => Promise<void>;
@@ -171,11 +186,13 @@ function finalizeLocaleReport(options: {
   localeId: string;
   filePath: string;
   skipped: SkippedTranslation[];
+  pending: PendingTranslation[];
   accumulator: LocaleTranslationAccumulator;
 }): LocaleTranslateReport {
   const translated = [...options.accumulator.translated].sort((a, b) =>
     a.path.localeCompare(b.path),
   );
+  const pending = [...options.pending].sort((a, b) => a.path.localeCompare(b.path));
   const incompletePaths = [...new Set(options.accumulator.incompletePaths)].sort();
   const unexpectedPaths = [...new Set(options.accumulator.unexpectedPaths)].sort();
   const placeholderWarnings = [...options.accumulator.placeholderWarnings].sort((a, b) =>
@@ -186,6 +203,7 @@ function finalizeLocaleReport(options: {
     locale: options.localeId,
     filePath: options.filePath,
     translated,
+    pending,
     skipped: options.skipped,
     incompletePaths,
     unexpectedPaths,
@@ -193,8 +211,68 @@ function finalizeLocaleReport(options: {
   };
 }
 
+function emptyAccumulator(): LocaleTranslationAccumulator {
+  return {
+    translated: [],
+    incompletePaths: [],
+    unexpectedPaths: [],
+    placeholderWarnings: [],
+  };
+}
+
+function pendingFromMissing(missing: MissingTranslation[]): PendingTranslation[] {
+  return missing.map((item) => ({ path: item.path, baseValue: item.baseValue }));
+}
+
+async function resolveLocaleAccumulator(options: {
+  dryRun: boolean;
+  baseLocale: string;
+  targetLocale: string;
+  base: LocaleMessages;
+  locale: LocaleMessages;
+  missing: MissingTranslation[];
+  chunkSize: number;
+  translateLocale: TranslateLocaleFn;
+}): Promise<LocaleTranslationAccumulator> {
+  if (options.dryRun) {
+    return emptyAccumulator();
+  }
+
+  return translateLocaleChunks({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    base: options.base,
+    locale: options.locale,
+    missing: options.missing,
+    chunkSize: options.chunkSize,
+    translateLocale: options.translateLocale,
+  });
+}
+
+async function writeLocaleReportIfNeeded(options: {
+  skipWrite: boolean;
+  report: LocaleTranslateReport;
+  locale: LocaleMessages;
+  writeLocale: (filePath: string, tree: LocaleMessages["tree"]) => Promise<void>;
+  writtenFiles: string[];
+}): Promise<void> {
+  if (options.skipWrite || options.report.translated.length === 0) {
+    return;
+  }
+
+  const nextTree = applyTranslationsToTree(
+    options.locale.tree,
+    options.report.translated.map((item) => ({ path: item.path, value: item.value })),
+  );
+  await options.writeLocale(options.locale.filePath, nextTree);
+  options.writtenFiles.push(options.locale.filePath);
+}
+
 /**
  * Translates missing string keys using an injected per-locale translator.
+ *
+ * When `dryRun` is true, only the missing/skipped plan is collected — the
+ * translator is not called and no files are written.
  */
 export async function translateMissingKeys(
   options: TranslateMissingKeysOptions,
@@ -208,6 +286,7 @@ export async function translateMissingKeys(
   });
   const messagesDir = path.resolve(cwd, config.messagesDir);
   const dryRun = options.dryRun === true;
+  const skipWrite = options.skipWrite === true || dryRun;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
   const writeLocale =
     options.writeLocale ??
@@ -235,12 +314,14 @@ export async function translateMissingKeys(
       continue;
     }
 
-    const accumulator = await translateLocaleChunks({
+    const missing = missingByLocale.get(localeId) ?? [];
+    const accumulator = await resolveLocaleAccumulator({
+      dryRun,
       baseLocale: config.baseLocale,
       targetLocale: localeId,
       base,
       locale,
-      missing: missingByLocale.get(localeId) ?? [],
+      missing,
       chunkSize,
       translateLocale: options.translateLocale,
     });
@@ -249,18 +330,18 @@ export async function translateMissingKeys(
       localeId,
       filePath: locale.filePath,
       skipped: skippedByLocale.get(localeId) ?? [],
+      pending: dryRun ? pendingFromMissing(missing) : [],
       accumulator,
     });
     reports.push(report);
 
-    if (!dryRun && report.translated.length > 0) {
-      const nextTree = applyTranslationsToTree(
-        locale.tree,
-        report.translated.map((item) => ({ path: item.path, value: item.value })),
-      );
-      await writeLocale(locale.filePath, nextTree);
-      writtenFiles.push(locale.filePath);
-    }
+    await writeLocaleReportIfNeeded({
+      skipWrite,
+      report,
+      locale,
+      writeLocale,
+      writtenFiles,
+    });
   }
 
   return {

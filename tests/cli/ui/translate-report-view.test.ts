@@ -36,6 +36,7 @@ describe("buildTranslateReportView", () => {
             { path: "a", value: "A", baseValue: "A" },
             { path: "b", value: "B", baseValue: "B" },
           ],
+          pending: [],
           skipped: [],
           incompletePaths: [],
           unexpectedPaths: [],
@@ -48,5 +49,34 @@ describe("buildTranslateReportView", () => {
     });
 
     expect(count).toBe(2);
+  });
+
+  it("labels pending dry-run keys separately from translated ones", () => {
+    const view = buildTranslateReportView({
+      baseLocale: "en",
+      messagesDir: "messages",
+      reports: [
+        {
+          locale: "pt",
+          filePath: "pt.json",
+          translated: [],
+          pending: [{ path: "about", baseValue: "About" }],
+          skipped: [],
+          incompletePaths: [],
+          unexpectedPaths: [],
+          placeholderWarnings: [],
+        },
+      ],
+      writtenFiles: [],
+      cancelled: false,
+      dryRun: true,
+    });
+
+    expect(view.pendingCount).toBe(1);
+    expect(view.translatedCount).toBe(0);
+    expect(view.sections[0]?.pendingCount).toBe(1);
+    expect(view.sections[0]?.pendingLines).toEqual(['about: "About"']);
+    expect(view.summaryLabel).toBe("Dry run");
+    expect(view.emptyMessage).toBeNull();
   });
 });

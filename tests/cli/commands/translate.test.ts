@@ -69,7 +69,31 @@ describe("runTranslateCommand", () => {
     return spy;
   }
 
-  it("returns 1 when OPENAI_API_KEY is missing", async () => {
+  it("includes alpha fields in JSON output", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-alpha-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Bem-vindo" },
+    });
+    const log = captureLog();
+
+    const exitCode = await runTranslateCommand({
+      cwd,
+      json: true,
+      dryRun: true,
+      env: {},
+      translateLocale: async () => ({ locale: "pt", translations: [] }),
+    });
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.alpha).toBe(true);
+    expect(payload.alphaMessage).toBe(TRANSLATE_ALPHA_MESSAGE);
+    expect(payload.translatedCount).toBe(0);
+    expect(payload.pendingCount).toBe(0);
+  });
+
+  it("returns 1 when OPENAI_API_KEY is missing for a non-dry-run translate", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-key-"));
     await writeMessages(cwd, {
       en: { welcome: "Welcome" },
@@ -88,30 +112,7 @@ describe("runTranslateCommand", () => {
     expect(String(error.mock.calls[0]?.[0])).toContain("OPENAI_API_KEY");
   });
 
-  it("includes alpha fields in JSON output", async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-alpha-"));
-    await writeMessages(cwd, {
-      en: { welcome: "Welcome" },
-      pt: { welcome: "Bem-vindo" },
-    });
-    const log = captureLog();
-
-    const exitCode = await runTranslateCommand({
-      cwd,
-      json: true,
-      dryRun: true,
-      env: { OPENAI_API_KEY: "sk-test" },
-      translateLocale: async () => ({ locale: "pt", translations: [] }),
-    });
-
-    expect(exitCode).toBe(0);
-    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
-    expect(payload.alpha).toBe(true);
-    expect(payload.alphaMessage).toBe(TRANSLATE_ALPHA_MESSAGE);
-    expect(payload.translatedCount).toBe(0);
-  });
-
-  it("does not write files in dry-run mode", async () => {
+  it("lists pending keys without calling the translator or requiring an API key in dry-run mode", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-dry-"));
     await writeMessages(cwd, {
       en: { about: "About", welcome: "Welcome" },
@@ -126,7 +127,7 @@ describe("runTranslateCommand", () => {
       cwd,
       json: true,
       dryRun: true,
-      env: { OPENAI_API_KEY: "sk-test" },
+      env: {},
       confirm: async (message) => {
         confirmMessages.push(message);
         return false;
@@ -136,15 +137,17 @@ describe("runTranslateCommand", () => {
 
     expect(exitCode).toBe(0);
     expect(confirmMessages).toEqual([]);
-    expect(translator.callCount()).toBe(1);
+    expect(translator.callCount()).toBe(0);
     expect(await readFile(path.join(cwd, "messages", "pt.json"), "utf8")).toBe(before);
     const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
     expect(payload.dryRun).toBe(true);
-    expect(payload.translatedCount).toBe(1);
+    expect(payload.translatedCount).toBe(0);
+    expect(payload.pendingCount).toBe(1);
+    expect(payload.reports[0].pending).toEqual([{ path: "about", baseValue: "About" }]);
     expect(payload.writtenFiles).toEqual([]);
   });
 
-  it("does not write files when dry-run is combined with yes", async () => {
+  it("does not call the translator or write files when dry-run is combined with yes", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-dry-yes-"));
     await writeMessages(cwd, {
       en: { about: "About", welcome: "Welcome" },
@@ -163,7 +166,7 @@ describe("runTranslateCommand", () => {
       json: true,
       dryRun: true,
       yes: true,
-      env: { OPENAI_API_KEY: "sk-test" },
+      env: {},
       confirm: async (message) => {
         confirmMessages.push(message);
         return true;
@@ -173,11 +176,12 @@ describe("runTranslateCommand", () => {
 
     expect(exitCode).toBe(0);
     expect(confirmMessages).toEqual([]);
-    expect(translator.callCount()).toBe(1);
+    expect(translator.callCount()).toBe(0);
     expect(await readFile(path.join(cwd, "messages", "pt.json"), "utf8")).toBe(before);
     const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
     expect(payload.dryRun).toBe(true);
-    expect(payload.translatedCount).toBe(1);
+    expect(payload.translatedCount).toBe(0);
+    expect(payload.pendingCount).toBe(1);
     expect(payload.writtenFiles).toEqual([]);
   });
 
