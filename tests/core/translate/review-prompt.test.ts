@@ -34,6 +34,8 @@ describe("buildReviewPrompt", () => {
     expect(prompt).toContain("submitTranslationReviews");
     expect(prompt).toContain("ok");
     expect(prompt).toContain("wrong");
+    expect(prompt).toMatch(/when verdict is ok, omit reason and suggestedValue/i);
+    expect(prompt).toMatch(/when verdict is wrong, include a short reason and a suggestedValue/i);
   });
 
   it("frames base and locale values as untrusted data that must not be followed as instructions", () => {

@@ -7,7 +7,7 @@ import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { collectTranslationExamples } from "./collect.ts";
 import { buildTranslatePrompt } from "./prompt.ts";
 import { buildReviewPrompt } from "./review-prompt.ts";
-import { validateSubmittedReviews } from "./review-schema.ts";
+import { validateSubmittedReviews, type AcceptedReview } from "./review-schema.ts";
 import {
   resolveReviewScope,
   type ReviewChangeSource,
@@ -143,12 +143,7 @@ function sortFixes(fixes: TranslatedItem[]): TranslatedItem[] {
 }
 
 function acceptedReviewToItem(
-  accepted: {
-    path: string;
-    verdict: "ok" | "wrong";
-    reason?: string;
-    suggestedValue?: string;
-  },
+  accepted: AcceptedReview,
   target: ReviewTarget,
   targetLocale: string,
 ): ReviewItemResult {
@@ -160,17 +155,19 @@ function acceptedReviewToItem(
     localeValue: target.localeValue,
     changeSources: target.changeSources,
   };
-  if (accepted.reason !== undefined) {
-    item.reason = accepted.reason;
-  }
-  if (accepted.suggestedValue !== undefined) {
-    item.suggestedValue = accepted.suggestedValue;
+  if (accepted.verdict === "wrong") {
+    if (accepted.reason !== undefined) {
+      item.reason = accepted.reason;
+    }
+    if (accepted.suggestedValue !== undefined) {
+      item.suggestedValue = accepted.suggestedValue;
+    }
   }
   return item;
 }
 
 function maybeAutoFixFromReview(
-  accepted: { path: string; verdict: "ok" | "wrong"; suggestedValue?: string },
+  accepted: AcceptedReview,
   target: ReviewTarget,
   autoFix: boolean,
 ): TranslatedItem | null {

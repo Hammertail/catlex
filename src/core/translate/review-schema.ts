@@ -4,12 +4,22 @@ import { z } from "zod";
 //* Local imports
 import { extractIcuPlaceholders, type PlaceholderWarning } from "./schema.ts";
 
-const submitTranslationReviewItemSchema = z.object({
+const submitTranslationReviewOkSchema = z.object({
   path: z.string().min(1),
-  verdict: z.enum(["ok", "wrong"]),
+  verdict: z.literal("ok"),
+});
+
+const submitTranslationReviewWrongSchema = z.object({
+  path: z.string().min(1),
+  verdict: z.literal("wrong"),
   reason: z.string().optional(),
   suggestedValue: z.string().optional(),
 });
+
+const submitTranslationReviewItemSchema = z.discriminatedUnion("verdict", [
+  submitTranslationReviewOkSchema,
+  submitTranslationReviewWrongSchema,
+]);
 
 export const submitTranslationReviewsSchema = z.object({
   locale: z.string().min(1),
@@ -18,12 +28,17 @@ export const submitTranslationReviewsSchema = z.object({
 
 export type SubmitTranslationReviewsInput = z.infer<typeof submitTranslationReviewsSchema>;
 
-export type AcceptedReview = {
-  path: string;
-  verdict: "ok" | "wrong";
-  reason?: string;
-  suggestedValue?: string;
-};
+export type AcceptedReview =
+  | {
+      path: string;
+      verdict: "ok";
+    }
+  | {
+      path: string;
+      verdict: "wrong";
+      reason?: string;
+      suggestedValue?: string;
+    };
 
 export type ValidateSubmittedReviewsResult = {
   accepted: AcceptedReview[];
@@ -59,9 +74,16 @@ function needsSuggestedValue(
 }
 
 function toAcceptedReview(item: SubmitTranslationReviewsInput["reviews"][number]): AcceptedReview {
-  const acceptedItem: AcceptedReview = {
+  if (item.verdict === "ok") {
+    return {
+      path: item.path,
+      verdict: "ok",
+    };
+  }
+
+  const acceptedItem: Extract<AcceptedReview, { verdict: "wrong" }> = {
     path: item.path,
-    verdict: item.verdict,
+    verdict: "wrong",
   };
   if (item.reason !== undefined) {
     acceptedItem.reason = item.reason;
@@ -120,7 +142,8 @@ export function validateSubmittedReviews(
     }
 
     accepted.push(toAcceptedReview(item));
-    const warning = maybePlaceholderWarning(item.path, item.suggestedValue, options.baseValues);
+    const suggestedValue = item.verdict === "wrong" ? item.suggestedValue : undefined;
+    const warning = maybePlaceholderWarning(item.path, suggestedValue, options.baseValues);
     if (warning !== null) {
       placeholderWarnings.push(warning);
     }
