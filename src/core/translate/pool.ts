@@ -39,8 +39,8 @@ export function chunkItems<T>(items: T[], size: number): T[][] {
 /**
  * Maps `items` with a cap on in-flight work. Results keep the original index order.
  *
- * After the first mapper rejection, no further items are started. In-flight
- * work is allowed to finish, then the first error is thrown.
+ * After the first mapper rejection or `onItemComplete` throw, no further items
+ * are started. In-flight work is allowed to finish, then the first error is thrown.
  */
 export async function mapWithConcurrency<T, R>(options: {
   items: readonly T[];
@@ -79,12 +79,24 @@ export async function mapWithConcurrency<T, R>(options: {
         nextIndex += 1;
         inFlight += 1;
 
-        void Promise.resolve()
-          .then(() => mapper(item, index))
-          .then((value) => {
+        void (async () => {
+          let mapperFailed = false;
+          try {
+            const value = await mapper(item, index);
             results[index] = value;
+          } catch (error: unknown) {
+            mapperFailed = true;
+            if (firstError === undefined) {
+              firstError = error;
+            }
+          } finally {
             inFlight -= 1;
-            onItemComplete?.({ item, index, inFlight });
+          }
+
+          try {
+            if (!mapperFailed) {
+              onItemComplete?.({ item, index, inFlight });
+            }
             if (firstError !== undefined) {
               if (inFlight === 0) {
                 finish();
@@ -96,16 +108,15 @@ export async function mapWithConcurrency<T, R>(options: {
               return;
             }
             launch();
-          })
-          .catch((error: unknown) => {
-            inFlight -= 1;
+          } catch (error: unknown) {
             if (firstError === undefined) {
               firstError = error;
             }
             if (inFlight === 0) {
               finish();
             }
-          });
+          }
+        })();
       }
     };
 

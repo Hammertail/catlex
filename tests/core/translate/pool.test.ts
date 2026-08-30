@@ -129,4 +129,50 @@ describe("mapWithConcurrency", () => {
       }),
     ).rejects.toThrow("fail-1");
   });
+
+  it("rejects when onItemComplete throws after the last in-flight mapper succeeds", async () => {
+    const callbackError = new Error("progress failed");
+    const settled = Promise.race([
+      mapWithConcurrency({
+        items: ["a"],
+        concurrency: 1,
+        mapper: async (item) => item,
+        onItemComplete: () => {
+          throw callbackError;
+        },
+      }).then(
+        () => "resolved" as const,
+        (error: unknown) => error,
+      ),
+      Bun.sleep(200).then(() => "hung" as const),
+    ]);
+
+    await expect(settled).resolves.toBe(callbackError);
+  });
+
+  it("waits for remaining in-flight work when onItemComplete throws", async () => {
+    const callbackError = new Error("progress failed");
+    let slowFinished = false;
+
+    await expect(
+      mapWithConcurrency({
+        items: ["fast", "slow"],
+        concurrency: 2,
+        mapper: async (item) => {
+          if (item === "slow") {
+            await Bun.sleep(40);
+            slowFinished = true;
+          }
+          return item;
+        },
+        onItemComplete: ({ item }) => {
+          if (item === "fast") {
+            throw callbackError;
+          }
+        },
+      }),
+    ).rejects.toBe(callbackError);
+
+    expect(slowFinished).toBe(true);
+  });
 });
