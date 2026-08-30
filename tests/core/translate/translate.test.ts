@@ -264,4 +264,129 @@ describe("translateMissingKeys", () => {
 
     expect(await readFile(victimPath, "utf8")).toBe(victimBefore);
   });
+
+  it("runs translation chunks concurrently across locales", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-concurrent-"));
+    await writeMessages(cwd, {
+      en: { a: "A" },
+      pt: {},
+      es: {},
+    });
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const result = await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      concurrency: 2,
+      translateLocale: async (input) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Bun.sleep(30);
+        inFlight -= 1;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `${input.targetLocale}:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(maxInFlight).toBe(2);
+    expect(result.reports.map((report) => report.locale)).toEqual(["es", "pt"]);
+    expect(result.reports[0]?.translated[0]?.value).toBe("es:A");
+    expect(result.reports[1]?.translated[0]?.value).toBe("pt:A");
+  });
+
+  it("uses translate.concurrency from the project config when the option is omitted", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-config-concurrency-"));
+    await writeMessages(cwd, {
+      en: { a: "A" },
+      pt: {},
+      es: {},
+      de: {},
+      fr: {},
+    });
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      `${JSON.stringify({ translate: { concurrency: 2 } })}\n`,
+    );
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      translateLocale: async (input) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Bun.sleep(25);
+        inFlight -= 1;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `${input.targetLocale}:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(maxInFlight).toBe(2);
+  });
+
+  it("emits progress with an in-flight count while translating", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-progress-"));
+    await writeMessages(cwd, {
+      en: { a: "A", b: "B" },
+      pt: {},
+    });
+
+    const events: Array<{ type: string; completedKeys?: number; inFlight?: number }> = [];
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      chunkSize: 1,
+      concurrency: 1,
+      onProgress: (event) => {
+        events.push(event);
+      },
+      translateLocale: async (input) => ({
+        locale: input.targetLocale,
+        translations: input.missing.map((item) => ({
+          path: item.path,
+          value: `PT:${item.baseValue}`,
+        })),
+      }),
+    });
+
+    expect(events[0]).toEqual(
+      expect.objectContaining({
+        type: "start",
+        totalKeys: 2,
+        locales: ["pt"],
+        since: null,
+      }),
+    );
+    const progress = events.filter((event) => event.type === "progress");
+    expect(progress.map((event) => event.completedKeys)).toEqual([1, 2]);
+    expect(progress.at(-1)).toEqual(
+      expect.objectContaining({
+        type: "progress",
+        completedKeys: 2,
+        totalKeys: 2,
+        locale: "pt",
+        phase: "translate",
+        inFlight: 0,
+      }),
+    );
+  });
 });

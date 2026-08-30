@@ -392,6 +392,7 @@ describe("reviewTranslations", () => {
       baseLocale: "en",
       dryRun: true,
       chunkSize: 1,
+      concurrency: 1,
       onProgress: (event) => {
         events.push(event);
       },
@@ -716,5 +717,57 @@ describe("reviewTranslations", () => {
     expect(result.writtenFiles).toEqual([path.join(messagesDir, "pt.json")]);
     expect(result.reports[0]?.incompletePaths).toEqual(["title"]);
     expect(result.ok).toBe(false);
+  });
+
+  it("runs review chunks across locales concurrently", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-concurrent-"));
+    await writeMessages(cwd, {
+      en: { a: "A" },
+      pt: { a: "A" },
+      es: { a: "A" },
+    });
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const result = await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      concurrency: 2,
+      reviewLocale: async (input) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await Bun.sleep(30);
+        inFlight -= 1;
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(maxInFlight).toBe(2);
+    expect(result.ok).toBe(true);
+    expect(result.reports.map((report) => report.locale)).toEqual(["es", "pt"]);
+  });
+
+  it("rejects concurrency outside 1–32", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-concurrency-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+
+    await expect(
+      reviewTranslations({
+        cwd,
+        messagesDir: "messages",
+        baseLocale: "en",
+        dryRun: true,
+        concurrency: 0,
+        reviewLocale: async () => ({ locale: "pt", reviews: [] }),
+      }),
+    ).rejects.toThrow("concurrency must be an integer between 1 and 32");
   });
 });

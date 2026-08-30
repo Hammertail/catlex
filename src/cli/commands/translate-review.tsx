@@ -41,6 +41,7 @@ export type TranslateReviewCommandOptions = {
   noConfig?: boolean;
   json?: boolean;
   verbose?: boolean;
+  concurrency?: number;
   confirm?: ConfirmFn;
   reviewLocale?: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
@@ -226,6 +227,7 @@ export async function runTranslateReviewCommand(
     autoFix,
     dryRun: true,
     noConfig,
+    concurrency: options.concurrency,
     onProgress: progressWriter.onProgress,
     reviewLocale: clients.reviewLocale,
     translateLocale: clients.translateLocale,
