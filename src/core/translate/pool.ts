@@ -36,6 +36,10 @@ export function chunkItems<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+function rememberFirstError(current: unknown, incoming: unknown): unknown {
+  return current !== undefined ? current : incoming;
+}
+
 /**
  * Maps `items` with a cap on in-flight work. Results keep the original index order.
  *
@@ -60,68 +64,47 @@ export async function mapWithConcurrency<T, R>(options: {
   let inFlight = 0;
   let firstError: unknown;
 
-  await new Promise<void>((resolve, reject) => {
-    const finish = (): void => {
-      if (firstError !== undefined) {
-        reject(firstError);
-        return;
+  const runItem = async (index: number, item: T): Promise<void> => {
+    inFlight += 1;
+    let mapperFailed = false;
+    try {
+      results[index] = await mapper(item, index);
+    } catch (error: unknown) {
+      mapperFailed = true;
+      firstError = rememberFirstError(firstError, error);
+    } finally {
+      inFlight -= 1;
+    }
+
+    if (mapperFailed) {
+      return;
+    }
+
+    try {
+      onItemComplete?.({ item, index, inFlight });
+    } catch (error: unknown) {
+      firstError = rememberFirstError(firstError, error);
+    }
+  };
+
+  const runWorker = async (): Promise<void> => {
+    while (firstError === undefined && nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item === undefined) {
+        continue;
       }
-      resolve();
-    };
+      await runItem(index, item);
+    }
+  };
 
-    const launch = (): void => {
-      while (inFlight < concurrency && nextIndex < items.length && firstError === undefined) {
-        const index = nextIndex;
-        const item = items[index];
-        if (item === undefined) {
-          break;
-        }
-        nextIndex += 1;
-        inFlight += 1;
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 
-        void (async () => {
-          let mapperFailed = false;
-          try {
-            const value = await mapper(item, index);
-            results[index] = value;
-          } catch (error: unknown) {
-            mapperFailed = true;
-            if (firstError === undefined) {
-              firstError = error;
-            }
-          } finally {
-            inFlight -= 1;
-          }
-
-          try {
-            if (!mapperFailed) {
-              onItemComplete?.({ item, index, inFlight });
-            }
-            if (firstError !== undefined) {
-              if (inFlight === 0) {
-                finish();
-              }
-              return;
-            }
-            if (nextIndex >= items.length && inFlight === 0) {
-              finish();
-              return;
-            }
-            launch();
-          } catch (error: unknown) {
-            if (firstError === undefined) {
-              firstError = error;
-            }
-            if (inFlight === 0) {
-              finish();
-            }
-          }
-        })();
-      }
-    };
-
-    launch();
-  });
+  if (firstError !== undefined) {
+    throw firstError;
+  }
 
   return results;
 }
