@@ -53,6 +53,8 @@ catlex validate
 
 By default catlex looks for `messages/` and treats `en.json` as the base locale.
 
+Feature deep-dives (how each command works, JSON shapes, CI): [docs/](docs/).
+
 ## What it checks
 
 | Issue | Meaning | Default |
@@ -304,4 +306,4 @@ bun run build:mac:arm64  # → dist/catlex-darwin-arm64
 
 Per-OS scripts: `build:linux:x64`, `build:linux:arm64`, `build:mac:x64`, `build:mac:arm64`, `build:windows:x64`.
 
-Contributor and agent notes: [AGENTS.md](AGENTS.md).
+How each feature works: [docs/](docs/). Contributor and agent notes: [AGENTS.md](AGENTS.md).
