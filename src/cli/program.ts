@@ -1,5 +1,6 @@
 //* Libraries imports
 import { Command } from "commander";
+import { styleText } from "node:util";
 
 //* Local imports
 import { runCiCommand } from "./commands/ci.tsx";
@@ -7,6 +8,9 @@ import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
+
+//* Style constants
+import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "../constants/colors.ts";
 
 async function setExitCodeFrom(run: () => Promise<number>): Promise<void> {
   try {
@@ -26,12 +30,34 @@ function parseLocaleOption(value: string, previous: string[]): string[] {
   return previous.concat(parts);
 }
 
+
+function styleHeading(text: string): string {
+  return styleText("bold", styleText(HELP_TITLE_COLOR, text));
+}
+
+function styleCommandTerm(text: string): string {
+  return styleText("bold", styleText(HELP_COMMAND_COLOR, text));
+}
+
+function styleOptionTerm(text: string): string {
+  return styleText("bold", styleText(HELP_OPTION_COLOR, text));
+}
+
 export function createProgram(): Command {
   const program = new Command();
 
   // Required so nested commands (translate → review) can share option names;
   // each level that has children also needs enablePositionalOptions().
   program.enablePositionalOptions();
+
+  program.configureHelp({
+    styleTitle: styleHeading,
+    styleUsage: styleCommandTerm,
+    styleCommandText: styleCommandTerm,
+    styleSubcommandText: styleCommandTerm,
+    styleOptionText: styleOptionTerm,
+    styleDescriptionText: (text) => text,
+  });
 
   program
     .name("catlex")
