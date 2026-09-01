@@ -1,5 +1,6 @@
 //* Libraries imports
 import { Command } from "commander";
+import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
 import { runCiCommand } from "./commands/ci.tsx";
@@ -7,6 +8,8 @@ import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
+
+const packageVersion = packageJson.version;
 
 async function setExitCodeFrom(run: () => Promise<number>): Promise<void> {
   try {
@@ -38,7 +41,7 @@ export function createProgram(): Command {
     .description(
       "CLI to validate next-intl translation JSON files and scan JSX/TSX/VUE for hardcoded strings",
     )
-    .version("0.4.0");
+    .version(packageVersion, "-v, --version");
 
   program
     .command("validate")
