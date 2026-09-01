@@ -49,9 +49,7 @@ async function captureCommandOpts(
   return captured;
 }
 
-async function captureRootVersionOutput(
-  argv: string[],
-): Promise<{ output: string }> {
+async function captureRootVersionOutput(argv: string[]): Promise<{ output: string }> {
   const program = createProgram();
   let output = "";
 
