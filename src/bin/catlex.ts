@@ -6,7 +6,6 @@ import { registerCrashHandlers } from "../core/reporting/register-crash-handlers
 
 registerCrashHandlers();
 
-
 const program = createProgram();
 
 await program.parseAsync(process.argv);

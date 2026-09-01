@@ -1,7 +1,4 @@
-import {
-  writeCrashReportSync,
-  type CrashReport,
-} from "./write-error.ts";
+import { writeCrashReportSync, type CrashReport } from "./write-error.ts";
 
 export type RegisterOptions = {
   logDir?: string;
@@ -35,12 +32,12 @@ function tryPersistCrashSync(err: unknown, providedDir?: string): void {
 
 export function registerCrashHandlers(opts?: RegisterOptions): void {
   process.on("uncaughtException", (err) => {
-    console.log("banan")
+    console.log("banan");
     tryPersistCrashSync(err, opts?.logDir);
   });
 
   process.on("unhandledRejection", (reason) => {
-    console.log("melao")
+    console.log("melao");
     tryPersistCrashSync(reason, opts?.logDir);
   });
 }

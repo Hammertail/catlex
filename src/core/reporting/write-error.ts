@@ -43,17 +43,19 @@ async function pruneOldLogs(dir: string): Promise<void> {
     const files = await readdir(dir);
     const now = Date.now();
     const cutoff = now - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-    await Promise.all(files.map(async (f) => {
-      try {
-        const p = path.join(dir, f);
-        const s = await stat(p);
-        if (s.mtimeMs < cutoff) {
-          await unlink(p);
+    await Promise.all(
+      files.map(async (f) => {
+        try {
+          const p = path.join(dir, f);
+          const s = await stat(p);
+          if (s.mtimeMs < cutoff) {
+            await unlink(p);
+          }
+        } catch {
+          // ignore per-file errors
         }
-      } catch {
-        // ignore per-file errors
-      }
-    }));
+      }),
+    );
   } catch {
     // ignore prune errors
   }

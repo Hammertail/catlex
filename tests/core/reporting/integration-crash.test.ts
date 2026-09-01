@@ -13,7 +13,9 @@ function cleanupDir(dir: string) {
   try {
     if (fs.existsSync(dir)) {
       for (const f of fs.readdirSync(dir)) {
-        try { fs.unlinkSync(path.join(dir, f)); } catch {}
+        try {
+          fs.unlinkSync(path.join(dir, f));
+        } catch {}
       }
       fs.rmdirSync(dir);
     }

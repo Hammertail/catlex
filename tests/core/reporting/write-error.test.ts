@@ -5,7 +5,11 @@ import path from "node:path";
 import os from "node:os";
 
 //* Local imports
-import { writeCrashReport, writeCrashReportSync, type CrashReport } from "../../../src/core/reporting/write-error.ts";
+import {
+  writeCrashReport,
+  writeCrashReportSync,
+  type CrashReport,
+} from "../../../src/core/reporting/write-error.ts";
 
 const tmpRoot = path.join(os.tmpdir(), `catlex-test-${process.pid}`);
 
@@ -13,7 +17,9 @@ function cleanupDir(dir: string) {
   try {
     if (fs.existsSync(dir)) {
       for (const f of fs.readdirSync(dir)) {
-        try { fs.unlinkSync(path.join(dir, f)); } catch {}
+        try {
+          fs.unlinkSync(path.join(dir, f));
+        } catch {}
       }
       fs.rmdirSync(dir);
     }
