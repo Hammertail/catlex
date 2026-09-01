@@ -30,7 +30,6 @@ function parseLocaleOption(value: string, previous: string[]): string[] {
   return previous.concat(parts);
 }
 
-
 function styleHeading(text: string): string {
   return styleText("bold", styleText(HELP_TITLE_COLOR, text));
 }
