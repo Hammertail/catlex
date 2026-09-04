@@ -29,6 +29,7 @@ describe("createReviewProgressWriter", () => {
       totalKeys: 2,
       locale: "pt-BR",
       phase: "review",
+      inFlight: 0,
       chunkPaths: ["welcome", "about"],
     });
     writer.finish();
@@ -40,7 +41,7 @@ describe("createReviewProgressWriter", () => {
     expect(text).toContain("Messages dir: messages");
     expect(text).toContain("Model: gpt-test");
     expect(text).toContain("Progress: 0 / 2 keys reviewed");
-    expect(text).toContain("Progress: 2 / 2 keys reviewed · pt-BR");
+    expect(text).toContain("Progress: 2 / 2 keys reviewed · in-flight 0");
     expect(text).not.toContain("[review]");
   });
 
@@ -69,6 +70,7 @@ describe("createReviewProgressWriter", () => {
       totalKeys: 1,
       locale: "pt",
       phase: "review",
+      inFlight: 0,
       chunkPaths: ["welcome"],
     });
     writer.finish();
@@ -103,13 +105,14 @@ describe("createReviewProgressWriter", () => {
       totalKeys: 1,
       locale: "pt",
       phase: "review",
+      inFlight: 0,
     });
     writer.finish();
 
     const text = chunks.join("");
     expect(text).toContain("Target locale: (none)");
     expect(text).toContain("\rProgress: 0 / 1 keys reviewed");
-    expect(text).toContain("\rProgress: 1 / 1 keys reviewed · pt");
+    expect(text).toContain("\rProgress: 1 / 1 keys reviewed · in-flight 0");
   });
 
   it("prints newline progress when json is set even if the terminal is a TTY", () => {
@@ -138,6 +141,7 @@ describe("createReviewProgressWriter", () => {
       totalKeys: 1,
       locale: "pt",
       phase: "review",
+      inFlight: 0,
       chunkPaths: [],
     });
     writer.finish();
@@ -145,8 +149,43 @@ describe("createReviewProgressWriter", () => {
     const text = chunks.join("");
     expect(text).toContain("Reviewing translations");
     expect(text).toContain("Progress: 0 / 1 keys reviewed\n");
-    expect(text).toContain("Progress: 1 / 1 keys reviewed · pt\n");
+    expect(text).toContain("Progress: 1 / 1 keys reviewed · in-flight 0\n");
     expect(text).not.toContain("\rProgress:");
     expect(text).not.toContain("[review]");
+  });
+
+  it("prints a translate banner and keys-translated label", () => {
+    const chunks: string[] = [];
+    const writer = createReviewProgressWriter({
+      kind: "translate",
+      model: "gpt-test",
+      isTty: false,
+      write: (chunk) => {
+        chunks.push(chunk);
+      },
+    });
+
+    writer.onProgress({
+      type: "start",
+      baseLocale: "en",
+      messagesDir: "messages",
+      locales: ["pt"],
+      totalKeys: 1,
+      since: null,
+    });
+    writer.onProgress({
+      type: "progress",
+      completedKeys: 1,
+      totalKeys: 1,
+      locale: "pt",
+      phase: "translate",
+      inFlight: 1,
+    });
+    writer.finish();
+
+    const text = chunks.join("");
+    expect(text).toContain("Translating missing keys");
+    expect(text).toContain("Progress: 0 / 1 keys translated");
+    expect(text).toContain("Progress: 1 / 1 keys translated · in-flight 1");
   });
 });

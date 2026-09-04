@@ -185,4 +185,34 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
 
     await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
   });
+
+  it("loads optional translate concurrency from config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          concurrency: 8,
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ concurrency: 8 });
+  });
+
+  it("rejects translate concurrency outside 1–32", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          concurrency: 0,
+        },
+      }),
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
+  });
 });

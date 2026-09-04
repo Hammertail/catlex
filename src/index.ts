@@ -81,6 +81,7 @@ export {
 } from "./core/translate/schema.ts";
 export {
   DEFAULT_TRANSLATE_CHUNK_SIZE,
+  DEFAULT_TRANSLATE_CONCURRENCY,
   translateMissingKeys,
 } from "./core/translate/translate.ts";
 export { writeTranslatedReports } from "./core/translate/write-reports.ts";
@@ -199,6 +200,13 @@ export type {
   ReviewLocaleFn,
   ReviewLocaleInput,
 } from "./core/translate/review-openai.ts";
+export type {
+  TranslateProgressEvent,
+  TranslateProgressFn,
+  TranslateProgressPhase,
+  TranslateProgressStartEvent,
+  TranslateProgressUpdateEvent,
+} from "./core/translate/progress.ts";
 export type {
   LocaleReviewReport,
   ReviewItemResult,

@@ -53,6 +53,8 @@ catlex validate
 
 By default catlex looks for `messages/` and treats `en.json` as the base locale.
 
+Feature deep-dives (how each command works, JSON shapes, CI): [docs/](docs/).
+
 ## What it checks
 
 | Issue | Meaning | Default |
@@ -159,10 +161,11 @@ catlex translate --json
 | `--yes` | Skip both interactive prompts and write files |
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
+| `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
 
-To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only:
+To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4):
 
 ```json
 {
@@ -172,6 +175,9 @@ To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways)
       "HTTP-Referer": "https://example.com",
       "X-Title": "My App"
     }
+  },
+  "translate": {
+    "concurrency": 8
   }
 }
 ```
@@ -214,8 +220,9 @@ catlex translate review --verbose
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of the interactive terminal UI |
 | `--verbose` | Print per-chunk progress details (paths reviewed in each batch) |
+| `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 
-Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI.
+Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI. Full-corpus review still issues one model call per chunk of 50 keys; the default of 4 concurrent calls reduces wall-clock time but does not change how many calls run in total.
 
 With `--since`:
 
@@ -244,6 +251,8 @@ Use a full git history (or fetch the base ref) so `--since` can resolve:
     OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
+
+Generated workflows use `--no-config`, so `translate.concurrency` in `catlex.config.*` does **not** apply on those jobs. They still use the runtime default of 4 parallel API calls. To raise or lower that in Actions, add `--concurrency` to the workflow `run:` line.
 
 Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`. Set optional repository variable `OPENAI_BASE_URL` when using an OpenAI-compatible endpoint in CI; leave it unset to use the official OpenAI API.
 
@@ -297,4 +306,4 @@ bun run build:mac:arm64  # → dist/catlex-darwin-arm64
 
 Per-OS scripts: `build:linux:x64`, `build:linux:arm64`, `build:mac:x64`, `build:mac:arm64`, `build:windows:x64`.
 
-Contributor and agent notes: [AGENTS.md](AGENTS.md).
+How each feature works: [docs/](docs/). Contributor and agent notes: [AGENTS.md](AGENTS.md).
