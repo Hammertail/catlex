@@ -273,6 +273,13 @@ catlex translate --no-config --dry-run --json
 catlex translate review --no-config --since origin/main --json
 ```
 
+## Crash logs
+
+When an unexpected error occurs, Catlex now persists a short crash log to `~/.catlex/logs/` and prints the saved path to stderr so it can be attached to bug reports. The log contains a timestamp, the command invoked, the working directory, the Node/Bun version, the error message, and the stack trace when available.
+
+To opt out of automatic crash-log creation, set the environment variable `CATLEX_NO_CRASH_LOGS=1`.
+
+
 ### Add GitHub Actions workflows
 
 Interactively scaffold one or more workflows (Space to toggle, Enter to confirm):
