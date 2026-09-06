@@ -134,6 +134,7 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--locale <locale>")).toBe(true);
       expect(reviewFlags.has("--json")).toBe(true);
       expect(reviewFlags.has("--verbose")).toBe(true);
+      expect(reviewFlags.has("--concurrency <n>")).toBe(true);
       expect(reviewFlags.has("--no-config")).toBe(true);
 
       const validateFlags = new Set(
@@ -145,6 +146,7 @@ describe("createProgram", () => {
         findCommand(program, ["translate"]).options.map((option) => option.flags),
       );
       expect(translateFlags.has("--no-config")).toBe(true);
+      expect(translateFlags.has("--concurrency <n>")).toBe(true);
 
       const ci = findCommand(program, ["ci"]);
       expect(ci.aliases()).toContain("init-ci");
@@ -235,6 +237,8 @@ describe("createProgram", () => {
           "--yes",
           "--no-config",
           "--json",
+          "--concurrency",
+          "8",
         ],
       );
       expect(opts).toMatchObject({
@@ -248,6 +252,7 @@ describe("createProgram", () => {
         yes: true,
         config: false,
         json: true,
+        concurrency: 8,
       });
     });
 
@@ -314,6 +319,8 @@ describe("createProgram", () => {
           "--no-config",
           "--json",
           "--verbose",
+          "--concurrency",
+          "6",
         ],
       );
       expect(opts).toMatchObject({
@@ -329,6 +336,7 @@ describe("createProgram", () => {
         config: false,
         json: true,
         verbose: true,
+        concurrency: 6,
       });
     });
 
@@ -393,6 +401,7 @@ describe("createProgram", () => {
       expect(opts.dir).toBeUndefined();
       expect(opts.base).toBeUndefined();
       expect(opts.model).toBeUndefined();
+      expect(opts.concurrency).toBeUndefined();
     });
 
     it("applies translate review defaults when flags are omitted", async () => {
@@ -411,6 +420,7 @@ describe("createProgram", () => {
       expect(opts.base).toBeUndefined();
       expect(opts.model).toBeUndefined();
       expect(opts.since).toBeUndefined();
+      expect(opts.concurrency).toBeUndefined();
     });
   });
 

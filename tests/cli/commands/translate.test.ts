@@ -45,6 +45,7 @@ function createTranslateSpy(
 describe("runTranslateCommand", () => {
   const logSpies: Array<ReturnType<typeof spyOn>> = [];
   const errorSpies: Array<ReturnType<typeof spyOn>> = [];
+  const writeSpies: Array<ReturnType<typeof spyOn>> = [];
 
   afterEach(() => {
     for (const spy of logSpies) {
@@ -53,8 +54,12 @@ describe("runTranslateCommand", () => {
     for (const spy of errorSpies) {
       spy.mockRestore();
     }
+    for (const spy of writeSpies) {
+      spy.mockRestore();
+    }
     logSpies.length = 0;
     errorSpies.length = 0;
+    writeSpies.length = 0;
   });
 
   function captureLog(): ReturnType<typeof spyOn> {
@@ -67,6 +72,11 @@ describe("runTranslateCommand", () => {
     const spy = spyOn(console, "error").mockImplementation(() => {});
     errorSpies.push(spy);
     return spy;
+  }
+
+  function silenceStderr(): void {
+    const spy = spyOn(process.stderr, "write").mockImplementation(() => true);
+    writeSpies.push(spy);
   }
 
   it("includes alpha fields in JSON output", async () => {
@@ -197,6 +207,7 @@ describe("runTranslateCommand", () => {
       translations: [{ path: "about", value: "Sobre" }],
     }));
     captureLog();
+    silenceStderr();
 
     const exitCode = await runTranslateCommand({
       cwd,
@@ -266,6 +277,7 @@ describe("runTranslateCommand", () => {
       translations: [{ path: "about", value: "Sobre" }],
     }));
     const log = captureLog();
+    silenceStderr();
 
     const exitCode = await runTranslateCommand({
       cwd,
@@ -305,6 +317,7 @@ describe("runTranslateCommand", () => {
       translations: [{ path: "about", value: "Sobre" }],
     }));
     captureLog();
+    silenceStderr();
 
     const exitCode = await runTranslateCommand({
       cwd,

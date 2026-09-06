@@ -14,7 +14,7 @@
   "scripts": {
     "dev": "bun run src/bin/catlex.ts",
     "validate": "bun run src/bin/catlex.ts validate",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "build": "bun build ./src/bin/catlex.ts --compile --outfile dist/catlex",
     "install:local": "bun run build && mkdir -p \"$HOME/.local/bin\" && install -m 755 dist/catlex \"$HOME/.local/bin/catlex\" && echo \"Installed $HOME/.local/bin/catlex\"",
     "build:linux:x64": "bun build ./src/bin/catlex.ts --compile --target=bun-linux-x64 --outfile dist/catlex-linux-x64",

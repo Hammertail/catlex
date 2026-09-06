@@ -5,6 +5,8 @@ import path from "node:path";
 import { loadConfig } from "../config/load.ts";
 import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { collectTranslationExamples } from "./collect.ts";
+import { chunkItems, mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
+import { createProgressAccumulator } from "./progress.ts";
 import { buildTranslatePrompt } from "./prompt.ts";
 import { buildReviewPrompt } from "./review-prompt.ts";
 import { validateSubmittedReviews, type AcceptedReview } from "./review-schema.ts";
@@ -28,7 +30,16 @@ import { writeTranslatedReports } from "./write-reports.ts";
 import type { ConfigFlags } from "../config/schema.ts";
 import type { GitRunner } from "../git/run.ts";
 import type { LocaleMessages } from "../types.ts";
+import type { TranslationExample } from "./collect.ts";
+import type { TranslateProgressAccumulator, TranslateProgressFn } from "./progress.ts";
 import type { ReviewLocaleFn } from "./review-openai.ts";
+
+export type {
+  ReviewProgressEvent,
+  ReviewProgressFn,
+  ReviewProgressStartEvent,
+  ReviewProgressUpdateEvent,
+} from "./progress.ts";
 
 export type ReviewItemVerdict = "ok" | "wrong" | "missing";
 
@@ -69,28 +80,6 @@ export type ReviewResult = {
   writtenFiles: string[];
 };
 
-export type ReviewProgressStartEvent = {
-  type: "start";
-  baseLocale: string;
-  messagesDir: string;
-  locales: string[];
-  totalKeys: number;
-  since: string | null;
-};
-
-export type ReviewProgressUpdateEvent = {
-  type: "progress";
-  completedKeys: number;
-  totalKeys: number;
-  locale: string;
-  phase: "review" | "translate-missing";
-  chunkPaths?: string[];
-};
-
-export type ReviewProgressEvent = ReviewProgressStartEvent | ReviewProgressUpdateEvent;
-
-export type ReviewProgressFn = (event: ReviewProgressEvent) => void;
-
 export type ReviewTranslationsOptions = ConfigFlags & {
   cwd?: string;
   locales?: string[];
@@ -98,30 +87,59 @@ export type ReviewTranslationsOptions = ConfigFlags & {
   autoFix?: boolean;
   dryRun?: boolean;
   chunkSize?: number;
+  concurrency?: number;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
-  onProgress?: ReviewProgressFn;
+  onProgress?: TranslateProgressFn;
   runGit?: GitRunner;
   loadWorkingTree?: () => Promise<LocaleMessages[]>;
   loadAtRef?: (ref: string) => Promise<LocaleMessages[]>;
 };
 
-type ReviewProgressState = {
-  totalKeys: number;
-  completedKeys: number;
-  onProgress?: ReviewProgressFn;
+type ReviewChunkOutcome = {
+  items: ReviewItemResult[];
+  fixes: TranslatedItem[];
+  incompletePaths: string[];
+  unexpectedPaths: string[];
+  missingSuggestedPaths: string[];
+  placeholderWarnings: PlaceholderWarning[];
 };
 
-function chunkItems<T>(items: T[], size: number): T[][] {
-  if (size <= 0) {
-    throw new Error("chunkSize must be greater than 0");
-  }
+type ReviewApiWorkItem =
+  | {
+      kind: "review";
+      localeId: string;
+      chunk: ReviewTarget[];
+    }
+  | {
+      kind: "translate-missing";
+      localeId: string;
+      chunk: ReviewTarget[];
+      examples: TranslationExample[];
+    };
 
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
+function emptyReviewChunkOutcome(): ReviewChunkOutcome {
+  return {
+    items: [],
+    fixes: [],
+    incompletePaths: [],
+    unexpectedPaths: [],
+    missingSuggestedPaths: [],
+    placeholderWarnings: [],
+  };
+}
+
+function mergeReviewChunkOutcomes(parts: ReviewChunkOutcome[]): ReviewChunkOutcome {
+  const merged = emptyReviewChunkOutcome();
+  for (const part of parts) {
+    merged.items.push(...part.items);
+    merged.fixes.push(...part.fixes);
+    merged.incompletePaths.push(...part.incompletePaths);
+    merged.unexpectedPaths.push(...part.unexpectedPaths);
+    merged.missingSuggestedPaths.push(...part.missingSuggestedPaths);
+    merged.placeholderWarnings.push(...part.placeholderWarnings);
   }
-  return chunks;
+  return merged;
 }
 
 function groupTargetsByLocale(targets: ReviewTarget[]): Map<string, ReviewTarget[]> {
@@ -181,124 +199,69 @@ function maybeAutoFixFromReview(
   };
 }
 
-function emitReviewProgress(
-  state: ReviewProgressState,
-  options: {
-    locale: string;
-    phase: "review" | "translate-missing";
-    chunkPaths: string[];
-  },
-): void {
-  state.completedKeys += options.chunkPaths.length;
-  state.onProgress?.({
-    type: "progress",
-    completedKeys: state.completedKeys,
-    totalKeys: state.totalKeys,
-    locale: options.locale,
-    phase: options.phase,
-    chunkPaths: options.chunkPaths,
-  });
-}
-
-async function reviewPresentTargets(options: {
+async function reviewPresentChunk(options: {
   baseLocale: string;
   targetLocale: string;
-  present: ReviewTarget[];
-  chunkSize: number;
+  chunk: ReviewTarget[];
   autoFix: boolean;
   reviewLocale: ReviewLocaleFn;
-  progress: ReviewProgressState;
-}): Promise<{
-  items: ReviewItemResult[];
-  fixes: TranslatedItem[];
-  incompletePaths: string[];
-  unexpectedPaths: string[];
-  missingSuggestedPaths: string[];
-  placeholderWarnings: PlaceholderWarning[];
-}> {
+}): Promise<ReviewChunkOutcome> {
   const items: ReviewItemResult[] = [];
   const fixes: TranslatedItem[] = [];
-  const incompletePaths: string[] = [];
-  const unexpectedPaths: string[] = [];
-  const missingSuggestedPaths: string[] = [];
-  const placeholderWarnings: PlaceholderWarning[] = [];
-
-  for (const chunk of chunkItems(options.present, options.chunkSize)) {
-    const promptItems = chunk.map((target) => ({
-      path: target.path,
-      baseValue: target.baseValue,
-      localeValue: target.localeValue ?? "",
-    }));
-    const submitted = await options.reviewLocale({
+  const promptItems = options.chunk.map((target) => ({
+    path: target.path,
+    baseValue: target.baseValue,
+    localeValue: target.localeValue ?? "",
+  }));
+  const submitted = await options.reviewLocale({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    items: promptItems,
+    prompt: buildReviewPrompt({
       baseLocale: options.baseLocale,
       targetLocale: options.targetLocale,
       items: promptItems,
-      prompt: buildReviewPrompt({
-        baseLocale: options.baseLocale,
-        targetLocale: options.targetLocale,
-        items: promptItems,
-      }),
-    });
+    }),
+  });
 
-    const targetByPath = new Map(chunk.map((target) => [target.path, target] as const));
-    const validated = validateSubmittedReviews({
-      allowedPaths: new Set(chunk.map((target) => target.path)),
-      baseValues: new Map(chunk.map((target) => [target.path, target.baseValue] as const)),
-      requireSuggestedValue: options.autoFix,
-      submitted,
-    });
+  const targetByPath = new Map(options.chunk.map((target) => [target.path, target] as const));
+  const validated = validateSubmittedReviews({
+    allowedPaths: new Set(options.chunk.map((target) => target.path)),
+    baseValues: new Map(options.chunk.map((target) => [target.path, target.baseValue] as const)),
+    requireSuggestedValue: options.autoFix,
+    submitted,
+  });
 
-    incompletePaths.push(...validated.missingPaths);
-    unexpectedPaths.push(...validated.unexpectedPaths);
-    missingSuggestedPaths.push(...validated.missingSuggestedPaths);
-    placeholderWarnings.push(...validated.placeholderWarnings);
-
-    for (const accepted of validated.accepted) {
-      const target = targetByPath.get(accepted.path);
-      if (!target) {
-        continue;
-      }
-      items.push(acceptedReviewToItem(accepted, target, options.targetLocale));
-      const fix = maybeAutoFixFromReview(accepted, target, options.autoFix);
-      if (fix !== null) {
-        fixes.push(fix);
-      }
+  for (const accepted of validated.accepted) {
+    const target = targetByPath.get(accepted.path);
+    if (!target) {
+      continue;
     }
-
-    emitReviewProgress(options.progress, {
-      locale: options.targetLocale,
-      phase: "review",
-      chunkPaths: chunk.map((target) => target.path),
-    });
+    items.push(acceptedReviewToItem(accepted, target, options.targetLocale));
+    const fix = maybeAutoFixFromReview(accepted, target, options.autoFix);
+    if (fix !== null) {
+      fixes.push(fix);
+    }
   }
 
   return {
     items,
     fixes,
-    incompletePaths,
-    unexpectedPaths,
-    missingSuggestedPaths,
-    placeholderWarnings,
+    incompletePaths: validated.missingPaths,
+    unexpectedPaths: validated.unexpectedPaths,
+    missingSuggestedPaths: validated.missingSuggestedPaths,
+    placeholderWarnings: validated.placeholderWarnings,
   };
 }
 
-async function translateMissingTargets(options: {
+async function translateMissingChunk(options: {
   baseLocale: string;
   targetLocale: string;
-  base: LocaleMessages;
-  locale: LocaleMessages;
-  missing: ReviewTarget[];
-  chunkSize: number;
+  chunk: ReviewTarget[];
+  examples: TranslationExample[];
   translateLocale: TranslateLocaleFn;
-  progress: ReviewProgressState;
-}): Promise<{
-  items: ReviewItemResult[];
-  fixes: TranslatedItem[];
-  incompletePaths: string[];
-  unexpectedPaths: string[];
-  placeholderWarnings: PlaceholderWarning[];
-}> {
-  const items: ReviewItemResult[] = options.missing.map((target) => ({
+}): Promise<ReviewChunkOutcome> {
+  const items: ReviewItemResult[] = options.chunk.map((target) => ({
     locale: options.targetLocale,
     path: target.path,
     verdict: "missing" as const,
@@ -306,76 +269,76 @@ async function translateMissingTargets(options: {
     changeSources: target.changeSources,
   }));
 
-  const fixes: TranslatedItem[] = [];
-  const incompletePaths: string[] = [];
-  const unexpectedPaths: string[] = [];
-  const placeholderWarnings: PlaceholderWarning[] = [];
-
-  const examples = collectTranslationExamples({
-    base: options.base,
-    locale: options.locale,
-    limit: 8,
+  const missingPayload = options.chunk.map((target) => ({
+    path: target.path,
+    baseValue: target.baseValue,
+  }));
+  const prompt = buildTranslatePrompt({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    missing: missingPayload,
+    examples: options.examples,
   });
 
-  for (const chunk of chunkItems(options.missing, options.chunkSize)) {
-    const missingPayload = chunk.map((target) => ({
-      path: target.path,
-      baseValue: target.baseValue,
-    }));
-    const prompt = buildTranslatePrompt({
-      baseLocale: options.baseLocale,
-      targetLocale: options.targetLocale,
-      missing: missingPayload,
-      examples,
+  const submitted = await options.translateLocale({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    missing: missingPayload,
+    examples: options.examples,
+    prompt,
+  });
+
+  const allowedPaths = new Set(options.chunk.map((target) => target.path));
+  const baseValues = new Map(
+    options.chunk.map((target) => [target.path, target.baseValue] as const),
+  );
+  const validated = validateSubmittedTranslations({
+    allowedPaths,
+    baseValues,
+    submitted,
+  });
+
+  const fixes: TranslatedItem[] = [];
+  for (const accepted of validated.accepted) {
+    const baseValue = baseValues.get(accepted.path) ?? "";
+    fixes.push({
+      path: accepted.path,
+      value: accepted.value,
+      baseValue,
     });
 
-    const submitted = await options.translateLocale({
-      baseLocale: options.baseLocale,
-      targetLocale: options.targetLocale,
-      missing: missingPayload,
-      examples,
-      prompt,
-    });
-
-    const allowedPaths = new Set(chunk.map((target) => target.path));
-    const baseValues = new Map(chunk.map((target) => [target.path, target.baseValue] as const));
-    const validated = validateSubmittedTranslations({
-      allowedPaths,
-      baseValues,
-      submitted,
-    });
-
-    incompletePaths.push(...validated.missingPaths);
-    unexpectedPaths.push(...validated.unexpectedPaths);
-    placeholderWarnings.push(...validated.placeholderWarnings);
-
-    for (const accepted of validated.accepted) {
-      const baseValue = baseValues.get(accepted.path) ?? "";
-      fixes.push({
-        path: accepted.path,
-        value: accepted.value,
-        baseValue,
-      });
-
-      const item = items.find((entry) => entry.path === accepted.path);
-      if (item) {
-        item.suggestedValue = accepted.value;
-      }
+    const item = items.find((entry) => entry.path === accepted.path);
+    if (item) {
+      item.suggestedValue = accepted.value;
     }
-
-    emitReviewProgress(options.progress, {
-      locale: options.targetLocale,
-      phase: "translate-missing",
-      chunkPaths: chunk.map((target) => target.path),
-    });
   }
 
   return {
     items,
     fixes,
-    incompletePaths,
-    unexpectedPaths,
-    placeholderWarnings,
+    incompletePaths: validated.missingPaths,
+    unexpectedPaths: validated.unexpectedPaths,
+    missingSuggestedPaths: [],
+    placeholderWarnings: validated.placeholderWarnings,
+  };
+}
+
+function finalizeLocaleReviewReport(options: {
+  localeId: string;
+  filePath: string;
+  outcome: ReviewChunkOutcome;
+}): LocaleReviewReport {
+  return {
+    locale: options.localeId,
+    filePath: options.filePath,
+    items: sortItems(options.outcome.items),
+    fixes: sortFixes(options.outcome.fixes),
+    incompletePaths: [...new Set(options.outcome.incompletePaths)].sort(),
+    unexpectedPaths: [...new Set(options.outcome.unexpectedPaths)].sort(),
+    missingSuggestedPaths: [...new Set(options.outcome.missingSuggestedPaths)].sort(),
+    placeholderWarnings: [...options.outcome.placeholderWarnings].sort((a, b) =>
+      a.path.localeCompare(b.path),
+    ),
   };
 }
 
@@ -423,112 +386,234 @@ export function countReviewFixes(result: ReviewResult): number {
   return result.reports.reduce((total, report) => total + report.fixes.length, 0);
 }
 
-async function buildLocaleReviewReport(options: {
-  localeId: string;
-  targets: ReviewTarget[];
-  locale: LocaleMessages | undefined;
-  filePath: string;
+function collectReviewWork(options: {
+  locales: string[];
+  targetsByLocale: Map<string, ReviewTarget[]>;
+  localeById: Map<string, LocaleMessages>;
   base: LocaleMessages;
-  baseLocale: string;
-  autoFix: boolean;
   chunkSize: number;
-  reviewLocale: ReviewLocaleFn;
+  autoFix: boolean;
   translateLocale?: TranslateLocaleFn;
-  progress: ReviewProgressState;
-}): Promise<LocaleReviewReport> {
-  const missing = options.targets.filter((target) => target.localeValue === undefined);
-  const present = options.targets.filter((target) => target.localeValue !== undefined);
+}): {
+  workItems: ReviewApiWorkItem[];
+  missingWithoutFixByLocale: Map<string, ReviewTarget[]>;
+} {
+  const workItems: ReviewApiWorkItem[] = [];
+  const missingWithoutFixByLocale = new Map<string, ReviewTarget[]>();
 
-  const items: ReviewItemResult[] = [];
-  const fixes: TranslatedItem[] = [];
-  const incompletePaths: string[] = [];
-  const unexpectedPaths: string[] = [];
-  const missingSuggestedPaths: string[] = [];
-  const placeholderWarnings: PlaceholderWarning[] = [];
+  for (const localeId of options.locales) {
+    const targets = options.targetsByLocale.get(localeId) ?? [];
+    const missing = targets.filter((target) => target.localeValue === undefined);
+    const present = targets.filter((target) => target.localeValue !== undefined);
 
-  if (present.length > 0) {
-    const reviewed = await reviewPresentTargets({
-      baseLocale: options.baseLocale,
-      targetLocale: options.localeId,
-      present,
+    for (const chunk of chunkItems(present, options.chunkSize)) {
+      workItems.push({ kind: "review", localeId, chunk });
+    }
+
+    if (missing.length === 0) {
+      continue;
+    }
+
+    enqueueMissingReviewWork({
+      localeId,
+      missing,
+      locale: options.localeById.get(localeId),
+      base: options.base,
       chunkSize: options.chunkSize,
       autoFix: options.autoFix,
-      reviewLocale: options.reviewLocale,
-      progress: options.progress,
+      translateLocale: options.translateLocale,
+      workItems,
+      missingWithoutFixByLocale,
     });
-    items.push(...reviewed.items);
-    fixes.push(...reviewed.fixes);
-    incompletePaths.push(...reviewed.incompletePaths);
-    unexpectedPaths.push(...reviewed.unexpectedPaths);
-    missingSuggestedPaths.push(...reviewed.missingSuggestedPaths);
-    placeholderWarnings.push(...reviewed.placeholderWarnings);
   }
 
-  if (missing.length === 0) {
-    return {
-      locale: options.localeId,
-      filePath: options.filePath,
-      items: sortItems(items),
-      fixes: sortFixes(fixes),
-      incompletePaths: [...new Set(incompletePaths)].sort(),
-      unexpectedPaths: [...new Set(unexpectedPaths)].sort(),
-      missingSuggestedPaths: [...new Set(missingSuggestedPaths)].sort(),
-      placeholderWarnings: [...placeholderWarnings].sort((a, b) => a.path.localeCompare(b.path)),
-    };
-  }
+  return { workItems, missingWithoutFixByLocale };
+}
 
+function enqueueMissingReviewWork(options: {
+  localeId: string;
+  missing: ReviewTarget[];
+  locale: LocaleMessages | undefined;
+  base: LocaleMessages;
+  chunkSize: number;
+  autoFix: boolean;
+  translateLocale?: TranslateLocaleFn;
+  workItems: ReviewApiWorkItem[];
+  missingWithoutFixByLocale: Map<string, ReviewTarget[]>;
+}): void {
   if (!options.autoFix) {
-    items.push(
-      ...missing.map((target) => ({
-        locale: options.localeId,
-        path: target.path,
-        verdict: "missing" as const,
-        baseValue: target.baseValue,
-        changeSources: target.changeSources,
-      })),
+    options.missingWithoutFixByLocale.set(options.localeId, options.missing);
+    return;
+  }
+
+  if (options.translateLocale === undefined) {
+    throw new Error(
+      "translateLocale is required when auto-fixing missing translations during review",
     );
-    emitReviewProgress(options.progress, {
-      locale: options.localeId,
+  }
+  if (options.locale === undefined) {
+    throw new Error(`Locale file not found in working tree: ${options.localeId}.json`);
+  }
+
+  const examples = collectTranslationExamples({
+    base: options.base,
+    locale: options.locale,
+    limit: 8,
+  });
+  for (const chunk of chunkItems(options.missing, options.chunkSize)) {
+    options.workItems.push({
+      kind: "translate-missing",
+      localeId: options.localeId,
+      chunk,
+      examples,
+    });
+  }
+}
+
+async function runReviewChunk(options: {
+  item: ReviewApiWorkItem;
+  baseLocale: string;
+  autoFix: boolean;
+  reviewLocale: ReviewLocaleFn;
+  translateLocale?: TranslateLocaleFn;
+}): Promise<ReviewChunkOutcome> {
+  if (options.item.kind === "review") {
+    return reviewPresentChunk({
+      baseLocale: options.baseLocale,
+      targetLocale: options.item.localeId,
+      chunk: options.item.chunk,
+      autoFix: options.autoFix,
+      reviewLocale: options.reviewLocale,
+    });
+  }
+
+  const translateLocale = options.translateLocale;
+  if (translateLocale === undefined) {
+    throw new Error(
+      "translateLocale is required when auto-fixing missing translations during review",
+    );
+  }
+
+  return translateMissingChunk({
+    baseLocale: options.baseLocale,
+    targetLocale: options.item.localeId,
+    chunk: options.item.chunk,
+    examples: options.item.examples,
+    translateLocale,
+  });
+}
+
+async function runReviewWorkPool(options: {
+  workItems: ReviewApiWorkItem[];
+  concurrency: number;
+  baseLocale: string;
+  autoFix: boolean;
+  reviewLocale: ReviewLocaleFn;
+  translateLocale?: TranslateLocaleFn;
+  progress: TranslateProgressAccumulator;
+}): Promise<Map<string, ReviewChunkOutcome[]>> {
+  const chunkResults = await mapWithConcurrency({
+    items: options.workItems,
+    concurrency: options.concurrency,
+    mapper: async (item) => {
+      const result = await runReviewChunk({
+        item,
+        baseLocale: options.baseLocale,
+        autoFix: options.autoFix,
+        reviewLocale: options.reviewLocale,
+        translateLocale: options.translateLocale,
+      });
+      return { localeId: item.localeId, result };
+    },
+    onItemComplete: ({ item, inFlight }) => {
+      options.progress.completeChunk({
+        locale: item.localeId,
+        phase: item.kind === "review" ? "review" : "translate-missing",
+        chunkPaths: item.chunk.map((target) => target.path),
+        inFlight,
+      });
+    },
+  });
+
+  const outcomesByLocale = new Map<string, ReviewChunkOutcome[]>();
+  for (const { localeId, result } of chunkResults) {
+    const parts = outcomesByLocale.get(localeId) ?? [];
+    parts.push(result);
+    outcomesByLocale.set(localeId, parts);
+  }
+  return outcomesByLocale;
+}
+
+function missingItemsWithoutFix(localeId: string, missing: ReviewTarget[]): ReviewItemResult[] {
+  return missing.map((target) => ({
+    locale: localeId,
+    path: target.path,
+    verdict: "missing" as const,
+    baseValue: target.baseValue,
+    changeSources: target.changeSources,
+  }));
+}
+
+function appendMissingWithoutFix(options: {
+  outcomesByLocale: Map<string, ReviewChunkOutcome[]>;
+  missingWithoutFixByLocale: Map<string, ReviewTarget[]>;
+  progress: TranslateProgressAccumulator;
+}): void {
+  for (const [localeId, missing] of options.missingWithoutFixByLocale) {
+    const parts = options.outcomesByLocale.get(localeId) ?? [];
+    parts.push({
+      ...emptyReviewChunkOutcome(),
+      items: missingItemsWithoutFix(localeId, missing),
+    });
+    options.outcomesByLocale.set(localeId, parts);
+    options.progress.completeChunk({
+      locale: localeId,
       phase: "review",
       chunkPaths: missing.map((target) => target.path),
+      inFlight: 0,
     });
-  } else {
-    if (options.translateLocale === undefined) {
-      throw new Error(
-        "translateLocale is required when auto-fixing missing translations during review",
-      );
-    }
-    if (options.locale === undefined) {
-      throw new Error(`Locale file not found in working tree: ${options.localeId}.json`);
-    }
+  }
+}
 
-    const translated = await translateMissingTargets({
-      baseLocale: options.baseLocale,
-      targetLocale: options.localeId,
-      base: options.base,
-      locale: options.locale,
-      missing,
-      chunkSize: options.chunkSize,
-      translateLocale: options.translateLocale,
-      progress: options.progress,
+function assembleLocaleReviewReports(options: {
+  locales: string[];
+  localeById: Map<string, LocaleMessages>;
+  messagesDir: string;
+  outcomesByLocale: Map<string, ReviewChunkOutcome[]>;
+}): LocaleReviewReport[] {
+  return options.locales.map((localeId) => {
+    const locale = options.localeById.get(localeId);
+    return finalizeLocaleReviewReport({
+      localeId,
+      filePath: locale?.filePath ?? path.join(options.messagesDir, `${localeId}.json`),
+      outcome: mergeReviewChunkOutcomes(options.outcomesByLocale.get(localeId) ?? []),
     });
-    items.push(...translated.items);
-    fixes.push(...translated.fixes);
-    incompletePaths.push(...translated.incompletePaths);
-    unexpectedPaths.push(...translated.unexpectedPaths);
-    placeholderWarnings.push(...translated.placeholderWarnings);
+  });
+}
+
+async function writeReviewReportsIfNeeded(options: {
+  reports: LocaleReviewReport[];
+  autoFix: boolean;
+  dryRun: boolean;
+  messagesDir: string;
+}): Promise<string[]> {
+  if (!options.autoFix || options.dryRun) {
+    return [];
   }
 
-  return {
-    locale: options.localeId,
-    filePath: options.filePath,
-    items: sortItems(items),
-    fixes: sortFixes(fixes),
-    incompletePaths: [...new Set(incompletePaths)].sort(),
-    unexpectedPaths: [...new Set(unexpectedPaths)].sort(),
-    missingSuggestedPaths: [...new Set(missingSuggestedPaths)].sort(),
-    placeholderWarnings: [...placeholderWarnings].sort((a, b) => a.path.localeCompare(b.path)),
-  };
+  return writeTranslatedReports(
+    options.reports.map((report) => ({
+      locale: report.locale,
+      filePath: report.filePath,
+      translated: report.fixes,
+      pending: [],
+      skipped: [],
+      incompletePaths: [],
+      unexpectedPaths: [],
+      placeholderWarnings: [],
+    })),
+    { allowedDir: options.messagesDir },
+  );
 }
 
 /**
@@ -548,6 +633,9 @@ export async function reviewTranslations(
   const autoFix = options.autoFix === true;
   const dryRun = options.dryRun === true;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
+  const concurrency = resolveTranslateConcurrency(
+    options.concurrency ?? config.translate?.concurrency,
+  );
 
   const workingTree =
     options.loadWorkingTree !== undefined
@@ -569,11 +657,6 @@ export async function reviewTranslations(
 
   const targetsByLocale = groupTargetsByLocale(scope.targets);
   const locales = [...targetsByLocale.keys()].sort();
-  const progress: ReviewProgressState = {
-    totalKeys: scope.targets.length,
-    completedKeys: 0,
-    onProgress: options.onProgress,
-  };
 
   options.onProgress?.({
     type: "start",
@@ -584,43 +667,46 @@ export async function reviewTranslations(
     since: scope.since,
   });
 
-  const reports: LocaleReviewReport[] = [];
-
-  for (const localeId of locales) {
-    const locale = localeById.get(localeId);
-    reports.push(
-      await buildLocaleReviewReport({
-        localeId,
-        targets: targetsByLocale.get(localeId) ?? [],
-        locale,
-        filePath: locale?.filePath ?? path.join(messagesDir, `${localeId}.json`),
-        base,
-        baseLocale: config.baseLocale,
-        autoFix,
-        chunkSize,
-        reviewLocale: options.reviewLocale,
-        translateLocale: options.translateLocale,
-        progress,
-      }),
-    );
-  }
-
+  const { workItems, missingWithoutFixByLocale } = collectReviewWork({
+    locales,
+    targetsByLocale,
+    localeById,
+    base,
+    chunkSize,
+    autoFix,
+    translateLocale: options.translateLocale,
+  });
+  const progress = createProgressAccumulator({
+    totalKeys: scope.targets.length,
+    onProgress: options.onProgress,
+  });
+  const outcomesByLocale = await runReviewWorkPool({
+    workItems,
+    concurrency,
+    baseLocale: config.baseLocale,
+    autoFix,
+    reviewLocale: options.reviewLocale,
+    translateLocale: options.translateLocale,
+    progress,
+  });
+  appendMissingWithoutFix({
+    outcomesByLocale,
+    missingWithoutFixByLocale,
+    progress,
+  });
+  const reports = assembleLocaleReviewReports({
+    locales,
+    localeById,
+    messagesDir,
+    outcomesByLocale,
+  });
   const shouldWrite = autoFix && !dryRun;
-  const writtenFiles = shouldWrite
-    ? await writeTranslatedReports(
-        reports.map((report) => ({
-          locale: report.locale,
-          filePath: report.filePath,
-          translated: report.fixes,
-          pending: [],
-          skipped: [],
-          incompletePaths: [],
-          unexpectedPaths: [],
-          placeholderWarnings: [],
-        })),
-        { allowedDir: messagesDir },
-      )
-    : [];
+  const writtenFiles = await writeReviewReportsIfNeeded({
+    reports,
+    autoFix,
+    dryRun,
+    messagesDir,
+  });
 
   return {
     ok: computeOk(reports, shouldWrite),

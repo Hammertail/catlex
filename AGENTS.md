@@ -12,11 +12,12 @@ catlex is a Bun/TypeScript CLI that validates next-intl-style translation JSON f
 - Config: **zod**
 - Package is `"private": true` — no npm publish flow
 
-User-facing docs live in [README.md](README.md).
+User-facing docs: [README.md](README.md) (install and command cheat sheet) and [docs/](docs/) (feature deep-dives for developers).
 
 ## Layout
 
 ```text
+docs/                    # Feature docs for developer users
 src/
   bin/catlex.ts          # CLI entry
   index.ts               # Public library exports
