@@ -72,7 +72,7 @@ describe("buildTranslatePrompt", () => {
     expect(prompt).toContain("Do not translate: Catlex.");
     expect(prompt).not.toContain(`<source_text>\n${guidance}\n</source_text>`);
     const fenceEnd = prompt.indexOf("</project_guidance>");
-    const examplesHeader = prompt.indexOf("Examples from the target locale:");
+    const examplesHeader = prompt.lastIndexOf("Examples from the target locale:");
     expect(fenceEnd).toBeGreaterThan(0);
     expect(examplesHeader).toBeGreaterThan(fenceEnd);
     expect(prompt.slice(examplesHeader)).toContain("Início");
