@@ -1,7 +1,6 @@
 name: Fallow
 
 on:
-  push:
   pull_request:
 
 permissions:
