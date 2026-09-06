@@ -1,9 +1,0 @@
-{
-  "messagesDir": "messages",
-  "baseLocale": "en",
-  "strictExtra": false,
-  "translate": {
-    "concurrency": 1,
-    "guidanceFile": "glossary.md"
-  }
-}
