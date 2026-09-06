@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import type { Command } from "commander";
 
+import packageJson from "../../package.json" with { type: "json" };
+
 //* Local imports
 import * as translateCommand from "../../src/cli/commands/translate.tsx";
 import { createProgram } from "../../src/cli/program.ts";
@@ -45,6 +47,31 @@ async function captureCommandOpts(
     throw new Error(`preAction did not run for: ${argv.join(" ")}`);
   }
   return captured;
+}
+
+async function captureRootVersionOutput(argv: string[]): Promise<{ output: string }> {
+  const program = createProgram();
+  let output = "";
+
+  program.configureOutput({
+    writeOut: (chunk) => {
+      output += chunk;
+    },
+    writeErr: (chunk) => {
+      output += chunk;
+    },
+  });
+  program.exitOverride();
+
+  try {
+    await program.parseAsync(["node", "catlex", ...argv], { from: "node" });
+  } catch (error) {
+    if (typeof error !== "object" || error === null || !("exitCode" in error)) {
+      throw error;
+    }
+  }
+
+  return { output };
 }
 
 describe("createProgram", () => {
@@ -153,6 +180,13 @@ describe("createProgram", () => {
           process.env.FORCE_COLOR = previousForceColor;
         }
       }
+    });
+
+    it("registers a root version flag alias for -v and --version", () => {
+      const program = createProgram();
+      const versionFlags = new Set(program.options.map((option) => option.flags));
+
+      expect(versionFlags.has("-v, --version")).toBe(true);
     });
   });
 
@@ -334,6 +368,22 @@ describe("createProgram", () => {
         verbose: true,
         concurrency: 6,
       });
+    });
+
+    it("prints the installed version and exits for -v", async () => {
+      silenceErrors();
+
+      const { output } = await captureRootVersionOutput(["-v"]);
+
+      expect(output.trim()).toBe(packageJson.version);
+    });
+
+    it("prints the installed version and exits for --version", async () => {
+      silenceErrors();
+
+      const { output } = await captureRootVersionOutput(["--version"]);
+
+      expect(output.trim()).toBe(packageJson.version);
     });
   });
 
