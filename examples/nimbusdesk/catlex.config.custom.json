@@ -1,0 +1,7 @@
+{
+  "messagesDir": "messages",
+  "baseLocale": "en",
+  "translate": {
+    "guidance": "THIS FILE CANNOT BE LOADED. Catlex has no --config flag. If you see this sentence in a model prompt, discovery is broken."
+  }
+}

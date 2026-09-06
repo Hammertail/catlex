@@ -1,0 +1,18 @@
+{
+  "brand": {
+    "product": "NimbusDesk",
+    "sync": "HaloSync"
+  },
+  "nav": {
+    "workspace": "Workspace",
+    "inbox": "Inbox"
+  },
+  "actions": {
+    "save": "Save",
+    "openWorkspace": "Open the NimbusDesk workspace"
+  },
+  "billing": {
+    "cycle": "Billing cycle",
+    "greeting": "Hello {name}, welcome to NimbusDesk"
+  }
+}

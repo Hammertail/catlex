@@ -11,7 +11,8 @@
   // Scanned by path in tests; not imported as modules.
   "ignorePatterns": [
     "tests/fixtures/source/hardcoded/**",
-    "tests/fixtures/source/hardcoded-broken/**"
+    "tests/fixtures/source/hardcoded-broken/**",
+    "examples/**"
   ],
   "boundaries": {
     "zones": [

@@ -1,0 +1,12 @@
+{
+  "brand": {
+    "product": "Mesa Nimbus",
+    "sync": "Halo Sincronización"
+  },
+  "nav": {
+    "workspace": "área de trabajo"
+  },
+  "actions": {
+    "save": "Salvar"
+  }
+}
