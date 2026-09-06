@@ -1,9 +1,11 @@
 //* Libraries imports
 import { Command, InvalidArgumentError } from "commander";
+import { styleText } from "node:util";
 import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
+import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
 import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
@@ -40,12 +42,33 @@ function parseConcurrencyOption(value: string): number {
   }
 }
 
+function styleHeading(text: string): string {
+  return styleText("bold", styleText(HELP_TITLE_COLOR, text));
+}
+
+function styleCommandTerm(text: string): string {
+  return styleText("bold", styleText(HELP_COMMAND_COLOR, text));
+}
+
+function styleOptionTerm(text: string): string {
+  return styleText("bold", styleText(HELP_OPTION_COLOR, text));
+}
+
 export function createProgram(): Command {
   const program = new Command();
 
   // Required so nested commands (translate → review) can share option names;
   // each level that has children also needs enablePositionalOptions().
   program.enablePositionalOptions();
+
+  program.configureHelp({
+    styleTitle: styleHeading,
+    styleUsage: styleCommandTerm,
+    styleCommandText: styleCommandTerm,
+    styleSubcommandText: styleCommandTerm,
+    styleOptionText: styleOptionTerm,
+    styleDescriptionText: (text) => text,
+  });
 
   program
     .name("catlex")

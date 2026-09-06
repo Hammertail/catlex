@@ -152,6 +152,36 @@ describe("createProgram", () => {
       expect(ci.aliases()).toContain("init-ci");
     });
 
+    it("styles help headings and highlighted terms", () => {
+      const program = createProgram();
+      const help = program.createHelp();
+
+      expect(help.styleTitle("Usage:")).not.toBe("Usage:");
+      expect(help.styleCommandText("catlex")).not.toBe("catlex");
+      expect(help.styleSubcommandText("translate")).not.toBe("translate");
+      expect(help.styleOptionText("--help")).not.toBe("--help");
+      expect(help.styleDescriptionText("plain description")).toBe("plain description");
+    });
+
+    it("renders ANSI styling in help output when color is enabled", () => {
+      const previousForceColor = process.env.FORCE_COLOR;
+      process.env.FORCE_COLOR = "1";
+
+      try {
+        const help = createProgram().helpInformation();
+        expect(help).toContain("Usage:");
+        expect(help).toContain("Options:");
+        expect(help).toContain("Commands:");
+        expect(help.includes("\u001b[")).toBe(true);
+      } finally {
+        if (previousForceColor === undefined) {
+          delete process.env.FORCE_COLOR;
+        } else {
+          process.env.FORCE_COLOR = previousForceColor;
+        }
+      }
+    });
+
     it("registers a root version flag alias for -v and --version", () => {
       const program = createProgram();
       const versionFlags = new Set(program.options.map((option) => option.flags));
