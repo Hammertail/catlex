@@ -9,8 +9,6 @@ import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
-
-//* Style constants
 import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "../constants/colors.ts";
 
 async function setExitCodeFrom(run: () => Promise<number>): Promise<void> {
