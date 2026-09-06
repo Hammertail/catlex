@@ -25,4 +25,3 @@ jobs:
           gate: new-only
           fail-on-issues: true
           annotations: true
-          version: "3.9.1"

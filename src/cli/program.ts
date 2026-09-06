@@ -1,8 +1,9 @@
 //* Libraries imports
-import { Command } from "commander";
+import { Command, InvalidArgumentError } from "commander";
 import { styleText } from "node:util";
 
 //* Local imports
+import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
 import { runCiCommand } from "./commands/ci.tsx";
 import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
@@ -28,6 +29,16 @@ function parseLocaleOption(value: string, previous: string[]): string[] {
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
   return previous.concat(parts);
+}
+
+function parseConcurrencyOption(value: string): number {
+  const parsed = Number(value);
+  try {
+    return resolveTranslateConcurrency(parsed);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new InvalidArgumentError(message);
+  }
 }
 
 function styleHeading(text: string): string {
@@ -137,6 +148,11 @@ export function createProgram(): Command {
     .option("--yes", "Write files without interactive confirmation", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
+    .option(
+      "--concurrency <n>",
+      "Max parallel translation API calls (default: 4)",
+      parseConcurrencyOption,
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateCommand({
@@ -150,6 +166,7 @@ export function createProgram(): Command {
           yes: options.yes === true,
           noConfig: options.config === false,
           json: options.json === true,
+          concurrency: options.concurrency,
         }),
       );
     });
@@ -186,6 +203,11 @@ export function createProgram(): Command {
     .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .option("--verbose", "Print per-chunk review progress details", false)
+    .option(
+      "--concurrency <n>",
+      "Max parallel translation API calls (default: 4)",
+      parseConcurrencyOption,
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateReviewCommand({
@@ -201,6 +223,7 @@ export function createProgram(): Command {
           noConfig: options.config === false,
           json: options.json === true,
           verbose: options.verbose === true,
+          concurrency: options.concurrency,
         }),
       );
     });

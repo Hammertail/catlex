@@ -5,6 +5,7 @@ import { render } from "ink";
 //* Local imports
 import { TranslateReport } from "../ui/TranslateReport.tsx";
 import { promptConfirm, type ConfirmFn } from "../ui/prompt-confirm.tsx";
+import { createTranslateProgressWriter } from "../ui/review-progress.ts";
 import {
   TRANSLATE_ALPHA_MESSAGE,
   countPendingKeys,
@@ -14,6 +15,7 @@ import { loadConfig } from "../../core/config/load.ts";
 import { loadMessagesDir, splitBaseAndLocales } from "../../core/messages/load.ts";
 import { collectMissingTranslations } from "../../core/translate/collect.ts";
 import {
+  DEFAULT_OPENAI_TRANSLATE_MODEL,
   MissingOpenAiApiKeyError,
   assertOpenAiApiKey,
   createOpenAiTranslator,
@@ -40,6 +42,7 @@ export type TranslateCommandOptions = {
   yes?: boolean;
   noConfig?: boolean;
   json?: boolean;
+  concurrency?: number;
   confirm?: ConfirmFn;
   translateLocale?: TranslateLocaleFn;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
@@ -216,6 +219,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       locales: options.locale,
       dryRun: true,
       noConfig,
+      concurrency: options.concurrency,
       translateLocale: options.translateLocale ?? (async () => ({ locale: "", translations: [] })),
     });
     emitOutput({ ...planResult, dryRun: true }, json);
@@ -232,6 +236,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       locales: options.locale,
       skipWrite: true,
       noConfig,
+      concurrency: options.concurrency,
       translateLocale,
     });
     emitOutput({ ...emptyResult, dryRun: false }, json);
@@ -243,6 +248,11 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     return 0;
   }
 
+  const progressWriter = createTranslateProgressWriter({
+    kind: "translate",
+    model: options.model ?? DEFAULT_OPENAI_TRANSLATE_MODEL,
+    json,
+  });
   let result = await translateMissingKeys({
     cwd,
     messagesDir: options.dir,
@@ -250,8 +260,11 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     locales: options.locale,
     skipWrite: true,
     noConfig,
+    concurrency: options.concurrency,
+    onProgress: progressWriter.onProgress,
     translateLocale,
   });
+  progressWriter.finish();
 
   const translatedCount = countTranslatedKeys(result);
   if (translatedCount === 0) {

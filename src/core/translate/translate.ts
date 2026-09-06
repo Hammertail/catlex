@@ -7,6 +7,8 @@ import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { applyTranslationsToTree } from "../messages/unflatten.ts";
 import { writeLocaleMessages } from "../messages/write.ts";
 import { collectMissingTranslations, collectTranslationExamples } from "./collect.ts";
+import { chunkItems, mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
+import { createProgressAccumulator } from "./progress.ts";
 import { buildTranslatePrompt } from "./prompt.ts";
 import {
   validateSubmittedTranslations,
@@ -18,6 +20,9 @@ import {
 import type { ConfigFlags } from "../config/schema.ts";
 import type { LocaleMessages } from "../types.ts";
 import type { MissingTranslation, SkippedTranslation, TranslationExample } from "./collect.ts";
+import type { TranslateProgressFn } from "./progress.ts";
+
+export { DEFAULT_TRANSLATE_CONCURRENCY } from "./pool.ts";
 
 export const DEFAULT_TRANSLATE_CHUNK_SIZE = 50;
 
@@ -76,21 +81,11 @@ export type TranslateMissingKeysOptions = ConfigFlags & {
    */
   skipWrite?: boolean;
   chunkSize?: number;
+  concurrency?: number;
   translateLocale: TranslateLocaleFn;
+  onProgress?: TranslateProgressFn;
   writeLocale?: (filePath: string, tree: LocaleMessages["tree"]) => Promise<void>;
 };
-
-function chunkItems<T>(items: T[], size: number): T[][] {
-  if (size <= 0) {
-    throw new Error("chunkSize must be greater than 0");
-  }
-
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
-}
 
 function groupByLocale<T extends { locale: string }>(items: T[]): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
@@ -111,73 +106,84 @@ type LocaleTranslationAccumulator = {
   placeholderWarnings: PlaceholderWarning[];
 };
 
-async function translateLocaleChunks(options: {
+type TranslateWorkItem = {
+  localeId: string;
+  chunk: MissingTranslation[];
+  examples: TranslationExample[];
+};
+
+function emptyAccumulator(): LocaleTranslationAccumulator {
+  return {
+    translated: [],
+    incompletePaths: [],
+    unexpectedPaths: [],
+    placeholderWarnings: [],
+  };
+}
+
+function mergeAccumulators(parts: LocaleTranslationAccumulator[]): LocaleTranslationAccumulator {
+  const merged = emptyAccumulator();
+  for (const part of parts) {
+    merged.translated.push(...part.translated);
+    merged.incompletePaths.push(...part.incompletePaths);
+    merged.unexpectedPaths.push(...part.unexpectedPaths);
+    merged.placeholderWarnings.push(...part.placeholderWarnings);
+  }
+  return merged;
+}
+
+async function translateOneChunk(options: {
   baseLocale: string;
   targetLocale: string;
-  base: LocaleMessages;
-  locale: LocaleMessages;
-  missing: MissingTranslation[];
-  chunkSize: number;
+  chunk: MissingTranslation[];
+  examples: TranslationExample[];
   translateLocale: TranslateLocaleFn;
 }): Promise<LocaleTranslationAccumulator> {
   const translated: TranslatedItem[] = [];
   const incompletePaths: string[] = [];
   const unexpectedPaths: string[] = [];
   const placeholderWarnings: PlaceholderWarning[] = [];
-
-  if (options.missing.length === 0) {
-    return { translated, incompletePaths, unexpectedPaths, placeholderWarnings };
-  }
-
-  const examples = collectTranslationExamples({
-    base: options.base,
-    locale: options.locale,
-    limit: 8,
+  const missingPayload = options.chunk.map((item) => ({
+    path: item.path,
+    baseValue: item.baseValue,
+  }));
+  const prompt = buildTranslatePrompt({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    missing: missingPayload,
+    examples: options.examples,
   });
 
-  for (const chunk of chunkItems(options.missing, options.chunkSize)) {
-    const missingPayload = chunk.map((item) => ({
+  const submitted = await options.translateLocale({
+    baseLocale: options.baseLocale,
+    targetLocale: options.targetLocale,
+    missing: missingPayload,
+    examples: options.examples,
+    prompt,
+  });
+
+  const allowedPaths = new Set(options.chunk.map((item) => item.path));
+  const baseValues = new Map(options.chunk.map((item) => [item.path, item.baseValue] as const));
+  const validated = validateSubmittedTranslations({
+    allowedPaths,
+    baseValues,
+    submitted: {
+      locale: submitted.locale,
+      translations: submitted.translations,
+    },
+  });
+
+  for (const item of validated.accepted) {
+    translated.push({
       path: item.path,
-      baseValue: item.baseValue,
-    }));
-    const prompt = buildTranslatePrompt({
-      baseLocale: options.baseLocale,
-      targetLocale: options.targetLocale,
-      missing: missingPayload,
-      examples,
+      value: item.value,
+      baseValue: baseValues.get(item.path) ?? "",
     });
-
-    const submitted = await options.translateLocale({
-      baseLocale: options.baseLocale,
-      targetLocale: options.targetLocale,
-      missing: missingPayload,
-      examples,
-      prompt,
-    });
-
-    const allowedPaths = new Set(chunk.map((item) => item.path));
-    const baseValues = new Map(chunk.map((item) => [item.path, item.baseValue] as const));
-    const validated = validateSubmittedTranslations({
-      allowedPaths,
-      baseValues,
-      submitted: {
-        locale: submitted.locale,
-        translations: submitted.translations,
-      },
-    });
-
-    for (const item of validated.accepted) {
-      translated.push({
-        path: item.path,
-        value: item.value,
-        baseValue: baseValues.get(item.path) ?? "",
-      });
-    }
-
-    incompletePaths.push(...validated.missingPaths);
-    unexpectedPaths.push(...validated.unexpectedPaths);
-    placeholderWarnings.push(...validated.placeholderWarnings);
   }
+
+  incompletePaths.push(...validated.missingPaths);
+  unexpectedPaths.push(...validated.unexpectedPaths);
+  placeholderWarnings.push(...validated.placeholderWarnings);
 
   return { translated, incompletePaths, unexpectedPaths, placeholderWarnings };
 }
@@ -211,42 +217,96 @@ function finalizeLocaleReport(options: {
   };
 }
 
-function emptyAccumulator(): LocaleTranslationAccumulator {
-  return {
-    translated: [],
-    incompletePaths: [],
-    unexpectedPaths: [],
-    placeholderWarnings: [],
-  };
-}
-
 function pendingFromMissing(missing: MissingTranslation[]): PendingTranslation[] {
   return missing.map((item) => ({ path: item.path, baseValue: item.baseValue }));
 }
 
-async function resolveLocaleAccumulator(options: {
-  dryRun: boolean;
-  baseLocale: string;
-  targetLocale: string;
-  base: LocaleMessages;
-  locale: LocaleMessages;
-  missing: MissingTranslation[];
-  chunkSize: number;
-  translateLocale: TranslateLocaleFn;
-}): Promise<LocaleTranslationAccumulator> {
-  if (options.dryRun) {
-    return emptyAccumulator();
+function groupChunkResultsByLocale<T>(
+  chunkResults: Array<{ localeId: string; result: T }>,
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const { localeId, result } of chunkResults) {
+    const parts = grouped.get(localeId) ?? [];
+    parts.push(result);
+    grouped.set(localeId, parts);
   }
+  return grouped;
+}
 
-  return translateLocaleChunks({
+function buildTranslateWorkItems(options: {
+  localeIds: string[];
+  localeById: Map<string, LocaleMessages>;
+  missingByLocale: Map<string, MissingTranslation[]>;
+  base: LocaleMessages;
+  chunkSize: number;
+}): TranslateWorkItem[] {
+  const workItems: TranslateWorkItem[] = [];
+  for (const localeId of options.localeIds) {
+    const locale = options.localeById.get(localeId);
+    const missing = options.missingByLocale.get(localeId) ?? [];
+    if (!locale || missing.length === 0) {
+      continue;
+    }
+    const examples = collectTranslationExamples({
+      base: options.base,
+      locale,
+      limit: 8,
+    });
+    for (const chunk of chunkItems(missing, options.chunkSize)) {
+      workItems.push({ localeId, chunk, examples });
+    }
+  }
+  return workItems;
+}
+
+async function runTranslateWorkPool(options: {
+  workItems: TranslateWorkItem[];
+  concurrency: number;
+  baseLocale: string;
+  messagesDir: string;
+  locales: string[];
+  translateLocale: TranslateLocaleFn;
+  totalKeys: number;
+  onProgress?: TranslateProgressFn;
+}): Promise<Map<string, LocaleTranslationAccumulator[]>> {
+  options.onProgress?.({
+    type: "start",
     baseLocale: options.baseLocale,
-    targetLocale: options.targetLocale,
-    base: options.base,
-    locale: options.locale,
-    missing: options.missing,
-    chunkSize: options.chunkSize,
-    translateLocale: options.translateLocale,
+    messagesDir: options.messagesDir,
+    locales: options.locales,
+    totalKeys: options.totalKeys,
+    since: null,
   });
+
+  const progress = createProgressAccumulator({
+    totalKeys: options.totalKeys,
+    onProgress: options.onProgress,
+  });
+
+  const chunkResults = await mapWithConcurrency({
+    items: options.workItems,
+    concurrency: options.concurrency,
+    mapper: async (item) => {
+      const result = await translateOneChunk({
+        baseLocale: options.baseLocale,
+        targetLocale: item.localeId,
+        chunk: item.chunk,
+        examples: item.examples,
+        translateLocale: options.translateLocale,
+      });
+      return { localeId: item.localeId, result };
+    },
+    onItemComplete: ({ item, inFlight }) => {
+      progress.completeChunk({
+        locale: item.localeId,
+        phase: "translate",
+        chunkPaths: item.chunk.map((entry) => entry.path),
+        inFlight,
+      });
+    },
+  });
+
+  return groupChunkResultsByLocale(chunkResults);
 }
 
 async function writeLocaleReportIfNeeded(options: {
@@ -266,6 +326,49 @@ async function writeLocaleReportIfNeeded(options: {
   );
   await options.writeLocale(options.locale.filePath, nextTree);
   options.writtenFiles.push(options.locale.filePath);
+}
+
+async function finalizeAndWriteLocaleReports(options: {
+  localeIds: string[];
+  localeById: Map<string, LocaleMessages>;
+  missingByLocale: Map<string, MissingTranslation[]>;
+  skippedByLocale: Map<string, SkippedTranslation[]>;
+  accumulatorsByLocale: Map<string, LocaleTranslationAccumulator[]>;
+  dryRun: boolean;
+  skipWrite: boolean;
+  writeLocale: (filePath: string, tree: LocaleMessages["tree"]) => Promise<void>;
+}): Promise<{ reports: LocaleTranslateReport[]; writtenFiles: string[] }> {
+  const reports: LocaleTranslateReport[] = [];
+  const writtenFiles: string[] = [];
+
+  for (const localeId of options.localeIds) {
+    const locale = options.localeById.get(localeId);
+    if (!locale) {
+      continue;
+    }
+
+    const missing = options.missingByLocale.get(localeId) ?? [];
+    const parts = options.accumulatorsByLocale.get(localeId) ?? [];
+    const accumulator = options.dryRun ? emptyAccumulator() : mergeAccumulators(parts);
+    const report = finalizeLocaleReport({
+      localeId,
+      filePath: locale.filePath,
+      skipped: options.skippedByLocale.get(localeId) ?? [],
+      pending: options.dryRun ? pendingFromMissing(missing) : [],
+      accumulator,
+    });
+    reports.push(report);
+
+    await writeLocaleReportIfNeeded({
+      skipWrite: options.skipWrite,
+      report,
+      locale,
+      writeLocale: options.writeLocale,
+      writtenFiles,
+    });
+  }
+
+  return { reports, writtenFiles };
 }
 
 /**
@@ -288,6 +391,9 @@ export async function translateMissingKeys(
   const dryRun = options.dryRun === true;
   const skipWrite = options.skipWrite === true || dryRun;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
+  const concurrency = resolveTranslateConcurrency(
+    options.concurrency ?? config.translate?.concurrency,
+  );
   const writeLocale =
     options.writeLocale ??
     ((filePath, tree) => writeLocaleMessages(filePath, tree, { allowedDir: messagesDir }));
@@ -305,44 +411,35 @@ export async function translateMissingKeys(
   const skippedByLocale = groupByLocale(collected.skipped);
   const localeIds = [...new Set([...missingByLocale.keys(), ...skippedByLocale.keys()])].sort();
 
-  const reports: LocaleTranslateReport[] = [];
-  const writtenFiles: string[] = [];
+  const accumulatorsByLocale = dryRun
+    ? new Map<string, LocaleTranslationAccumulator[]>()
+    : await runTranslateWorkPool({
+        workItems: buildTranslateWorkItems({
+          localeIds,
+          localeById,
+          missingByLocale,
+          base,
+          chunkSize,
+        }),
+        concurrency,
+        baseLocale: config.baseLocale,
+        messagesDir: config.messagesDir,
+        locales: localeIds,
+        translateLocale: options.translateLocale,
+        totalKeys: collected.missing.length,
+        onProgress: options.onProgress,
+      });
 
-  for (const localeId of localeIds) {
-    const locale = localeById.get(localeId);
-    if (!locale) {
-      continue;
-    }
-
-    const missing = missingByLocale.get(localeId) ?? [];
-    const accumulator = await resolveLocaleAccumulator({
-      dryRun,
-      baseLocale: config.baseLocale,
-      targetLocale: localeId,
-      base,
-      locale,
-      missing,
-      chunkSize,
-      translateLocale: options.translateLocale,
-    });
-
-    const report = finalizeLocaleReport({
-      localeId,
-      filePath: locale.filePath,
-      skipped: skippedByLocale.get(localeId) ?? [],
-      pending: dryRun ? pendingFromMissing(missing) : [],
-      accumulator,
-    });
-    reports.push(report);
-
-    await writeLocaleReportIfNeeded({
-      skipWrite,
-      report,
-      locale,
-      writeLocale,
-      writtenFiles,
-    });
-  }
+  const { reports, writtenFiles } = await finalizeAndWriteLocaleReports({
+    localeIds,
+    localeById,
+    missingByLocale,
+    skippedByLocale,
+    accumulatorsByLocale,
+    dryRun,
+    skipWrite,
+    writeLocale,
+  });
 
   return {
     baseLocale: config.baseLocale,
