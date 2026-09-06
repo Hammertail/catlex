@@ -49,7 +49,7 @@ async function loadModuleConfig(filePath: string): Promise<unknown> {
   return mod.default ?? mod;
 }
 
-async function findConfigFile(cwd: string): Promise<string | null> {
+export async function findConfigFile(cwd: string): Promise<string | null> {
   for (const name of CONFIG_FILE_NAMES) {
     const candidate = path.join(cwd, name);
     if (await fileExists(candidate)) {

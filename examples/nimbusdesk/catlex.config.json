@@ -4,6 +4,6 @@
   "strictExtra": false,
   "translate": {
     "concurrency": 1,
-    "guidance": "Do not translate: NimbusDesk, HaloSync.\nPortuguese: always translate \"workspace\" as \"espaço de trabalho\" (never \"área de trabalho\"); always translate the button \"Save\" as \"Guardar\" (never \"Salvar\" or \"Gravar\"); always translate \"Billing cycle\" as \"ciclo de faturação\".\nSpanish: always translate \"workspace\" as \"espacio de trabajo\"; always translate \"Save\" as \"Guardar\"; always translate \"Billing cycle\" as \"ciclo de facturación\".\nKeep ICU placeholders such as {name} unchanged."
+    "guidanceFile": "glossary.md"
   }
 }

@@ -132,7 +132,10 @@ export function createProgram(): Command {
       parseConcurrencyOption,
     )
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
-    .option("--guidance-file <path>", "Read extra translation guidance from a file")
+    .option(
+      "--guidance-file <path>",
+      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateCommand({
@@ -191,7 +194,10 @@ export function createProgram(): Command {
       parseConcurrencyOption,
     )
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
-    .option("--guidance-file <path>", "Read extra translation guidance from a file")
+    .option(
+      "--guidance-file <path>",
+      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateReviewCommand({

@@ -373,4 +373,106 @@ describe("runTranslateCommand", () => {
     expect(prompt).toContain("Do not translate: Catlex.");
     expect(prompt).toContain("Project guidance");
   });
+
+  it("appends --guidance-file to the translator prompt and reports the file source in JSON", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-guidance-file-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(path.join(cwd, "glossary.md"), "Do not translate: Catlex.\n", "utf8");
+    const log = captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateCommand({
+      cwd,
+      json: true,
+      yes: true,
+      noConfig: true,
+      guidanceFile: "glossary.md",
+      env: { OPENAI_API_KEY: "sk-test" },
+      translateLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Do not translate: Catlex.");
+    expect(prompt).toContain("<project_guidance>");
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+    expect(payload.guidanceSource).toBe("file");
+    expect(payload.guidancePreview).toBe("Do not translate: Catlex.");
+  });
+
+  it("includes guidanceSource null in dry-run JSON when no guidance is set", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-guidance-none-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    const log = captureLog();
+
+    const exitCode = await runTranslateCommand({
+      cwd,
+      json: true,
+      dryRun: true,
+      env: {},
+      translateLocale: async () => ({ locale: "pt", translations: [] }),
+    });
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.guidanceSource).toBeNull();
+    expect(payload.guidancePreview).toBeNull();
+  });
+
+  it("rejects when both --guidance and --guidance-file are set", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-both-guidance-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(path.join(cwd, "glossary.md"), "Do not translate: Catlex.\n", "utf8");
+
+    await expect(
+      runTranslateCommand({
+        cwd,
+        json: true,
+        dryRun: true,
+        guidance: "inline glossary",
+        guidanceFile: "glossary.md",
+        env: {},
+        translateLocale: async () => ({ locale: "pt", translations: [] }),
+      }),
+    ).rejects.toThrow(/either inline guidance or a guidance file/i);
+  });
+
+  it("rejects when --guidance-file is empty", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-empty-file-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(path.join(cwd, "glossary.md"), "  \n", "utf8");
+
+    await expect(
+      runTranslateCommand({
+        cwd,
+        json: true,
+        dryRun: true,
+        noConfig: true,
+        guidanceFile: "glossary.md",
+        env: {},
+        translateLocale: async () => ({ locale: "pt", translations: [] }),
+      }),
+    ).rejects.toThrow(/guidance file is empty/);
+  });
 });

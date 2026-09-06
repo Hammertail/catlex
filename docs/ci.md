@@ -16,7 +16,7 @@ For pipelines, prefer `--json` and `--no-config` so stdout is machine-readable a
 catlex validate --no-config --json
 catlex scan --json
 catlex translate --no-config --dry-run --json
-catlex translate review --no-config --since origin/main --json
+catlex translate review --no-config --since origin/main --json --guidance-file ./glossary.md
 ```
 
 Details per feature: [validate](./validate.md), [scan](./scan.md), [translate](./translate.md), [translate review](./translate-review.md).
@@ -34,15 +34,15 @@ Interactive multi-select (Space to toggle, Enter to confirm). You pick one or mo
 | Workflow | File | Command |
 |----------|------|---------|
 | Validate messages | `.github/workflows/validate-messages.yml` | `catlex validate --no-config --json` |
-| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --no-config --since … --json` (gate only) |
-| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes`, then commit |
-| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes --json`, then commit |
+| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --no-config --since … --json --guidance-file ./glossary.md` (gate only) |
+| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes --guidance-file ./glossary.md`, then commit |
+| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes --json --guidance-file ./glossary.md`, then commit |
 
 All generated jobs:
 
 - Trigger on `push` and `pull_request`.
 - Install Catlex with the Unix [release installer](../README.md#install) and add `~/.local/bin` to `PATH`.
-- Use `--no-config` (project `translate.concurrency` and `translate.guidance` do not apply; add `--concurrency` and `--guidance` / `--guidance-file` to `run:` if needed).
+- Use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md` (keep that file at the repo root, or edit the `run:` line). Project `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do not apply.
 
 ### Validate workflow
 

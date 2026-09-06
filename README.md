@@ -112,7 +112,10 @@ Example `catlex.config.json`:
 {
   "messagesDir": "messages",
   "baseLocale": "en",
-  "strictExtra": false
+  "strictExtra": false,
+  "translate": {
+    "guidanceFile": "glossary.md"
+  }
 }
 ```
 
@@ -163,11 +166,11 @@ catlex translate --json
 | `--json` | Print JSON instead of the interactive terminal UI |
 | `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file |
+| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
 
-To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `--guidance`, or `--guidance-file` (CLI inline text wins over the file, which wins over config; do not pass both flags):
+To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `translate.guidanceFile`, `--guidance`, or `--guidance-file` (CLI inline text wins over the CLI file, which wins over config inline, which wins over config file; do not pass both CLI flags). `--guidance-file` is relative to `--cwd` unless absolute; `translate.guidanceFile` is relative to the config file:
 
 ```json
 {
@@ -180,7 +183,7 @@ To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways)
   },
   "translate": {
     "concurrency": 8,
-    "guidance": "Do not translate: Catlex, next-intl."
+    "guidanceFile": "glossary.md"
   }
 }
 ```
@@ -225,7 +228,7 @@ catlex translate review --verbose
 | `--verbose` | Print per-chunk progress details (paths reviewed in each batch) |
 | `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file |
+| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
 
 Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI. Full-corpus review still issues one model call per chunk of 50 keys; the default of 4 concurrent calls reduces wall-clock time but does not change how many calls run in total.
 
@@ -250,14 +253,14 @@ Use a full git history (or fetch the base ref) so `--since` can resolve:
   with:
     fetch-depth: 0
 
-- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
+- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
 
-Generated workflows use `--no-config`, so `translate.concurrency` and `translate.guidance` in `catlex.config.*` do **not** apply on those jobs. They still use the runtime default of 4 parallel API calls. To raise or lower that in Actions, add `--concurrency` to the workflow `run:` line. To attach a glossary, add `--guidance` or `--guidance-file`.
+Generated workflows use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md`, so keep a glossary at the repository root (or edit the `run:` line). `translate.concurrency` in `catlex.config.*` does **not** apply on those jobs. They still use the runtime default of 4 parallel API calls. To raise or lower that in Actions, add `--concurrency` to the workflow `run:` line.
 
 Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`. Set optional repository variable `OPENAI_BASE_URL` when using an OpenAI-compatible endpoint in CI; leave it unset to use the official OpenAI API.
 

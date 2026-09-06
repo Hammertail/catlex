@@ -8,14 +8,24 @@ const openaiConfigSchema = z.object({
 
 export const MAX_TRANSLATE_GUIDANCE_CHARS = 8192;
 
+const optionalTrimmedGuidance = z
+  .string()
+  .optional()
+  .transform((value) => {
+    if (value === undefined) {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length === 0 ? undefined : trimmed;
+  })
+  .refine((value) => value === undefined || value.length <= MAX_TRANSLATE_GUIDANCE_CHARS, {
+    message: `translate.guidance must be at most ${MAX_TRANSLATE_GUIDANCE_CHARS} characters`,
+  });
+
 const translateConfigSchema = z.object({
   concurrency: z.number().int().min(1).max(32).optional(),
-  guidance: z
-    .string()
-    .max(MAX_TRANSLATE_GUIDANCE_CHARS, {
-      message: `translate.guidance must be at most ${MAX_TRANSLATE_GUIDANCE_CHARS} characters`,
-    })
-    .optional(),
+  guidance: optionalTrimmedGuidance,
+  guidanceFile: z.string().trim().min(1).optional(),
 });
 
 export const catlexConfigSchema = z.object({

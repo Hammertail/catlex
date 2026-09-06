@@ -32,7 +32,7 @@ catlex translate review --verbose
 | `--verbose` | Print per-chunk path lists |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file |
+| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
 
 Providers, API key, headers, concurrency, and project guidance work the same as [`translate`](./translate.md). Guidance applies to both present-key review and `--auto-fix` missing-key translation.
 
@@ -114,6 +114,8 @@ Declining the write prompt sets `cancelled: true` in JSON but still exits `1` if
   "baseLocale": "en",
   "messagesDir": "messages",
   "since": "origin/main",
+  "guidanceSource": "file",
+  "guidancePreview": "Do not translate: Catlex, next-intl.",
   "sinceContext": {
     "sinceRef": "origin/main",
     "sinceSha": "abc123…",
@@ -169,11 +171,11 @@ Always pass `--since` so you do not review the whole corpus on every push.
   with:
     fetch-depth: 0
 
-- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
+- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md
   env:
     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
 
-Pass GitHub context through `env` (do not interpolate `${{ }}` into `run:` scripts). Generated workflows from `catlex ci` do this; they also use `--no-config`, so set `--concurrency` and `--guidance` / `--guidance-file` on the `run:` line if you need them. See [CI workflows](./ci.md).
+Pass GitHub context through `env` (do not interpolate `${{ }}` into `run:` scripts). Generated workflows from `catlex ci` do this; they also use `--no-config --guidance-file ./glossary.md`. Set `--concurrency` on the `run:` line if you need it. See [CI workflows](./ci.md).

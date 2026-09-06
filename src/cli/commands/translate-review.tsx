@@ -76,6 +76,8 @@ function printJson(result: ReviewResult, model: string): void {
         removed: result.removed,
         skipped: result.skipped,
         reports: result.reports,
+        guidanceSource: result.guidanceSource,
+        guidancePreview: result.guidancePreview,
       },
       null,
       2,

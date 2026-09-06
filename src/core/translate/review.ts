@@ -2,7 +2,7 @@
 import path from "node:path";
 
 //* Local imports
-import { loadConfig } from "../config/load.ts";
+import { loadConfig, findConfigFile } from "../config/load.ts";
 import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { collectTranslationExamples } from "./collect.ts";
 import { resolveTranslateGuidance } from "./guidance.ts";
@@ -32,6 +32,7 @@ import type { ConfigFlags } from "../config/schema.ts";
 import type { GitRunner } from "../git/run.ts";
 import type { LocaleMessages } from "../types.ts";
 import type { TranslationExample } from "./collect.ts";
+import type { TranslateGuidanceSource } from "./guidance.ts";
 import type { TranslateProgressAccumulator, TranslateProgressFn } from "./progress.ts";
 import type { ReviewLocaleFn } from "./review-openai.ts";
 
@@ -79,6 +80,8 @@ export type ReviewResult = {
   removed: ReviewRemovedPath[];
   skipped: ReviewScopeSkipped[];
   writtenFiles: string[];
+  guidanceSource: TranslateGuidanceSource;
+  guidancePreview: string | null;
 };
 
 export type ReviewTranslationsOptions = ConfigFlags & {
@@ -650,12 +653,16 @@ export async function reviewTranslations(
   const concurrency = resolveTranslateConcurrency(
     options.concurrency ?? config.translate?.concurrency,
   );
-  const guidance = await resolveTranslateGuidance({
+  const configPath = options.noConfig === true ? null : await findConfigFile(cwd);
+  const resolvedGuidance = await resolveTranslateGuidance({
     cwd,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,
     configGuidance: config.translate?.guidance,
+    configGuidanceFile: config.translate?.guidanceFile,
+    configDir: configPath === null ? cwd : path.dirname(configPath),
   });
+  const guidance = resolvedGuidance.text;
 
   const workingTree =
     options.loadWorkingTree !== undefined
@@ -742,5 +749,7 @@ export async function reviewTranslations(
     removed: scope.removed,
     skipped: scope.skipped,
     writtenFiles,
+    guidanceSource: resolvedGuidance.source,
+    guidancePreview: resolvedGuidance.preview,
   };
 }

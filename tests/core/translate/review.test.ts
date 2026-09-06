@@ -779,7 +779,7 @@ describe("reviewTranslations", () => {
     });
 
     const prompts: string[] = [];
-    await reviewTranslations({
+    const result = await reviewTranslations({
       cwd,
       messagesDir: "messages",
       baseLocale: "en",
@@ -796,7 +796,9 @@ describe("reviewTranslations", () => {
 
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toContain("Do not translate: Catlex.");
-    expect(prompts[0]).toContain("Project guidance");
+    expect(prompts[0]).toContain("<project_guidance>");
+    expect(result.guidanceSource).toBe("flag");
+    expect(result.guidancePreview).toBe("Do not translate: Catlex.");
   });
 
   it("appends project guidance when auto-fixing missing keys", async () => {

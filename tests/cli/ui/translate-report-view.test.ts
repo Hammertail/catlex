@@ -17,6 +17,8 @@ describe("buildTranslateReportView", () => {
       writtenFiles: [],
       cancelled: false,
       dryRun: true,
+      guidanceSource: null,
+      guidancePreview: null,
     });
 
     expect(view.alphaMessage).toBe(TRANSLATE_ALPHA_MESSAGE);
@@ -46,6 +48,8 @@ describe("buildTranslateReportView", () => {
       writtenFiles: [],
       cancelled: false,
       dryRun: false,
+      guidanceSource: null,
+      guidancePreview: null,
     });
 
     expect(count).toBe(2);
@@ -70,6 +74,8 @@ describe("buildTranslateReportView", () => {
       writtenFiles: [],
       cancelled: false,
       dryRun: true,
+      guidanceSource: null,
+      guidancePreview: null,
     });
 
     expect(view.pendingCount).toBe(1);

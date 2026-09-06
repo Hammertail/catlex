@@ -65,6 +65,8 @@ function printJson(result: TranslateResult): void {
     pendingCount,
     writtenFiles: result.writtenFiles,
     reports: result.reports,
+    guidanceSource: result.guidanceSource,
+    guidancePreview: result.guidancePreview,
   };
 
   console.log(JSON.stringify(payload, null, 2));
@@ -181,6 +183,8 @@ function cancelledTranslateResult(plan: {
     writtenFiles: [],
     cancelled: true,
     dryRun: false,
+    guidanceSource: null,
+    guidancePreview: null,
   };
 }
 

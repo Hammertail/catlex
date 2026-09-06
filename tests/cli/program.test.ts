@@ -152,6 +152,15 @@ describe("createProgram", () => {
       expect(translateFlags.has("--guidance <text>")).toBe(true);
       expect(translateFlags.has("--guidance-file <path>")).toBe(true);
 
+      const translateGuidanceFile = findCommand(program, ["translate"]).options.find(
+        (option) => option.flags === "--guidance-file <path>",
+      );
+      const reviewGuidanceFile = review.options.find(
+        (option) => option.flags === "--guidance-file <path>",
+      );
+      expect(translateGuidanceFile?.description).toMatch(/relative to --cwd unless absolute/);
+      expect(reviewGuidanceFile?.description).toMatch(/relative to --cwd unless absolute/);
+
       const ci = findCommand(program, ["ci"]);
       expect(ci.aliases()).toContain("init-ci");
     });

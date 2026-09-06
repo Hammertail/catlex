@@ -1,5 +1,5 @@
 //* Local imports
-export { loadConfig, ConfigLoadError } from "./core/config/load.ts";
+export { loadConfig, findConfigFile, ConfigLoadError } from "./core/config/load.ts";
 export { DEFAULT_CONFIG } from "./core/config/defaults.ts";
 export { catlexConfigSchema } from "./core/config/schema.ts";
 export { flattenMessages } from "./core/messages/flatten.ts";
@@ -46,6 +46,7 @@ export {
 } from "./core/ci/kinds.ts";
 export { resolveWorkflowPath } from "./core/ci/paths.ts";
 export {
+  CI_TRANSLATE_GUIDANCE_FILE,
   generateReviewFixTranslationsWorkflow,
   generateReviewTranslationsWorkflow,
   generateTranslateFillWorkflow,
@@ -72,11 +73,17 @@ export {
 } from "./core/translate/openai.ts";
 export {
   MAX_TRANSLATE_GUIDANCE_CHARS,
+  PROJECT_GUIDANCE_PRIORITY,
   TranslateGuidanceError,
+  escapeProjectGuidance,
   normalizeTranslateGuidance,
   resolveTranslateGuidance,
 } from "./core/translate/guidance.ts";
-export type { ResolveTranslateGuidanceOptions } from "./core/translate/guidance.ts";
+export type {
+  ResolveTranslateGuidanceOptions,
+  ResolvedTranslateGuidance,
+  TranslateGuidanceSource,
+} from "./core/translate/guidance.ts";
 export {
   TRANSLATE_INSTRUCTIONS,
   buildTranslatePrompt,

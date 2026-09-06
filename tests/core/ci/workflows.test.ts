@@ -64,7 +64,9 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain("name: Review translations");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(INSTALL_URL);
-    expect(yaml).toContain('catlex translate review --no-config --since "$CATLEX_SINCE" --json');
+    expect(yaml).toContain(
+      'catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md',
+    );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
@@ -85,7 +87,7 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     expect(yaml).toContain("contents: write");
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(
-      'catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json',
+      'catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json --guidance-file ./glossary.md',
     );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
@@ -114,7 +116,9 @@ describe("generateTranslateFillWorkflow", () => {
 
     expect(yaml).toContain("name: Fill missing translations");
     expect(yaml).toContain("contents: write");
-    expect(yaml).toContain("catlex translate --no-config --yes --json");
+    expect(yaml).toContain(
+      "catlex translate --no-config --yes --json --guidance-file ./glossary.md",
+    );
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
     expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
@@ -151,6 +155,18 @@ describe("generated CI workflows", () => {
         expect(line).toContain("--no-config");
       }
     }
+  });
+
+  it("passes --guidance-file ./glossary.md on generated translate and review jobs", () => {
+    const translateYaml = generateTranslateFillWorkflow();
+    const reviewYaml = generateReviewTranslationsWorkflow();
+    const reviewFixYaml = generateReviewFixTranslationsWorkflow();
+    const validateYaml = generateValidateMessagesWorkflow();
+
+    expect(translateYaml).toContain("--guidance-file ./glossary.md");
+    expect(reviewYaml).toContain("--guidance-file ./glossary.md");
+    expect(reviewFixYaml).toContain("--guidance-file ./glossary.md");
+    expect(validateYaml).not.toContain("--guidance-file");
   });
 });
 

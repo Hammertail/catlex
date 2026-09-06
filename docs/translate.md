@@ -31,7 +31,7 @@ catlex translate --json
 | `--json` | JSON on stdout (progress on stderr when the API runs) |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file |
+| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
 
 ## How it works
 
@@ -43,7 +43,7 @@ catlex translate --json
 3. `--dry-run` stops here and prints the plan (`pending` + `skipped`).
 4. Otherwise, missing keys are split into chunks of **50** paths. Up to `concurrency` chunks run in parallel (across locales). Each chunk is one model call.
 5. For each locale, up to **8** existing string pairs (sorted by path) are attached as few-shot examples so the model can match tone.
-6. Optional project **guidance** (config `translate.guidance`, `--guidance`, or `--guidance-file`) is appended to the user prompt after the built-in rules. It does not replace system instructions. Use it for a terminology glossary (brand names to leave untranslated, mandated translations).
+6. Optional project **guidance** is fenced in `<project_guidance>` after the built-in rules. Sources: `--guidance`, `--guidance-file`, `translate.guidance`, `translate.guidanceFile`. `--json` reports `guidanceSource` / `guidancePreview`.
 7. The model must call the `submitTranslations` tool. Free-form chat without the tool is an error (`The model did not call submitTranslations`).
 8. Submitted paths are checked: unknown paths are dropped (`unexpectedPaths`); requested paths the model omitted are `incompletePaths`; ICU `{placeholder}` sets that do not match the base become `placeholderWarnings` (the translation is still accepted).
 9. Interactive mode asks **before** calling the API, then shows proposals and asks again before writing. `--yes` skips both prompts. The CLI always generates with `skipWrite` and writes only after the second confirmation (or `--yes`).
@@ -71,16 +71,22 @@ After the first chunk failure, no new chunks are started; in-flight calls finish
 
 ### Project guidance
 
-`translate.guidance` in config, `--guidance <text>`, or `--guidance-file <path>`. CLI inline text wins over the file, which wins over config. Do not pass both flags. The extra text is appended to the user prompt; built-in system instructions stay in place.
+Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error.
 
-Typical use is a terminology glossary:
+`translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd` unless absolute.
+
+The extra text is fenced in `<project_guidance>` on the user prompt. One system-prompt sentence states the priority: built-in instructions win; project guidance wins over few-shot examples. The string is global (not per locale).
+
+Typical use is a terminology glossary in `glossary.md`:
 
 ```text
 Do not translate: Catlex, next-intl
 Always translate "workspace" as "espaço de trabalho" in pt
 ```
 
-Generated CI workflows use `--no-config`, so put the glossary on the `run:` line (`--guidance-file ./glossary.md`) if you need it there.
+Generated CI workflows use `--no-config --guidance-file ./glossary.md`. Keep that file at the repo root, or edit the `run:` line.
+
+`--dry-run --json` includes `guidanceSource` and `guidancePreview` so you can confirm which glossary was selected without calling the model.
 
 ## Providers
 
@@ -123,6 +129,8 @@ Translate does **not** fail the process because some paths were incomplete or ha
   "messagesDir": "messages",
   "dryRun": false,
   "cancelled": false,
+  "guidanceSource": "config",
+  "guidancePreview": "Do not translate: Catlex, next-intl.",
   "translatedCount": 3,
   "pendingCount": 0,
   "writtenFiles": ["/abs/messages/pt.json"],
