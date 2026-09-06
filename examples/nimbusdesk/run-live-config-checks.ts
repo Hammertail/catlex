@@ -149,7 +149,8 @@ async function main(): Promise<void> {
     ok:
       dryPayload.guidanceSource === "config" &&
       typeof dryPayload.guidancePreview === "string" &&
-      dryPayload.guidancePreview.includes("espaço de trabalho"),
+      dryPayload.guidancePreview.includes("NimbusDesk house glossary") &&
+      dryPayload.guidancePreview.includes("HaloSync"),
     detail: `guidanceSource=${String(dryPayload.guidanceSource)} preview=${JSON.stringify(dryPayload.guidancePreview)}`,
   });
 
@@ -363,9 +364,9 @@ async function main(): Promise<void> {
   ];
 
   const summary = `${summaryLines.join("\n")}\n`;
-  const summaryPath = await writeArtifact("nimbusdesk_live_config_checks_pass.md", summary);
+  const summaryPath = await writeArtifact("nimbusdesk_live_config_checks.md", summary);
   await writeArtifact(
-    "nimbusdesk_live_config_checks_pass.json",
+    "nimbusdesk_live_config_checks.json",
     `${JSON.stringify({ checks, results: results.map((r) => ({ ...r, stdout: r.stdout, stderr: r.stderr })) }, null, 2)}\n`,
   );
 
