@@ -135,6 +135,8 @@ async function main(): Promise<void> {
   const dryPayload = parseJsonFromStdout(dryA.stdout) as {
     dryRun?: boolean;
     pendingCount?: number;
+    guidanceSource?: string | null;
+    guidancePreview?: string | null;
     reports?: Array<{ pending?: unknown[] }>;
   };
   checks.push({
@@ -143,11 +145,12 @@ async function main(): Promise<void> {
     detail: `exit=${dryA.exitCode} pendingCount=${String(dryPayload.pendingCount)}`,
   });
   checks.push({
-    name: "dry-run JSON does not expose resolved guidance (observability gap)",
+    name: "dry-run JSON reports guidanceSource config from translate.guidanceFile",
     ok:
-      !JSON.stringify(dryPayload).includes("espaço de trabalho") &&
-      !JSON.stringify(dryPayload).includes("Project guidance"),
-    detail: "dry-run payload has no guidance/prompt field",
+      dryPayload.guidanceSource === "config" &&
+      typeof dryPayload.guidancePreview === "string" &&
+      dryPayload.guidancePreview.includes("espaço de trabalho"),
+    detail: `guidanceSource=${String(dryPayload.guidanceSource)} preview=${JSON.stringify(dryPayload.guidancePreview)}`,
   });
 
   const bothFlags = await runCatlex([
@@ -203,6 +206,7 @@ async function main(): Promise<void> {
     );
     results.push(translateA);
     const payloadA = parseJsonFromStdout(translateA.stdout) as {
+      guidanceSource?: string | null;
       reports?: Array<{ translated?: Array<{ path: string; value: string }> }>;
     };
     const mapA = translatedMap(payloadA);
@@ -213,6 +217,11 @@ async function main(): Promise<void> {
       name: "nimbusdesk JSON config: translate fills missing keys",
       ok: translateA.exitCode === 0 && Boolean(cycleA) && Boolean(openA) && Boolean(greetA),
       detail: `exit=${translateA.exitCode} keys=${JSON.stringify(mapA)}`,
+    });
+    checks.push({
+      name: "nimbusdesk live translate JSON reports guidanceSource config",
+      ok: payloadA.guidanceSource === "config",
+      detail: `guidanceSource=${String(payloadA.guidanceSource)}`,
     });
     checks.push({
       name: "nimbusdesk JSON config: Billing cycle → ciclo de faturação",
