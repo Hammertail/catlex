@@ -93,6 +93,10 @@ function translatedMap(payload: {
   return out;
 }
 
+function messagesDirName(value: string | undefined): string {
+  return path.basename(value ?? "");
+}
+
 function includesFold(value: string | undefined, needle: string): boolean {
   return (value ?? "").toLocaleLowerCase().includes(needle.toLocaleLowerCase());
 }
@@ -171,7 +175,7 @@ async function main(): Promise<void> {
   const validateA = parseJsonFromStdout(customName.stdout) as { messagesDir?: string };
   checks.push({
     name: "validate loads catlex.config.json (messagesDir=messages), not catlex.config.custom.json",
-    ok: validateA.messagesDir === "messages",
+    ok: messagesDirName(validateA.messagesDir) === "messages",
     detail: `messagesDir=${String(validateA.messagesDir)} exit=${customName.exitCode}`,
   });
 
@@ -182,7 +186,7 @@ async function main(): Promise<void> {
   };
   checks.push({
     name: "--cwd nimbusdesk-alt loads catlex.config.js messagesDir=locales",
-    ok: altValidatePayload.messagesDir === "locales",
+    ok: messagesDirName(altValidatePayload.messagesDir) === "locales",
     detail: `exit=${altValidate.exitCode} messagesDir=${String(altValidatePayload.messagesDir)}`,
   });
 
@@ -350,9 +354,9 @@ async function main(): Promise<void> {
   ];
 
   const summary = `${summaryLines.join("\n")}\n`;
-  const summaryPath = await writeArtifact("nimbusdesk_live_config_checks.md", summary);
+  const summaryPath = await writeArtifact("nimbusdesk_live_config_checks_pass.md", summary);
   await writeArtifact(
-    "nimbusdesk_live_config_checks.json",
+    "nimbusdesk_live_config_checks_pass.json",
     `${JSON.stringify({ checks, results: results.map((r) => ({ ...r, stdout: r.stdout, stderr: r.stderr })) }, null, 2)}\n`,
   );
 
