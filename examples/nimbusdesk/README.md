@@ -47,3 +47,5 @@ bun src/bin/catlex.ts translate review --cwd examples/nimbusdesk --json --locale
 `--guidance-file` is resolved relative to `--cwd`, so the last `--guidance-file` example only works if you pass a path that exists **inside** `examples/nimbusdesk` (for example `--guidance-file glossary.md` together with `--cwd examples/nimbusdesk`).
 
 Do not pass `--guidance` and `--guidance-file` together; that is a hard error.
+
+Critical review of the PR this fixture exercises: [docs/pr-49-code-review.md](../../docs/pr-49-code-review.md).
