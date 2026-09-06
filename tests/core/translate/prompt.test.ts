@@ -67,6 +67,9 @@ describe("buildTranslatePrompt", () => {
 
     expect(prompt).toContain("submitTranslations");
     expect(prompt).toContain("Preserve ICU placeholders");
+    expect(prompt).toContain(
+      "Match the tone of the examples unless project guidance says otherwise.",
+    );
     expect(prompt).toContain("<project_guidance>");
     expect(prompt).toContain("</project_guidance>");
     expect(prompt).toContain("Do not translate: Catlex.");
