@@ -4,12 +4,12 @@ import { styleText } from "node:util";
 
 //* Local imports
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
+import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
 import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
-import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "../constants/colors.ts";
 
 async function setExitCodeFrom(run: () => Promise<number>): Promise<void> {
   try {
