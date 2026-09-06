@@ -6,11 +6,16 @@ const openaiConfigSchema = z.object({
   headers: z.record(z.string(), z.string()).optional(),
 });
 
+const translateConfigSchema = z.object({
+  concurrency: z.number().int().min(1).max(32).optional(),
+});
+
 export const catlexConfigSchema = z.object({
   messagesDir: z.string().min(1).default("messages"),
   baseLocale: z.string().min(1).default("en"),
   strictExtra: z.boolean().default(false),
   openai: openaiConfigSchema.optional(),
+  translate: translateConfigSchema.optional(),
 });
 
 export type CatlexConfig = z.infer<typeof catlexConfigSchema>;
