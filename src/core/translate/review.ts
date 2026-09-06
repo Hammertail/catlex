@@ -5,6 +5,7 @@ import path from "node:path";
 import { loadConfig } from "../config/load.ts";
 import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { collectTranslationExamples } from "./collect.ts";
+import { resolveTranslateGuidance } from "./guidance.ts";
 import { chunkItems, mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
 import { createProgressAccumulator } from "./progress.ts";
 import { buildTranslatePrompt } from "./prompt.ts";
@@ -88,6 +89,10 @@ export type ReviewTranslationsOptions = ConfigFlags & {
   dryRun?: boolean;
   chunkSize?: number;
   concurrency?: number;
+  /** Extra project guidance appended to review/translate prompts (CLI `--guidance`). */
+  guidance?: string;
+  /** Path to extra project guidance (CLI `--guidance-file`). */
+  guidanceFile?: string;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
   onProgress?: TranslateProgressFn;
@@ -204,6 +209,7 @@ async function reviewPresentChunk(options: {
   targetLocale: string;
   chunk: ReviewTarget[];
   autoFix: boolean;
+  guidance?: string;
   reviewLocale: ReviewLocaleFn;
 }): Promise<ReviewChunkOutcome> {
   const items: ReviewItemResult[] = [];
@@ -221,6 +227,7 @@ async function reviewPresentChunk(options: {
       baseLocale: options.baseLocale,
       targetLocale: options.targetLocale,
       items: promptItems,
+      guidance: options.guidance,
     }),
   });
 
@@ -259,6 +266,7 @@ async function translateMissingChunk(options: {
   targetLocale: string;
   chunk: ReviewTarget[];
   examples: TranslationExample[];
+  guidance?: string;
   translateLocale: TranslateLocaleFn;
 }): Promise<ReviewChunkOutcome> {
   const items: ReviewItemResult[] = options.chunk.map((target) => ({
@@ -278,6 +286,7 @@ async function translateMissingChunk(options: {
     targetLocale: options.targetLocale,
     missing: missingPayload,
     examples: options.examples,
+    guidance: options.guidance,
   });
 
   const submitted = await options.translateLocale({
@@ -474,6 +483,7 @@ async function runReviewChunk(options: {
   item: ReviewApiWorkItem;
   baseLocale: string;
   autoFix: boolean;
+  guidance?: string;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
 }): Promise<ReviewChunkOutcome> {
@@ -483,6 +493,7 @@ async function runReviewChunk(options: {
       targetLocale: options.item.localeId,
       chunk: options.item.chunk,
       autoFix: options.autoFix,
+      guidance: options.guidance,
       reviewLocale: options.reviewLocale,
     });
   }
@@ -499,6 +510,7 @@ async function runReviewChunk(options: {
     targetLocale: options.item.localeId,
     chunk: options.item.chunk,
     examples: options.item.examples,
+    guidance: options.guidance,
     translateLocale,
   });
 }
@@ -508,6 +520,7 @@ async function runReviewWorkPool(options: {
   concurrency: number;
   baseLocale: string;
   autoFix: boolean;
+  guidance?: string;
   reviewLocale: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
   progress: TranslateProgressAccumulator;
@@ -520,6 +533,7 @@ async function runReviewWorkPool(options: {
         item,
         baseLocale: options.baseLocale,
         autoFix: options.autoFix,
+        guidance: options.guidance,
         reviewLocale: options.reviewLocale,
         translateLocale: options.translateLocale,
       });
@@ -636,6 +650,12 @@ export async function reviewTranslations(
   const concurrency = resolveTranslateConcurrency(
     options.concurrency ?? config.translate?.concurrency,
   );
+  const guidance = await resolveTranslateGuidance({
+    cwd,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
+    configGuidance: config.translate?.guidance,
+  });
 
   const workingTree =
     options.loadWorkingTree !== undefined
@@ -685,6 +705,7 @@ export async function reviewTranslations(
     concurrency,
     baseLocale: config.baseLocale,
     autoFix,
+    guidance,
     reviewLocale: options.reviewLocale,
     translateLocale: options.translateLocale,
     progress,

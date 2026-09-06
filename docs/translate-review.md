@@ -31,18 +31,20 @@ catlex translate review --verbose
 | `--json` | JSON on stdout; banner/progress on stderr |
 | `--verbose` | Print per-chunk path lists |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
+| `--guidance <text>` | Extra project guidance appended to the model prompt |
+| `--guidance-file <path>` | Read extra project guidance from a file |
 
-Providers, API key, headers, and concurrency work the same as [`translate`](./translate.md).
+Providers, API key, headers, concurrency, and project guidance work the same as [`translate`](./translate.md). Guidance applies to both present-key review and `--auto-fix` missing-key translation.
 
 ## How it works
 
 1. Load config and the current messages directory.
 2. Resolve **scope** (full corpus or `--since` git diff). See below.
 3. Split scoped targets into **present** (locale has a string) and **missing** (path absent in the locale).
-4. Present keys go to the reviewer in chunks of **50**. The model must call `submitTranslationReviews` with `ok` or `wrong` per path.
+4. Present keys go to the reviewer in chunks of **50**. The model must call `submitTranslationReviews` with `ok` or `wrong` per path. Project guidance is appended to that prompt when configured.
 5. Missing keys:
    - Without `--auto-fix`: recorded as `missing`, no extra API call.
-   - With `--auto-fix`: sent through the same translator as `catlex translate` (few-shot examples, `submitTranslations`).
+   - With `--auto-fix`: sent through the same translator as `catlex translate` (few-shot examples, `submitTranslations`, same project guidance).
 6. `--auto-fix` on present `wrong` items requires a non-empty `suggestedValue`. Missing suggestions are `missingSuggestedPaths` (structural failure).
 7. The CLI always reviews with `dryRun: true` first (no writes). If `--auto-fix` produced fixes, it asks before writing unless `--yes`.
 8. `ok` on the result (and exit `0`) means: no incomplete/unexpected/missing-suggestion paths, and every `wrong` / `missing` item was either absent or **written** as a fix.
@@ -174,4 +176,4 @@ Always pass `--since` so you do not review the whole corpus on every push.
     CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
 ```
 
-Pass GitHub context through `env` (do not interpolate `${{ }}` into `run:` scripts). Generated workflows from `catlex ci` do this; they also use `--no-config`, so set `--concurrency` on the `run:` line if you need it. See [CI workflows](./ci.md).
+Pass GitHub context through `env` (do not interpolate `${{ }}` into `run:` scripts). Generated workflows from `catlex ci` do this; they also use `--no-config`, so set `--concurrency` and `--guidance` / `--guidance-file` on the `run:` line if you need them. See [CI workflows](./ci.md).

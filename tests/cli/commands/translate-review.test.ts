@@ -369,4 +369,33 @@ describe.skipIf(!gitAvailable)("runTranslateReviewCommand with --since", () => {
     );
     expect(payload.sinceContext.sinceSha).toMatch(/^[0-9a-f]{40}$/);
   });
+
+  it("appends --guidance to the review prompt", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-guidance-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateReviewCommand({
+      cwd,
+      json: true,
+      guidance: "Do not translate: Catlex.",
+      env: { OPENAI_API_KEY: "sk-test" },
+      reviewLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Do not translate: Catlex.");
+    expect(prompt).toContain("Project guidance");
+  });
 });

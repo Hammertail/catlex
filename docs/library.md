@@ -56,11 +56,12 @@ const result = await translateMissingKeys({
   dryRun: false,
   skipWrite: false,
   concurrency: 4,
+  guidance: "Do not translate: Catlex, next-intl.",
   translateLocale: createOpenAiTranslator({ model: "gpt-5.4-mini" }),
 });
 ```
 
-`dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). See [Translate](./translate.md).
+`dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). Optional `guidance` / `guidanceFile` append extra project instructions (a glossary, house terms) without replacing the built-in system prompt. See [Translate](./translate.md).
 
 ## Review
 

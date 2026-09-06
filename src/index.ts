@@ -71,6 +71,13 @@ export {
   resolveOpenAiBaseUrl,
 } from "./core/translate/openai.ts";
 export {
+  MAX_TRANSLATE_GUIDANCE_CHARS,
+  TranslateGuidanceError,
+  normalizeTranslateGuidance,
+  resolveTranslateGuidance,
+} from "./core/translate/guidance.ts";
+export type { ResolveTranslateGuidanceOptions } from "./core/translate/guidance.ts";
+export {
   TRANSLATE_INSTRUCTIONS,
   buildTranslatePrompt,
 } from "./core/translate/prompt.ts";

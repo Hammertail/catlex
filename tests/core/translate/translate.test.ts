@@ -389,4 +389,139 @@ describe("translateMissingKeys", () => {
       }),
     );
   });
+
+  it("appends config translate.guidance to the translator prompt", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-config-guidance-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      `${JSON.stringify({ translate: { guidance: "Do not translate: Catlex." } })}\n`,
+    );
+
+    const prompts: string[] = [];
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      translateLocale: async (input) => {
+        prompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("Do not translate: Catlex.");
+    expect(prompts[0]).toContain("Project guidance");
+  });
+
+  it("prefers inline guidance over config translate.guidance", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-flag-guidance-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      `${JSON.stringify({ translate: { guidance: "from config" } })}\n`,
+    );
+
+    const prompts: string[] = [];
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      guidance: "from flag",
+      translateLocale: async (input) => {
+        prompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(prompts[0]).toContain("from flag");
+    expect(prompts[0]).not.toContain("from config");
+  });
+
+  it("ignores config translate.guidance when noConfig is true", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-noconfig-guidance-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      `${JSON.stringify({ translate: { guidance: "from config" } })}\n`,
+    );
+
+    const prompts: string[] = [];
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      noConfig: true,
+      translateLocale: async (input) => {
+        prompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(prompts[0]).not.toContain("from config");
+    expect(prompts[0]).not.toContain("Project guidance");
+  });
+
+  it("loads guidance from a file relative to cwd", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-guidance-file-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    await writeFile(
+      path.join(cwd, "glossary.md"),
+      "Always translate workspace as espaço de trabalho.\n",
+    );
+
+    const prompts: string[] = [];
+    await translateMissingKeys({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      skipWrite: true,
+      guidanceFile: "glossary.md",
+      translateLocale: async (input) => {
+        prompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(prompts[0]).toContain("Always translate workspace as espaço de trabalho.");
+  });
 });

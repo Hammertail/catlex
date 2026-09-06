@@ -43,6 +43,8 @@ export type TranslateCommandOptions = {
   noConfig?: boolean;
   json?: boolean;
   concurrency?: number;
+  guidance?: string;
+  guidanceFile?: string;
   confirm?: ConfirmFn;
   translateLocale?: TranslateLocaleFn;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
@@ -220,6 +222,8 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       dryRun: true,
       noConfig,
       concurrency: options.concurrency,
+      guidance: options.guidance,
+      guidanceFile: options.guidanceFile,
       translateLocale: options.translateLocale ?? (async () => ({ locale: "", translations: [] })),
     });
     emitOutput({ ...planResult, dryRun: true }, json);
@@ -237,6 +241,8 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       skipWrite: true,
       noConfig,
       concurrency: options.concurrency,
+      guidance: options.guidance,
+      guidanceFile: options.guidanceFile,
       translateLocale,
     });
     emitOutput({ ...emptyResult, dryRun: false }, json);
@@ -261,6 +267,8 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     skipWrite: true,
     noConfig,
     concurrency: options.concurrency,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
     onProgress: progressWriter.onProgress,
     translateLocale,
   });

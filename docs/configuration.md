@@ -33,6 +33,7 @@ Omitted CLI flags do not wipe file values. `--no-config` skips the file entirely
 | `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review |
 | `openai.headers` | `{ [name]: string }` | unset | translate, translate review |
 | `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review |
+| `translate.guidance` | string (max 8192 chars) | unset | translate, translate review |
 
 [Scan](./scan.md) does **not** read this file. Scan roots, ignore globs, and string allowlists are not configurable yet; use `--dir` / `--cwd` only.
 
@@ -53,7 +54,8 @@ API keys are **never** read from config. Set `OPENAI_API_KEY` in the environment
     }
   },
   "translate": {
-    "concurrency": 8
+    "concurrency": 8,
+    "guidance": "Do not translate: Catlex, next-intl.\nAlways translate \"workspace\" as \"espaço de trabalho\" in pt."
   }
 }
 ```
@@ -70,10 +72,13 @@ Module configs can `export default { ... }` with the same shape.
 | `openai.baseUrl` | `--base-url <url>` (also `OPENAI_BASE_URL`) |
 | `openai.headers` | config only (no flag) |
 | `translate.concurrency` | `--concurrency <n>` |
+| `translate.guidance` | `--guidance <text>` or `--guidance-file <path>` |
 
 OpenAI base URL precedence: **CLI `--base-url` > config `openai.baseUrl` > env `OPENAI_BASE_URL` > SDK default**.
 
 Concurrency: **CLI `--concurrency` > config `translate.concurrency` > 4**. Invalid values (non-integer, outside 1–32) fail at flag parse or at runtime.
+
+Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only values are treated as unset. The text is **appended** to the translate/review user prompt and does not replace built-in system instructions (tool calling, ICU placeholders, untrusted `<source_text>`). Generated workflows always pass `--no-config`, so project `translate.guidance` does **not** apply on those jobs — pass `--guidance` or `--guidance-file` on the workflow `run:` line.
 
 ## `--no-config`
 
@@ -82,7 +87,7 @@ Stops Catlex from discovering or executing `catlex.config.*`. Use it:
 - In CI, so a compromised or surprising JS/TS config cannot run on the runner.
 - When you want a one-off run that ignores the project file.
 
-Generated workflows always pass `--no-config`, so `translate.concurrency` in the project file does **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
+Generated workflows always pass `--no-config`, so `translate.concurrency` and `translate.guidance` in the project file do **not** apply on those jobs. Raise or lower parallelism with `--concurrency`, and pass `--guidance` or `--guidance-file`, on the workflow `run:` line.
 
 ## Library
 

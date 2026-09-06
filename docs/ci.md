@@ -42,7 +42,7 @@ All generated jobs:
 
 - Trigger on `push` and `pull_request`.
 - Install Catlex with the Unix [release installer](../README.md#install) and add `~/.local/bin` to `PATH`.
-- Use `--no-config` (project `translate.concurrency` does not apply; add `--concurrency` to `run:` if needed).
+- Use `--no-config` (project `translate.concurrency` and `translate.guidance` do not apply; add `--concurrency` and `--guidance` / `--guidance-file` to `run:` if needed).
 
 ### Validate workflow
 

@@ -6,8 +6,16 @@ const openaiConfigSchema = z.object({
   headers: z.record(z.string(), z.string()).optional(),
 });
 
+export const MAX_TRANSLATE_GUIDANCE_CHARS = 8192;
+
 const translateConfigSchema = z.object({
   concurrency: z.number().int().min(1).max(32).optional(),
+  guidance: z
+    .string()
+    .max(MAX_TRANSLATE_GUIDANCE_CHARS, {
+      message: `translate.guidance must be at most ${MAX_TRANSLATE_GUIDANCE_CHARS} characters`,
+    })
+    .optional(),
 });
 
 export const catlexConfigSchema = z.object({

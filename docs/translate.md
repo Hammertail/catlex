@@ -30,6 +30,8 @@ catlex translate --json
 | `--no-config` | Ignore `catlex.config.*` |
 | `--json` | JSON on stdout (progress on stderr when the API runs) |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
+| `--guidance <text>` | Extra project guidance appended to the model prompt |
+| `--guidance-file <path>` | Read extra project guidance from a file |
 
 ## How it works
 
@@ -41,9 +43,10 @@ catlex translate --json
 3. `--dry-run` stops here and prints the plan (`pending` + `skipped`).
 4. Otherwise, missing keys are split into chunks of **50** paths. Up to `concurrency` chunks run in parallel (across locales). Each chunk is one model call.
 5. For each locale, up to **8** existing string pairs (sorted by path) are attached as few-shot examples so the model can match tone.
-6. The model must call the `submitTranslations` tool. Free-form chat without the tool is an error (`The model did not call submitTranslations`).
-7. Submitted paths are checked: unknown paths are dropped (`unexpectedPaths`); requested paths the model omitted are `incompletePaths`; ICU `{placeholder}` sets that do not match the base become `placeholderWarnings` (the translation is still accepted).
-8. Interactive mode asks **before** calling the API, then shows proposals and asks again before writing. `--yes` skips both prompts. The CLI always generates with `skipWrite` and writes only after the second confirmation (or `--yes`).
+6. Optional project **guidance** (config `translate.guidance`, `--guidance`, or `--guidance-file`) is appended to the user prompt after the built-in rules. It does not replace system instructions. Use it for a terminology glossary (brand names to leave untranslated, mandated translations).
+7. The model must call the `submitTranslations` tool. Free-form chat without the tool is an error (`The model did not call submitTranslations`).
+8. Submitted paths are checked: unknown paths are dropped (`unexpectedPaths`); requested paths the model omitted are `incompletePaths`; ICU `{placeholder}` sets that do not match the base become `placeholderWarnings` (the translation is still accepted).
+9. Interactive mode asks **before** calling the API, then shows proposals and asks again before writing. `--yes` skips both prompts. The CLI always generates with `skipWrite` and writes only after the second confirmation (or `--yes`).
 
 Message values in the prompt are wrapped in `<source_text>` and treated as untrusted data (the model is instructed not to follow instructions inside copy).
 
@@ -65,6 +68,19 @@ Nothing to translate (all locales already complete) exits `0` without calling th
 Raising concurrency shortens wall-clock time and increases provider rate-limit risk. It does not change how many calls run in total.
 
 After the first chunk failure, no new chunks are started; in-flight calls finish, then the error is thrown (CLI exit `1`).
+
+### Project guidance
+
+`translate.guidance` in config, `--guidance <text>`, or `--guidance-file <path>`. CLI inline text wins over the file, which wins over config. Do not pass both flags. The extra text is appended to the user prompt; built-in system instructions stay in place.
+
+Typical use is a terminology glossary:
+
+```text
+Do not translate: Catlex, next-intl
+Always translate "workspace" as "espaço de trabalho" in pt
+```
+
+Generated CI workflows use `--no-config`, so put the glossary on the `run:` line (`--guidance-file ./glossary.md`) if you need it there.
 
 ## Providers
 

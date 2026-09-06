@@ -340,4 +340,37 @@ describe("runTranslateCommand", () => {
       about: "Sobre",
     });
   });
+
+  it("appends --guidance to the translator prompt", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-cli-guidance-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateCommand({
+      cwd,
+      json: true,
+      yes: true,
+      guidance: "Do not translate: Catlex.",
+      env: { OPENAI_API_KEY: "sk-test" },
+      translateLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Do not translate: Catlex.");
+    expect(prompt).toContain("Project guidance");
+  });
 });

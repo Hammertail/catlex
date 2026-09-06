@@ -7,6 +7,7 @@ import path from "node:path";
 //* Local imports
 import { loadConfig } from "../../src/core/config/load.ts";
 import { DEFAULT_CONFIG } from "../../src/core/config/defaults.ts";
+import { MAX_TRANSLATE_GUIDANCE_CHARS } from "../../src/core/config/schema.ts";
 
 describe("loadConfig", () => {
   const tempDirs: string[] = [];
@@ -200,6 +201,36 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
     const config = await loadConfig(cwd);
 
     expect(config.translate).toEqual({ concurrency: 8 });
+  });
+
+  it("loads optional translate guidance from config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidance: "Do not translate: Catlex.",
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidance: "Do not translate: Catlex." });
+  });
+
+  it("rejects translate guidance longer than the character cap", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidance: "x".repeat(MAX_TRANSLATE_GUIDANCE_CHARS + 1),
+        },
+      }),
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
   });
 
   it("rejects translate concurrency outside 1–32", async () => {

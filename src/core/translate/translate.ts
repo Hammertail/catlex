@@ -7,6 +7,7 @@ import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { applyTranslationsToTree } from "../messages/unflatten.ts";
 import { writeLocaleMessages } from "../messages/write.ts";
 import { collectMissingTranslations, collectTranslationExamples } from "./collect.ts";
+import { resolveTranslateGuidance } from "./guidance.ts";
 import { chunkItems, mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
 import { createProgressAccumulator } from "./progress.ts";
 import { buildTranslatePrompt } from "./prompt.ts";
@@ -82,6 +83,10 @@ export type TranslateMissingKeysOptions = ConfigFlags & {
   skipWrite?: boolean;
   chunkSize?: number;
   concurrency?: number;
+  /** Extra project guidance appended to the translate prompt (CLI `--guidance`). */
+  guidance?: string;
+  /** Path to extra project guidance (CLI `--guidance-file`). */
+  guidanceFile?: string;
   translateLocale: TranslateLocaleFn;
   onProgress?: TranslateProgressFn;
   writeLocale?: (filePath: string, tree: LocaleMessages["tree"]) => Promise<void>;
@@ -137,6 +142,7 @@ async function translateOneChunk(options: {
   targetLocale: string;
   chunk: MissingTranslation[];
   examples: TranslationExample[];
+  guidance?: string;
   translateLocale: TranslateLocaleFn;
 }): Promise<LocaleTranslationAccumulator> {
   const translated: TranslatedItem[] = [];
@@ -152,6 +158,7 @@ async function translateOneChunk(options: {
     targetLocale: options.targetLocale,
     missing: missingPayload,
     examples: options.examples,
+    guidance: options.guidance,
   });
 
   const submitted = await options.translateLocale({
@@ -265,6 +272,7 @@ async function runTranslateWorkPool(options: {
   baseLocale: string;
   messagesDir: string;
   locales: string[];
+  guidance?: string;
   translateLocale: TranslateLocaleFn;
   totalKeys: number;
   onProgress?: TranslateProgressFn;
@@ -292,6 +300,7 @@ async function runTranslateWorkPool(options: {
         targetLocale: item.localeId,
         chunk: item.chunk,
         examples: item.examples,
+        guidance: options.guidance,
         translateLocale: options.translateLocale,
       });
       return { localeId: item.localeId, result };
@@ -394,6 +403,12 @@ export async function translateMissingKeys(
   const concurrency = resolveTranslateConcurrency(
     options.concurrency ?? config.translate?.concurrency,
   );
+  const guidance = await resolveTranslateGuidance({
+    cwd,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
+    configGuidance: config.translate?.guidance,
+  });
   const writeLocale =
     options.writeLocale ??
     ((filePath, tree) => writeLocaleMessages(filePath, tree, { allowedDir: messagesDir }));
@@ -425,6 +440,7 @@ export async function translateMissingKeys(
         baseLocale: config.baseLocale,
         messagesDir: config.messagesDir,
         locales: localeIds,
+        guidance,
         translateLocale: options.translateLocale,
         totalKeys: collected.missing.length,
         onProgress: options.onProgress,

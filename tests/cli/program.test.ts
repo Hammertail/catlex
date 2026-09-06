@@ -135,6 +135,8 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--json")).toBe(true);
       expect(reviewFlags.has("--verbose")).toBe(true);
       expect(reviewFlags.has("--concurrency <n>")).toBe(true);
+      expect(reviewFlags.has("--guidance <text>")).toBe(true);
+      expect(reviewFlags.has("--guidance-file <path>")).toBe(true);
       expect(reviewFlags.has("--no-config")).toBe(true);
 
       const validateFlags = new Set(
@@ -147,6 +149,8 @@ describe("createProgram", () => {
       );
       expect(translateFlags.has("--no-config")).toBe(true);
       expect(translateFlags.has("--concurrency <n>")).toBe(true);
+      expect(translateFlags.has("--guidance <text>")).toBe(true);
+      expect(translateFlags.has("--guidance-file <path>")).toBe(true);
 
       const ci = findCommand(program, ["ci"]);
       expect(ci.aliases()).toContain("init-ci");
@@ -239,6 +243,8 @@ describe("createProgram", () => {
           "--json",
           "--concurrency",
           "8",
+          "--guidance",
+          "Do not translate: Catlex.",
         ],
       );
       expect(opts).toMatchObject({
@@ -253,6 +259,7 @@ describe("createProgram", () => {
         config: false,
         json: true,
         concurrency: 8,
+        guidance: "Do not translate: Catlex.",
       });
     });
 
@@ -321,6 +328,8 @@ describe("createProgram", () => {
           "--verbose",
           "--concurrency",
           "6",
+          "--guidance-file",
+          "glossary.md",
         ],
       );
       expect(opts).toMatchObject({
@@ -337,6 +346,7 @@ describe("createProgram", () => {
         json: true,
         verbose: true,
         concurrency: 6,
+        guidanceFile: "glossary.md",
       });
     });
 
@@ -402,6 +412,8 @@ describe("createProgram", () => {
       expect(opts.base).toBeUndefined();
       expect(opts.model).toBeUndefined();
       expect(opts.concurrency).toBeUndefined();
+      expect(opts.guidance).toBeUndefined();
+      expect(opts.guidanceFile).toBeUndefined();
     });
 
     it("applies translate review defaults when flags are omitted", async () => {
@@ -421,6 +433,8 @@ describe("createProgram", () => {
       expect(opts.model).toBeUndefined();
       expect(opts.since).toBeUndefined();
       expect(opts.concurrency).toBeUndefined();
+      expect(opts.guidance).toBeUndefined();
+      expect(opts.guidanceFile).toBeUndefined();
     });
   });
 
