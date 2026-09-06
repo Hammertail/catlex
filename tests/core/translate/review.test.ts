@@ -770,4 +770,73 @@ describe("reviewTranslations", () => {
       }),
     ).rejects.toThrow("concurrency must be an integer between 1 and 32");
   });
+
+  it("appends project guidance to the review prompt", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-guidance-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+
+    const prompts: string[] = [];
+    const result = await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      dryRun: true,
+      guidance: "Do not translate: Catlex.",
+      reviewLocale: async (input) => {
+        prompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain("Do not translate: Catlex.");
+    expect(prompts[0]).toContain("<project_guidance>");
+    expect(result.guidanceSource).toBe("flag");
+    expect(result.guidancePreview).toBe("Do not translate: Catlex.");
+  });
+
+  it("appends project guidance when auto-fixing missing keys", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-guidance-missing-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome", about: "About" },
+      pt: { welcome: "Olá" },
+    });
+
+    const reviewPrompts: string[] = [];
+    const translatePrompts: string[] = [];
+    await reviewTranslations({
+      cwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      autoFix: true,
+      dryRun: true,
+      guidance: "Always translate About as Sobre.",
+      reviewLocale: async (input) => {
+        reviewPrompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+      translateLocale: async (input) => {
+        translatePrompts.push(input.prompt);
+        return {
+          locale: input.targetLocale,
+          translations: input.missing.map((item) => ({
+            path: item.path,
+            value: `PT:${item.baseValue}`,
+          })),
+        };
+      },
+    });
+
+    expect(reviewPrompts[0]).toContain("Always translate About as Sobre.");
+    expect(translatePrompts[0]).toContain("Always translate About as Sobre.");
+  });
 });

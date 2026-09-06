@@ -7,6 +7,7 @@ import path from "node:path";
 //* Local imports
 import { loadConfig } from "../../src/core/config/load.ts";
 import { DEFAULT_CONFIG } from "../../src/core/config/defaults.ts";
+import { MAX_TRANSLATE_GUIDANCE_CHARS } from "../../src/core/config/schema.ts";
 
 describe("loadConfig", () => {
   const tempDirs: string[] = [];
@@ -200,6 +201,107 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
     const config = await loadConfig(cwd);
 
     expect(config.translate).toEqual({ concurrency: 8 });
+  });
+
+  it("loads optional translate guidance from config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidance: "Do not translate: Catlex.",
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidance: "Do not translate: Catlex." });
+  });
+
+  it("trims config translate.guidance before applying the character cap", async () => {
+    const cwd = await createTempDir();
+    const body = "Do not translate: Catlex.";
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidance: `${body}\n`,
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidance: body });
+  });
+
+  it("loads optional translate.guidanceFile from config", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidanceFile: "glossary.md",
+        },
+      }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidanceFile: "glossary.md" });
+  });
+
+  it("loads translate.guidanceFile from a JavaScript config module", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.js"),
+      `export default { translate: { guidanceFile: "glossary.md" } };\n`,
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidanceFile: "glossary.md" });
+  });
+
+  it("rejects an empty translate.guidanceFile path", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidanceFile: "  ",
+        },
+      }),
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
+  });
+
+  it("loads translate.guidance from a JavaScript config module", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.js"),
+      `export default { translate: { guidance: "from js config" } };\n`,
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config.translate).toEqual({ guidance: "from js config" });
+  });
+
+  it("rejects translate guidance longer than the character cap", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({
+        translate: {
+          guidance: "x".repeat(MAX_TRANSLATE_GUIDANCE_CHARS + 1),
+        },
+      }),
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/Invalid config/);
   });
 
   it("rejects translate concurrency outside 1–32", async () => {

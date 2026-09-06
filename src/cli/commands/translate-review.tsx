@@ -42,6 +42,8 @@ export type TranslateReviewCommandOptions = {
   json?: boolean;
   verbose?: boolean;
   concurrency?: number;
+  guidance?: string;
+  guidanceFile?: string;
   confirm?: ConfirmFn;
   reviewLocale?: ReviewLocaleFn;
   translateLocale?: TranslateLocaleFn;
@@ -74,6 +76,8 @@ function printJson(result: ReviewResult, model: string): void {
         removed: result.removed,
         skipped: result.skipped,
         reports: result.reports,
+        guidanceSource: result.guidanceSource,
+        guidancePreview: result.guidancePreview,
       },
       null,
       2,
@@ -228,6 +232,8 @@ export async function runTranslateReviewCommand(
     dryRun: true,
     noConfig,
     concurrency: options.concurrency,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
     onProgress: progressWriter.onProgress,
     reviewLocale: clients.reviewLocale,
     translateLocale: clients.translateLocale,

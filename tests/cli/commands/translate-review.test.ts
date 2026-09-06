@@ -294,6 +294,126 @@ describe("runTranslateReviewCommand", () => {
     expect(payload.keysReviewed).toBe(2);
     expect(payload.issuesFound).toBe(2);
   });
+
+  it("appends --guidance to the review prompt", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-guidance-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateReviewCommand({
+      cwd,
+      json: true,
+      guidance: "Do not translate: Catlex.",
+      env: { OPENAI_API_KEY: "sk-test" },
+      reviewLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Do not translate: Catlex.");
+    expect(prompt).toContain("Project guidance");
+  });
+
+  it("appends --guidance-file to the review prompt and reports the file source in JSON", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-guidance-file-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    await writeFile(path.join(cwd, "glossary.md"), "Do not translate: Catlex.\n", "utf8");
+    const log = captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateReviewCommand({
+      cwd,
+      json: true,
+      noConfig: true,
+      guidanceFile: "glossary.md",
+      env: { OPENAI_API_KEY: "sk-test" },
+      reviewLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Do not translate: Catlex.");
+    expect(prompt).toContain("<project_guidance>");
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+    expect(payload.guidanceSource).toBe("file");
+    expect(payload.guidancePreview).toBe("Do not translate: Catlex.");
+  });
+
+  it("loads translate.guidance from config without CLI flags", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-config-guidance-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      `${JSON.stringify({ translate: { guidance: "Always translate workspace as espaço de trabalho." } })}\n`,
+      "utf8",
+    );
+    const log = captureLog();
+    silenceStderr();
+    let prompt = "";
+
+    const exitCode = await runTranslateReviewCommand({
+      cwd,
+      json: true,
+      env: { OPENAI_API_KEY: "sk-test" },
+      reviewLocale: async (input) => {
+        prompt = input.prompt;
+        return {
+          locale: input.targetLocale,
+          reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+        };
+      },
+    });
+
+    expect(exitCode).toBe(0);
+    expect(prompt).toContain("Always translate workspace as espaço de trabalho.");
+    expect(prompt).toContain("<project_guidance>");
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+    expect(payload.guidanceSource).toBe("config");
+    expect(payload.guidancePreview).toBe("Always translate workspace as espaço de trabalho.");
+  });
+
+  it("rejects when both --guidance and --guidance-file are set", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-both-guidance-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    await writeFile(path.join(cwd, "glossary.md"), "Do not translate: Catlex.\n", "utf8");
+    silenceStderr();
+
+    await expect(
+      runTranslateReviewCommand({
+        cwd,
+        json: true,
+        guidance: "inline glossary",
+        guidanceFile: "glossary.md",
+        env: { OPENAI_API_KEY: "sk-test" },
+        reviewLocale: async () => ({ locale: "pt", reviews: [] }),
+      }),
+    ).rejects.toThrow(/either inline guidance or a guidance file/i);
+  });
 });
 
 const gitAvailable = await whichGit();

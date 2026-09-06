@@ -33,6 +33,8 @@ Omitted CLI flags do not wipe file values. `--no-config` skips the file entirely
 | `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review |
 | `openai.headers` | `{ [name]: string }` | unset | translate, translate review |
 | `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review |
+| `translate.guidance` | string (max 8192 chars after trim; global, every locale) | unset | translate, translate review |
+| `translate.guidanceFile` | string path (global, every locale) | unset | translate, translate review |
 
 [Scan](./scan.md) does **not** read this file. Scan roots, ignore globs, and string allowlists are not configurable yet; use `--dir` / `--cwd` only.
 
@@ -53,7 +55,8 @@ API keys are **never** read from config. Set `OPENAI_API_KEY` in the environment
     }
   },
   "translate": {
-    "concurrency": 8
+    "concurrency": 8,
+    "guidanceFile": "glossary.md"
   }
 }
 ```
@@ -70,10 +73,18 @@ Module configs can `export default { ... }` with the same shape.
 | `openai.baseUrl` | `--base-url <url>` (also `OPENAI_BASE_URL`) |
 | `openai.headers` | config only (no flag) |
 | `translate.concurrency` | `--concurrency <n>` |
+| `translate.guidance` | `--guidance <text>` |
+| `translate.guidanceFile` | `--guidance-file <path>` |
 
 OpenAI base URL precedence: **CLI `--base-url` > config `openai.baseUrl` > env `OPENAI_BASE_URL` > SDK default**.
 
 Concurrency: **CLI `--concurrency` > config `translate.concurrency` > 4**. Invalid values (non-integer, outside 1–32) fail at flag parse or at runtime.
+
+Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd` unless absolute.
+
+The extra text is fenced in `<project_guidance>` on the user prompt. Built-in system instructions stay in place and are extended by one conflict-priority sentence (built-in rules win; project guidance wins over few-shot examples). The same string is sent for every target locale. `--dry-run --json` reports `guidanceSource` (`flag` | `file` | `config` | `null`) and `guidancePreview`.
+
+Generated translate/review workflows pass `--no-config --guidance-file ./glossary.md`, so keep a `glossary.md` at the repository root (or edit the `run:` line).
 
 ## `--no-config`
 
@@ -82,7 +93,7 @@ Stops Catlex from discovering or executing `catlex.config.*`. Use it:
 - In CI, so a compromised or surprising JS/TS config cannot run on the runner.
 - When you want a one-off run that ignores the project file.
 
-Generated workflows always pass `--no-config`, so `translate.concurrency` in the project file does **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
+Generated workflows always pass `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md`. Config `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
 
 ## Library
 

@@ -16,6 +16,9 @@ const SINCE_EXPR = GITHUB_EXPR(
 const SAME_REPO_COMMIT_GUARD =
   "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
 
+/** Path passed as `--guidance-file` on generated translate/review workflows. */
+export const CI_TRANSLATE_GUIDANCE_FILE = "./glossary.md";
+
 function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
   if (options?.fetchDepthZero) {
     return `      - name: Checkout
@@ -87,7 +90,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review translations
-        run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
 ${openaiEnvBlock({ since: true })}
 `;
 }
@@ -112,7 +115,7 @@ ${checkoutStep({ fetchDepthZero: true })}
 ${INSTALL_STEP}
 
       - name: Review and auto-fix translations
-        run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
 ${openaiEnvBlock({ since: true })}
 
 ${autoCommitStep("chore: apply catlex translation review fixes")}
@@ -139,7 +142,7 @@ ${checkoutStep()}
 ${INSTALL_STEP}
 
       - name: Fill missing translations
-        run: catlex translate --no-config --yes --json
+        run: catlex translate --no-config --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
 ${openaiEnvBlock()}
 
 ${autoCommitStep("chore: fill missing translations with catlex")}

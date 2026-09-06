@@ -56,11 +56,12 @@ const result = await translateMissingKeys({
   dryRun: false,
   skipWrite: false,
   concurrency: 4,
+  guidance: "Do not translate: Catlex, next-intl.",
   translateLocale: createOpenAiTranslator({ model: "gpt-5.4-mini" }),
 });
 ```
 
-`dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). See [Translate](./translate.md).
+`dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). Optional `guidance` / `guidanceFile` append extra project instructions (a glossary, house terms) in a `<project_guidance>` fence. Config may also set `translate.guidance` or `translate.guidanceFile`. Results include `guidanceSource` and `guidancePreview`. See [Translate](./translate.md).
 
 ## Review
 
@@ -82,7 +83,7 @@ const result = await reviewTranslations({
 });
 ```
 
-`translateLocale` is required only when `autoFix` is true and there are missing keys. See [Translate review](./translate-review.md).
+`translateLocale` is required only when `autoFix` is true and there are missing keys. Optional `guidance` / `guidanceFile` use the same glossary sources and `<project_guidance>` fence as translate. Results include `guidanceSource` and `guidancePreview`. See [Translate review](./translate-review.md).
 
 ## Config and messages
 

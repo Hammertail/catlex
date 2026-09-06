@@ -154,6 +154,11 @@ export function createProgram(): Command {
       "Max parallel translation API calls (default: 4)",
       parseConcurrencyOption,
     )
+    .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
+    .option(
+      "--guidance-file <path>",
+      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateCommand({
@@ -168,6 +173,8 @@ export function createProgram(): Command {
           noConfig: options.config === false,
           json: options.json === true,
           concurrency: options.concurrency,
+          guidance: options.guidance,
+          guidanceFile: options.guidanceFile,
         }),
       );
     });
@@ -209,6 +216,11 @@ export function createProgram(): Command {
       "Max parallel translation API calls (default: 4)",
       parseConcurrencyOption,
     )
+    .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
+    .option(
+      "--guidance-file <path>",
+      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+    )
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runTranslateReviewCommand({
@@ -225,6 +237,8 @@ export function createProgram(): Command {
           json: options.json === true,
           verbose: options.verbose === true,
           concurrency: options.concurrency,
+          guidance: options.guidance,
+          guidanceFile: options.guidanceFile,
         }),
       );
     });

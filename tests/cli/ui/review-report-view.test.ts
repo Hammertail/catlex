@@ -24,6 +24,8 @@ function emptyResult(overrides: Partial<ReviewResult> = {}): ReviewResult {
     removed: [],
     skipped: [],
     writtenFiles: [],
+    guidanceSource: null,
+    guidancePreview: null,
     ...overrides,
   };
 }
