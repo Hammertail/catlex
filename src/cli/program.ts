@@ -157,7 +157,7 @@ export function createProgram(): Command {
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
       "--guidance-file <path>",
-      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+      "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
     .action(async (options) => {
       await setExitCodeFrom(() =>
@@ -219,7 +219,7 @@ export function createProgram(): Command {
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
       "--guidance-file <path>",
-      "Read extra translation guidance from a file (relative to --cwd unless absolute)",
+      "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
     .action(async (options) => {
       await setExitCodeFrom(() =>

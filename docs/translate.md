@@ -31,7 +31,7 @@ catlex translate --json
 | `--json` | JSON on stdout (progress on stderr when the API runs) |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 ## How it works
 
@@ -73,7 +73,7 @@ After the first chunk failure, no new chunks are started; in-flight calls finish
 
 Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error.
 
-`translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd` unless absolute.
+`translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd`. Absolute paths are allowed only when the resolved real path stays inside that base directory. Symbolic links are refused. Guidance file contents are uploaded to the configured LLM provider inside `<project_guidance>`.
 
 The extra text is fenced in `<project_guidance>` on the user prompt. One system-prompt sentence states the priority: built-in instructions win; project guidance wins over few-shot examples. The string is global (not per locale).
 

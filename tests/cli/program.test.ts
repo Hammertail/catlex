@@ -158,8 +158,10 @@ describe("createProgram", () => {
       const reviewGuidanceFile = review.options.find(
         (option) => option.flags === "--guidance-file <path>",
       );
-      expect(translateGuidanceFile?.description).toMatch(/relative to --cwd unless absolute/);
-      expect(reviewGuidanceFile?.description).toMatch(/relative to --cwd unless absolute/);
+      expect(translateGuidanceFile?.description).toMatch(/inside --cwd/);
+      expect(reviewGuidanceFile?.description).toMatch(/inside --cwd/);
+      expect(translateGuidanceFile?.description).toMatch(/no symlinks/);
+      expect(reviewGuidanceFile?.description).toMatch(/no symlinks/);
 
       const ci = findCommand(program, ["ci"]);
       expect(ci.aliases()).toContain("init-ci");
