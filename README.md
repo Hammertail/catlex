@@ -305,7 +305,7 @@ catlex ci
 | Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes`, then commit |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Generated installs pin the Catlex version that scaffolded the file and require `SHA256SUMS` verification. Gate-only jobs use `permissions: contents: read`. Auto-commit workflows isolate write access to a separate commit job (`stefanzweifel/git-auto-commit-action`) with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
+AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Generated installs pin the Catlex version that scaffolded the file (prefer adding `CATLEX_REQUIRE_CHECKSUM=1` after releases publish `SHA256SUMS`). Gate-only jobs use `permissions: contents: read`. Auto-commit workflows isolate write access to a separate commit job (`stefanzweifel/git-auto-commit-action`) with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 
 ## Building from source
 

@@ -10,7 +10,7 @@ export const CI_CATLEX_VERSION = packageJson.version;
 const INSTALL_STEP = `      - name: Install catlex
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/Hammertail/catlex/releases/download/v${CI_CATLEX_VERSION}/install.sh | CATLEX_VERSION=${CI_CATLEX_VERSION} CATLEX_REQUIRE_CHECKSUM=1 bash
+          curl -fsSL https://github.com/Hammertail/catlex/releases/download/v${CI_CATLEX_VERSION}/install.sh | CATLEX_VERSION=${CI_CATLEX_VERSION} bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"`;
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;

@@ -37,7 +37,6 @@ function assertNoGithubExpressionsInRunScripts(yaml: string): void {
 function assertPinnedInstall(yaml: string): void {
   expect(yaml).toContain(PINNED_INSTALL_URL);
   expect(yaml).toContain(`CATLEX_VERSION=${PINNED_VERSION}`);
-  expect(yaml).toContain("CATLEX_REQUIRE_CHECKSUM=1");
   expect(yaml).not.toContain(LATEST_INSTALL_URL);
 }
 

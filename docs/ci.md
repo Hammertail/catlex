@@ -41,7 +41,7 @@ Interactive multi-select (Space to toggle, Enter to confirm). You pick one or mo
 All generated jobs:
 
 - Trigger on `push` and `pull_request`.
-- Install a **pinned** Catlex release (the CLI version that generated the file), verify `SHA256SUMS`, and add `~/.local/bin` to `PATH`. Do not use `releases/latest` in production CI.
+- Install a **pinned** Catlex release (the CLI version that generated the file) and add `~/.local/bin` to `PATH`. Do not use `releases/latest` in production CI. Prefer `CATLEX_REQUIRE_CHECKSUM=1` once the pinned release publishes `SHA256SUMS`.
 - Use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md` (keep that file at the repo root, or edit the `run:` line). Project `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do not apply.
 
 ### Validate workflow
@@ -86,11 +86,11 @@ Validate and scan need neither.
 Generated workflows pin the CLI release that scaffolded them (example for `0.5.0`):
 
 ```bash
-curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.5.0/install.sh | CATLEX_VERSION=0.5.0 CATLEX_REQUIRE_CHECKSUM=1 bash
+curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.5.0/install.sh | CATLEX_VERSION=0.5.0 bash
 echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 ```
 
-`releases/latest` is fine for interactive human installs; production CI should keep the pin + `CATLEX_REQUIRE_CHECKSUM=1` so a replaced `latest` asset cannot silently change the binary. The installer verifies the asset against the release `SHA256SUMS` file. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
+`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. After a release that publishes `SHA256SUMS`, add `CATLEX_REQUIRE_CHECKSUM=1` to fail closed if checksums are missing. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
 
 ## What `catlex ci` does not do
 
