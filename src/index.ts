@@ -17,6 +17,7 @@ export { diffFlatMessages } from "./core/messages/diff-flat.ts";
 export {
   assertGitRepo,
   assertRefExists,
+  assertSafeGitRef,
   listFilesAtRef,
   readFileAtRef,
   resolveCurrentBranch,

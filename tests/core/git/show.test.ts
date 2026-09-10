@@ -6,6 +6,7 @@ import {
   GitError,
   assertGitRepo,
   assertRefExists,
+  assertSafeGitRef,
   listFilesAtRef,
   readFileAtRef,
   resolveCurrentBranch,
@@ -48,11 +49,38 @@ describe("assertGitRepo", () => {
   });
 });
 
+describe("assertSafeGitRef", () => {
+  it("accepts ordinary branch, remote, and tag refs", () => {
+    for (const ref of ["main", "origin/main", "feature/review", "v1.2.3", "refs/heads/main"]) {
+      expect(() => assertSafeGitRef(ref)).not.toThrow();
+    }
+  });
+
+  it("rejects refs that start with a dash so they cannot be parsed as git options", () => {
+    expect(() => assertSafeGitRef("--output=/tmp/catlex-git")).toThrow(GitError);
+    expect(() => assertSafeGitRef("--output=/tmp/catlex-git")).toThrow(/Invalid git ref/);
+    expect(() => assertSafeGitRef("-c")).toThrow(GitError);
+    expect(() => assertSafeGitRef("--upload-pack=echo")).toThrow(GitError);
+  });
+
+  it("rejects refs that contain a colon, whitespace, or reflog @{ syntax", () => {
+    expect(() => assertSafeGitRef("HEAD:package.json")).toThrow(GitError);
+    expect(() => assertSafeGitRef("main bad")).toThrow(GitError);
+    expect(() => assertSafeGitRef("HEAD@{0}")).toThrow(GitError);
+    expect(() => assertSafeGitRef("main\norigin")).toThrow(GitError);
+  });
+
+  it("rejects empty refs", () => {
+    expect(() => assertSafeGitRef("")).toThrow(GitError);
+    expect(() => assertSafeGitRef("   ")).toThrow(GitError);
+  });
+});
+
 describe("assertRefExists", () => {
   it("resolves when the ref can be resolved", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["rev-parse", "--verify", "main^{object}"]);
+        expect(args).toEqual(["rev-parse", "--verify", "--end-of-options", "main^{object}"]);
         return { stdout: "abc123\n", stderr: "", exitCode: 0 };
       },
     });
@@ -75,6 +103,21 @@ describe("assertRefExists", () => {
     await expect(assertRefExists({ cwd: "/repo", ref: "missing", runGit })).rejects.toThrow(
       'Git ref not found: "missing"',
     );
+  });
+
+  it("rejects unsafe refs before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(assertRefExists({ cwd: "/repo", ref: "--output=/tmp/x", runGit })).rejects.toThrow(
+      /Invalid git ref/,
+    );
+    expect(called).toBe(false);
   });
 });
 
@@ -117,7 +160,7 @@ describe("resolveRefSha", () => {
   it("returns the full commit SHA for a ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["rev-parse", "--verify", "origin/main^{commit}"]);
+        expect(args).toEqual(["rev-parse", "--verify", "--end-of-options", "origin/main^{commit}"]);
         return {
           stdout: "abcdef0123456789abcdef0123456789abcdef01\n",
           stderr: "",
@@ -145,6 +188,21 @@ describe("resolveRefSha", () => {
       'Git ref not found: "missing"',
     );
   });
+
+  it("rejects unsafe refs before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(resolveRefSha({ cwd: "/repo", ref: "HEAD@{0}", runGit })).rejects.toThrow(
+      /Invalid git ref/,
+    );
+    expect(called).toBe(false);
+  });
 });
 
 describe("toGitTreePath", () => {
@@ -165,10 +223,10 @@ describe("readFileAtRef", () => {
       onArgs: (args) => {
         calls.push(args);
         if (args[0] === "cat-file") {
-          expect(args).toEqual(["cat-file", "-e", "main:./messages/en.json"]);
+          expect(args).toEqual(["cat-file", "-e", "--end-of-options", "main:./messages/en.json"]);
           return { stdout: "", stderr: "", exitCode: 0 };
         }
-        expect(args).toEqual(["show", "main:./messages/en.json"]);
+        expect(args).toEqual(["show", "--end-of-options", "main:./messages/en.json"]);
         return {
           stdout: '{"welcome":"Welcome"}\n',
           stderr: "",
@@ -186,8 +244,8 @@ describe("readFileAtRef", () => {
 
     expect(content).toBe('{"welcome":"Welcome"}\n');
     expect(calls).toEqual([
-      ["cat-file", "-e", "main:./messages/en.json"],
-      ["show", "main:./messages/en.json"],
+      ["cat-file", "-e", "--end-of-options", "main:./messages/en.json"],
+      ["show", "--end-of-options", "main:./messages/en.json"],
     ]);
   });
 
@@ -212,13 +270,13 @@ describe("readFileAtRef", () => {
     });
 
     expect(content).toBeNull();
-    expect(calls[0]).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
+    expect(calls[0]).toEqual(["cat-file", "-e", "--end-of-options", "main:./messages/pt.json"]);
   });
 
   it("returns null when git reports a missing path in a non-English locale", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "main:./messages/pt.json"]);
+        expect(args).toEqual(["cat-file", "-e", "--end-of-options", "main:./messages/pt.json"]);
         return {
           stdout: "",
           // Portuguese localization of: path '…' does not exist in '…'
@@ -241,7 +299,7 @@ describe("readFileAtRef", () => {
   it("returns null when the path exists on disk but not in the ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "HEAD:./messages/new.json"]);
+        expect(args).toEqual(["cat-file", "-e", "--end-of-options", "HEAD:./messages/new.json"]);
         return {
           stdout: "",
           stderr: "fatal: path 'messages/new.json' exists on disk, but not in 'HEAD'",
@@ -268,7 +326,7 @@ describe("readFileAtRef", () => {
         if (args[0] === "cat-file") {
           return { stdout: "", stderr: "", exitCode: 0 };
         }
-        expect(args).toEqual(["show", "HEAD:./messages/my locale.json"]);
+        expect(args).toEqual(["show", "--end-of-options", "HEAD:./messages/my locale.json"]);
         return { stdout: "{}", stderr: "", exitCode: 0 };
       },
     });
@@ -282,9 +340,29 @@ describe("readFileAtRef", () => {
 
     expect(content).toBe("{}");
     expect(calls).toEqual([
-      ["cat-file", "-e", "HEAD:./messages/my locale.json"],
-      ["show", "HEAD:./messages/my locale.json"],
+      ["cat-file", "-e", "--end-of-options", "HEAD:./messages/my locale.json"],
+      ["show", "--end-of-options", "HEAD:./messages/my locale.json"],
     ]);
+  });
+
+  it("rejects unsafe refs before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(
+      readFileAtRef({
+        cwd: "/repo",
+        ref: "--output=/tmp/catlex-git",
+        path: "messages/en.json",
+        runGit,
+      }),
+    ).rejects.toThrow(/Invalid git ref/);
+    expect(called).toBe(false);
   });
 
   it("throws GitError when the object exists but git show fails unexpectedly", async () => {
@@ -338,15 +416,15 @@ describe("listFilesAtRef", () => {
 
     expect(files).toEqual(["messages/en.json", "messages/pt.json"]);
     expect(calls).toEqual([
-      ["cat-file", "-e", "main:./messages"],
-      ["ls-tree", "-r", "--name-only", "main", "--", "messages"],
+      ["cat-file", "-e", "--end-of-options", "main:./messages"],
+      ["ls-tree", "-r", "--name-only", "--end-of-options", "main", "--", "messages"],
     ]);
   });
 
   it("returns an empty list when the directory is absent at the ref", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
-        expect(args).toEqual(["cat-file", "-e", "main:./messages"]);
+        expect(args).toEqual(["cat-file", "-e", "--end-of-options", "main:./messages"]);
         return {
           stdout: "",
           // German localization must not affect missing-path detection
@@ -364,6 +442,26 @@ describe("listFilesAtRef", () => {
     });
 
     expect(files).toEqual([]);
+  });
+
+  it("rejects unsafe refs before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(
+      listFilesAtRef({
+        cwd: "/repo",
+        ref: "--abbrev=4",
+        directory: "messages",
+        runGit,
+      }),
+    ).rejects.toThrow(/Invalid git ref/);
+    expect(called).toBe(false);
   });
 
   it("throws GitError when the tree exists but ls-tree fails unexpectedly", async () => {

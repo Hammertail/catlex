@@ -25,6 +25,44 @@ function resolveRunner(options: GitCwdOptions): GitRunner {
 }
 
 /**
+ * Rejects git refs that can be confused with options or `rev:path` / reflog syntax.
+ *
+ * Callers pass user-controlled values (e.g. `--since`) into argv arrays. Leading
+ * dashes can be parsed as git options (`git show --output=…` writes a file).
+ * Colons collide with `rev:path`; whitespace and `@{` enable awkward / reflog forms.
+ */
+export function assertSafeGitRef(ref: string): void {
+  const trimmed = ref.trim();
+  if (trimmed.length === 0) {
+    throw new GitError('Invalid git ref: "". Refs must be a non-empty revision name.');
+  }
+
+  if (ref !== trimmed || /\s/.test(ref)) {
+    throw new GitError(
+      `Invalid git ref: "${ref}". Refs must not contain leading/trailing or internal whitespace.`,
+    );
+  }
+
+  if (ref.startsWith("-")) {
+    throw new GitError(
+      `Invalid git ref: "${ref}". Refs must not start with "-" (git would treat them as options).`,
+    );
+  }
+
+  if (ref.includes(":")) {
+    throw new GitError(
+      `Invalid git ref: "${ref}". Refs must not contain ":" (reserved for rev:path syntax).`,
+    );
+  }
+
+  if (ref.includes("@{")) {
+    throw new GitError(
+      `Invalid git ref: "${ref}". Refs must not contain "@{" (reflog syntax is not allowed).`,
+    );
+  }
+}
+
+/**
  * Ensures cwd is inside a git work tree.
  */
 export async function assertGitRepo(options: GitCwdOptions): Promise<void> {
@@ -43,10 +81,14 @@ export async function assertGitRepo(options: GitCwdOptions): Promise<void> {
  * Ensures a git ref resolves to an object.
  */
 export async function assertRefExists(options: GitCwdOptions & { ref: string }): Promise<void> {
+  assertSafeGitRef(options.ref);
   const runGit = resolveRunner(options);
-  const result = await runGit(["rev-parse", "--verify", `${options.ref}^{object}`], {
-    cwd: options.cwd,
-  });
+  const result = await runGit(
+    ["rev-parse", "--verify", "--end-of-options", `${options.ref}^{object}`],
+    {
+      cwd: options.cwd,
+    },
+  );
 
   if (result.exitCode !== 0) {
     throw new GitError(`Git ref not found: "${options.ref}"`, {
@@ -79,9 +121,10 @@ export function toGitTreePath(relativePath: string): string {
 async function pathExistsAtRef(
   options: GitCwdOptions & { ref: string; path: string },
 ): Promise<boolean> {
+  assertSafeGitRef(options.ref);
   const runGit = resolveRunner(options);
   const gitPath = toGitTreePath(options.path);
-  const result = await runGit(["cat-file", "-e", `${options.ref}:${gitPath}`], {
+  const result = await runGit(["cat-file", "-e", "--end-of-options", `${options.ref}:${gitPath}`], {
     cwd: options.cwd,
   });
   return result.exitCode === 0;
@@ -115,10 +158,14 @@ export async function resolveCurrentBranch(options: GitCwdOptions): Promise<stri
  * Resolves a git ref to a full commit SHA.
  */
 export async function resolveRefSha(options: GitCwdOptions & { ref: string }): Promise<string> {
+  assertSafeGitRef(options.ref);
   const runGit = resolveRunner(options);
-  const result = await runGit(["rev-parse", "--verify", `${options.ref}^{commit}`], {
-    cwd: options.cwd,
-  });
+  const result = await runGit(
+    ["rev-parse", "--verify", "--end-of-options", `${options.ref}^{commit}`],
+    {
+      cwd: options.cwd,
+    },
+  );
 
   if (result.exitCode !== 0) {
     throw new GitError(`Git ref not found: "${options.ref}"`, {
@@ -147,6 +194,7 @@ export type ReadFileAtRefOptions = GitCwdOptions & {
  * Reads a file blob at a git ref. Returns null when the path is absent at that ref.
  */
 export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<string | null> {
+  assertSafeGitRef(options.ref);
   const runGit = resolveRunner(options);
   const gitPath = toGitTreePath(options.path);
   const object = `${options.ref}:${gitPath}`;
@@ -156,7 +204,7 @@ export async function readFileAtRef(options: ReadFileAtRefOptions): Promise<stri
     return null;
   }
 
-  const result = await runGit(["show", object], {
+  const result = await runGit(["show", "--end-of-options", object], {
     cwd: options.cwd,
   });
 
@@ -182,6 +230,7 @@ export type ListFilesAtRefOptions = GitCwdOptions & {
  * Lists file paths (relative to repo root) under a directory at a git ref.
  */
 export async function listFilesAtRef(options: ListFilesAtRefOptions): Promise<string[]> {
+  assertSafeGitRef(options.ref);
   const runGit = resolveRunner(options);
 
   const exists = await pathExistsAtRef({
@@ -195,7 +244,7 @@ export async function listFilesAtRef(options: ListFilesAtRefOptions): Promise<st
   }
 
   const result = await runGit(
-    ["ls-tree", "-r", "--name-only", options.ref, "--", options.directory],
+    ["ls-tree", "-r", "--name-only", "--end-of-options", options.ref, "--", options.directory],
     { cwd: options.cwd },
   );
 
