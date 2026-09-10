@@ -4,9 +4,11 @@ import { describe, expect, it } from "bun:test";
 //* Local imports
 import {
   DEFAULT_OPENAI_TRANSLATE_MODEL,
+  InsecureOpenAiBaseUrlError,
   MissingOpenAiApiKeyError,
   MissingSubmitTranslationsError,
   assertOpenAiApiKey,
+  assertSafeOpenAiBaseUrl,
   buildOpenAiProviderSettings,
   createOpenAiTranslator,
   resolveOpenAiBaseUrl,
@@ -60,6 +62,81 @@ describe("resolveOpenAiBaseUrl", () => {
         env: { OPENAI_BASE_URL: "  " },
       }),
     ).toBeUndefined();
+  });
+
+  it("rejects http base URLs that could exfiltrate the API key", () => {
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "http://attacker.example/v1",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+  });
+
+  it("rejects link-local and private host base URLs by default", () => {
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://169.254.169.254/latest/meta-data/",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://127.0.0.1:8080/v1",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://10.0.0.5/v1",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://192.168.1.10/v1",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+    expect(() =>
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://localhost/v1",
+      }),
+    ).toThrow(InsecureOpenAiBaseUrlError);
+  });
+
+  it("allows insecure base URLs when allowInsecure is true", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "http://127.0.0.1:8080/v1",
+        allowInsecure: true,
+      }),
+    ).toBe("http://127.0.0.1:8080/v1");
+  });
+
+  it("allows public https OpenAI-compatible base URLs", () => {
+    expect(
+      resolveOpenAiBaseUrl({
+        configBaseUrl: "https://openrouter.ai/api/v1",
+      }),
+    ).toBe("https://openrouter.ai/api/v1");
+  });
+});
+
+describe("assertSafeOpenAiBaseUrl", () => {
+  it("rejects invalid URLs", () => {
+    expect(() => assertSafeOpenAiBaseUrl("not a url")).toThrow(InsecureOpenAiBaseUrlError);
+  });
+
+  it("rejects non-https schemes unless allowInsecure is true", () => {
+    expect(() => assertSafeOpenAiBaseUrl("http://api.openai.com/v1")).toThrow(
+      InsecureOpenAiBaseUrlError,
+    );
+    expect(assertSafeOpenAiBaseUrl("http://api.openai.com/v1", { allowInsecure: true })).toBe(
+      "http://api.openai.com/v1",
+    );
+  });
+
+  it("rejects IPv6 loopback and unique-local addresses", () => {
+    expect(() => assertSafeOpenAiBaseUrl("https://[::1]/v1")).toThrow(InsecureOpenAiBaseUrlError);
+    expect(() => assertSafeOpenAiBaseUrl("https://[fc00::1]/v1")).toThrow(
+      InsecureOpenAiBaseUrlError,
+    );
   });
 });
 

@@ -97,12 +97,16 @@ import {
   compareFlatMessages,
 } from "catlex";
 
-const config = await loadConfig(process.cwd(), { noConfig: false });
+const config = await loadConfig(process.cwd(), {
+  noConfig: false,
+  // JS/TS modules require an explicit opt-in:
+  // allowJsConfig: true,
+});
 const locales = await loadMessagesDir(`${process.cwd()}/${config.messagesDir}`);
 const { base, others } = splitBaseAndLocales(locales, config.baseLocale);
 ```
 
-Merge order and `--no-config` semantics: [Configuration](./configuration.md).
+Merge order, `--no-config`, and `--allow-js-config` semantics: [Configuration](./configuration.md).
 
 ## CI file generation
 
