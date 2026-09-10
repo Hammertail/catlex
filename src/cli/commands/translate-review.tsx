@@ -39,6 +39,8 @@ export type TranslateReviewCommandOptions = {
   autoFix?: boolean;
   yes?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
+  allowInsecureBaseUrl?: boolean;
   json?: boolean;
   verbose?: boolean;
   concurrency?: number;
@@ -122,6 +124,7 @@ function resolveOpenAiClients(options: {
   model: string;
   baseUrl?: string;
   headers?: Record<string, string>;
+  allowInsecureBaseUrl?: boolean;
   env: NodeJS.ProcessEnv | Record<string, string | undefined>;
   autoFix: boolean;
   reviewLocale?: ReviewLocaleFn;
@@ -134,6 +137,7 @@ function resolveOpenAiClients(options: {
     model: options.model,
     baseUrl: options.baseUrl,
     headers: options.headers,
+    allowInsecureBaseUrl: options.allowInsecureBaseUrl,
     env: options.env,
   };
   return {
@@ -201,21 +205,26 @@ export async function runTranslateReviewCommand(
   }
 
   const noConfig = options.noConfig === true;
+  const allowJsConfig = options.allowJsConfig === true;
+  const allowInsecureBaseUrl = options.allowInsecureBaseUrl === true;
   const config = await loadConfig(cwd, {
     messagesDir: options.dir,
     baseLocale: options.base,
     noConfig,
+    allowJsConfig,
   });
   const baseUrl = resolveOpenAiBaseUrl({
     baseUrl: options.baseUrl,
     configBaseUrl: config.openai?.baseUrl,
     env,
+    allowInsecure: allowInsecureBaseUrl,
   });
   const progressWriter = createReviewProgressWriter({ model, verbose, json });
   const clients = resolveOpenAiClients({
     model,
     baseUrl,
     headers: config.openai?.headers,
+    allowInsecureBaseUrl,
     env,
     autoFix,
     reviewLocale: options.reviewLocale,
@@ -231,6 +240,7 @@ export async function runTranslateReviewCommand(
     autoFix,
     dryRun: true,
     noConfig,
+    allowJsConfig,
     concurrency: options.concurrency,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,

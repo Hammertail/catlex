@@ -138,16 +138,21 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--guidance <text>")).toBe(true);
       expect(reviewFlags.has("--guidance-file <path>")).toBe(true);
       expect(reviewFlags.has("--no-config")).toBe(true);
+      expect(reviewFlags.has("--allow-js-config")).toBe(true);
+      expect(reviewFlags.has("--allow-insecure-base-url")).toBe(true);
 
       const validateFlags = new Set(
         findCommand(program, ["validate"]).options.map((option) => option.flags),
       );
       expect(validateFlags.has("--no-config")).toBe(true);
+      expect(validateFlags.has("--allow-js-config")).toBe(true);
 
       const translateFlags = new Set(
         findCommand(program, ["translate"]).options.map((option) => option.flags),
       );
       expect(translateFlags.has("--no-config")).toBe(true);
+      expect(translateFlags.has("--allow-js-config")).toBe(true);
+      expect(translateFlags.has("--allow-insecure-base-url")).toBe(true);
       expect(translateFlags.has("--concurrency <n>")).toBe(true);
       expect(translateFlags.has("--guidance <text>")).toBe(true);
       expect(translateFlags.has("--guidance-file <path>")).toBe(true);

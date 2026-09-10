@@ -41,6 +41,8 @@ export type TranslateCommandOptions = {
   dryRun?: boolean;
   yes?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
+  allowInsecureBaseUrl?: boolean;
   json?: boolean;
   concurrency?: number;
   guidance?: string;
@@ -91,6 +93,7 @@ async function collectMissingTranslationPlan(options: {
   baseLocale?: string;
   locales?: string[];
   noConfig?: boolean;
+  allowJsConfig?: boolean;
 }): Promise<{
   baseLocale: string;
   messagesDir: string;
@@ -101,6 +104,7 @@ async function collectMissingTranslationPlan(options: {
     messagesDir: options.messagesDir,
     baseLocale: options.baseLocale,
     noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
   });
   const messagesDir = path.resolve(options.cwd, config.messagesDir);
   const allLocales = await loadMessagesDir(messagesDir);
@@ -133,8 +137,10 @@ function resolveTranslator(
         baseUrl: options.baseUrl,
         configBaseUrl: config.openai?.baseUrl,
         env,
+        allowInsecure: options.allowInsecureBaseUrl === true,
       }),
       headers: config.openai?.headers,
+      allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
       env,
     })
   );
@@ -204,10 +210,12 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
   }
 
   const noConfig = options.noConfig === true;
+  const allowJsConfig = options.allowJsConfig === true;
   const config = await loadConfig(cwd, {
     messagesDir: options.dir,
     baseLocale: options.base,
     noConfig,
+    allowJsConfig,
   });
   const plan = await collectMissingTranslationPlan({
     cwd,
@@ -215,6 +223,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     baseLocale: options.base,
     locales: options.locale,
     noConfig,
+    allowJsConfig,
   });
 
   if (dryRun) {
@@ -225,6 +234,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       locales: options.locale,
       dryRun: true,
       noConfig,
+      allowJsConfig,
       concurrency: options.concurrency,
       guidance: options.guidance,
       guidanceFile: options.guidanceFile,
@@ -244,6 +254,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
       locales: options.locale,
       skipWrite: true,
       noConfig,
+      allowJsConfig,
       concurrency: options.concurrency,
       guidance: options.guidance,
       guidanceFile: options.guidanceFile,
@@ -270,6 +281,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
     locales: options.locale,
     skipWrite: true,
     noConfig,
+    allowJsConfig,
     concurrency: options.concurrency,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,

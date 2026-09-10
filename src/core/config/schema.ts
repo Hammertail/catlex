@@ -49,4 +49,9 @@ export type ConfigFlags = {
    * Prefer this in CI so repository-controlled JavaScript is not run automatically.
    */
   noConfig?: boolean;
+  /**
+   * When true, allow loading `catlex.config.js|mjs|ts` via dynamic import.
+   * JSON configs load without this flag. Prefer JSON or `--no-config` in untrusted trees.
+   */
+  allowJsConfig?: boolean;
 };

@@ -15,6 +15,7 @@ export type ValidateCommandOptions = {
   cwd?: string;
   strictExtra?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
   json?: boolean;
 };
 
@@ -34,12 +35,14 @@ function printJson(result: ValidationResult, strictExtra: boolean, failed: boole
 export async function runValidateCommand(options: ValidateCommandOptions): Promise<number> {
   const cwd = options.cwd ?? process.cwd();
   const noConfig = options.noConfig === true;
+  const allowJsConfig = options.allowJsConfig === true;
 
   const config = await loadConfig(cwd, {
     messagesDir: options.dir,
     baseLocale: options.base,
     strictExtra: options.strictExtra,
     noConfig,
+    allowJsConfig,
   });
 
   const result = await validateTranslations({
