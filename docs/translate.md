@@ -71,7 +71,7 @@ After the first chunk failure, no new chunks are started; in-flight calls finish
 
 ### Project guidance
 
-Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error.
+Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error. Guidance file paths must be regular files (symbolic links are refused).
 
 `translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd` unless absolute.
 

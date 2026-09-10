@@ -8,6 +8,7 @@ export {
   compareResultToIssues,
 } from "./core/messages/compare.ts";
 export {
+  assertSafeLocaleReadPath,
   loadMessagesDir,
   parseLocaleMessages,
   splitBaseAndLocales,
