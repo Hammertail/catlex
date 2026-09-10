@@ -12,13 +12,13 @@ Catch missing keys before they hit production, optionally fail on keys that exis
 curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
 ```
 
-Pin a version:
+`latest` is convenient for humans. For CI and other production runners, pin a version (and prefer `CATLEX_REQUIRE_CHECKSUM=1` once the release publishes `SHA256SUMS`):
 
 ```bash
-curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.sh | CATLEX_VERSION=0.0.1 bash
+curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.sh | CATLEX_VERSION=0.0.1 CATLEX_REQUIRE_CHECKSUM=1 bash
 ```
 
-The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and installs to `~/.local/bin/catlex`. Make sure `~/.local/bin` is on your `PATH`.
+The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`), verifies the binary against the release `SHA256SUMS` when present, and installs to `~/.local/bin/catlex`. Make sure `~/.local/bin` is on your `PATH`.
 
 ### Windows (x64)
 
@@ -26,13 +26,13 @@ The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and 
 irm https://github.com/Hammertail/catlex/releases/latest/download/install.ps1 | iex
 ```
 
-Pin a version:
+Pin a version (recommended for CI):
 
 ```powershell
-$env:CATLEX_VERSION='0.0.1'; irm https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.ps1 | iex
+$env:CATLEX_VERSION='0.0.1'; $env:CATLEX_REQUIRE_CHECKSUM='1'; irm https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.ps1 | iex
 ```
 
-The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`.
+The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`. When `SHA256SUMS` is published on the release, the installer verifies the download (set `CATLEX_REQUIRE_CHECKSUM=1` to fail closed).
 
 ## Quick start
 
@@ -305,7 +305,7 @@ catlex ci
 | Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes`, then commit |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
+AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Generated installs pin the Catlex version that scaffolded the file and require `SHA256SUMS` verification. Gate-only jobs use `permissions: contents: read`. Auto-commit workflows isolate write access to a separate commit job (`stefanzweifel/git-auto-commit-action`) with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 
 ## Building from source
 
