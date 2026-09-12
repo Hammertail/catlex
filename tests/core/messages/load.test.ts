@@ -5,7 +5,37 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
-import { loadMessagesDir, MessagesLoadError } from "../../../src/core/messages/load.ts";
+import {
+  assertSafeLocaleReadPath,
+  loadMessagesDir,
+  MessagesLoadError,
+} from "../../../src/core/messages/load.ts";
+
+describe("assertSafeLocaleReadPath", () => {
+  it("allows a regular file inside the messages directory", async () => {
+    const messagesDir = await mkdtemp(path.join(tmpdir(), "catlex-safe-read-ok-"));
+    const filePath = path.join(messagesDir, "en.json");
+    await writeFile(filePath, `${JSON.stringify({ hello: "Hello" }, null, 2)}\n`, "utf8");
+
+    await expect(assertSafeLocaleReadPath(filePath, messagesDir)).resolves.toBeUndefined();
+  });
+
+  it("refuses a regular file whose path is outside the messages directory", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-safe-read-outside-"));
+    const messagesDir = path.join(root, "messages");
+    const outsidePath = path.join(root, "outside.json");
+
+    await mkdir(messagesDir);
+    await writeFile(outsidePath, `${JSON.stringify({ hello: "Hello" }, null, 2)}\n`, "utf8");
+
+    await expect(assertSafeLocaleReadPath(outsidePath, messagesDir)).rejects.toBeInstanceOf(
+      MessagesLoadError,
+    );
+    await expect(assertSafeLocaleReadPath(outsidePath, messagesDir)).rejects.toThrow(
+      /outside the messages directory/i,
+    );
+  });
+});
 
 describe("loadMessagesDir", () => {
   it("loads regular JSON locale files from the messages directory", async () => {
