@@ -73,6 +73,13 @@ jobs:
           cp scripts/install.sh install.sh
           cp scripts/install.ps1 install.ps1
           chmod +x install.sh
+          sha256sum \
+            catlex-linux-x64 \
+            catlex-linux-arm64 \
+            catlex-darwin-x64 \
+            catlex-darwin-arm64 \
+            catlex-windows-x64.exe \
+            > SHA256SUMS
 
       - name: Configure git
         run: |
@@ -101,6 +108,7 @@ jobs:
             catlex-darwin-x64 \
             catlex-darwin-arm64 \
             catlex-windows-x64.exe \
+            SHA256SUMS \
             install.sh \
             install.ps1 \
             --title "${TAG}" \
@@ -115,10 +123,10 @@ jobs:
 
           Installs the binary to \`~/.local/bin/catlex\`.
 
-          To install a specific version:
+          To install a specific version (recommended for CI; verifies SHA256SUMS):
 
           \`\`\`bash
-          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${VERSION} bash
+          curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${VERSION} CATLEX_REQUIRE_CHECKSUM=1 bash
           \`\`\`
 
           ### Windows (x64)
