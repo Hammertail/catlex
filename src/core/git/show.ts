@@ -104,12 +104,37 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
  * Git resolves bare paths after `:` from the repository root. Prefixing with `./`
  * makes the path relative to `cwd`, which is required when Catlex runs from a
  * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
+ *
+ * Rejects empty paths, `:` (which would confuse `rev:path`), and `..` segments
+ * so callers cannot escape the intended tree even if path arguments become
+ * user-controlled later.
  */
 export function toGitTreePath(relativePath: string): string {
   const normalized = relativePath
     .replaceAll("\\", "/")
     .replace(/^\.\/+/, "")
-    .replace(/^\/+/, "");
+    .replace(/^\/+/, "")
+    .trim();
+
+  if (normalized.length === 0) {
+    throw new GitError(
+      `Invalid git tree path: "${relativePath}". Paths must be a non-empty tree-relative path.`,
+    );
+  }
+
+  if (normalized.includes(":")) {
+    throw new GitError(
+      `Invalid git tree path: "${relativePath}". Paths must not contain ":" (reserved for rev:path syntax).`,
+    );
+  }
+
+  const segments = normalized.split("/");
+  if (segments.some((segment) => segment === "..")) {
+    throw new GitError(
+      `Invalid git tree path: "${relativePath}". Paths must not contain ".." segments.`,
+    );
+  }
+
   return `./${normalized}`;
 }
 

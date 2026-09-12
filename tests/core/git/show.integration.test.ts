@@ -229,4 +229,20 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
       await expect(listFilesAtRef({ cwd, ref, directory: "messages" })).rejects.toThrow(GitError);
     }
   });
+
+  it("rejects tree paths with colon or .. before invoking git show/ls-tree", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}" + "\n");
+    await commitAll(cwd, "initial");
+
+    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "foo:bar.json" })).rejects.toThrow(
+      /Invalid git tree path/,
+    );
+    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "../messages/en.json" })).rejects.toThrow(
+      /Invalid git tree path/,
+    );
+    await expect(
+      listFilesAtRef({ cwd, ref: "HEAD", directory: "messages/../messages" }),
+    ).rejects.toThrow(/Invalid git tree path/);
+  });
 });

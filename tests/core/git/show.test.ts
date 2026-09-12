@@ -214,6 +214,23 @@ describe("toGitTreePath", () => {
     expect(toGitTreePath("messages\\en.json")).toBe("./messages/en.json");
     expect(toGitTreePath("./messages/en.json")).toBe("./messages/en.json");
   });
+
+  it("rejects paths that contain a colon so they cannot confuse rev:path syntax", () => {
+    expect(() => toGitTreePath("foo:bar")).toThrow(GitError);
+    expect(() => toGitTreePath("foo:bar")).toThrow(/Invalid git tree path/);
+  });
+
+  it("rejects paths that contain .. segments", () => {
+    expect(() => toGitTreePath("../messages/en.json")).toThrow(GitError);
+    expect(() => toGitTreePath("messages/../en.json")).toThrow(GitError);
+    expect(() => toGitTreePath("..\\messages\\en.json")).toThrow(GitError);
+  });
+
+  it("rejects empty paths", () => {
+    expect(() => toGitTreePath("")).toThrow(GitError);
+    expect(() => toGitTreePath("   ")).toThrow(GitError);
+    expect(() => toGitTreePath("./")).toThrow(GitError);
+  });
 });
 
 describe("readFileAtRef", () => {
@@ -365,6 +382,26 @@ describe("readFileAtRef", () => {
     expect(called).toBe(false);
   });
 
+  it("rejects unsafe tree paths before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(
+      readFileAtRef({
+        cwd: "/repo",
+        ref: "main",
+        path: "../secrets.json",
+        runGit,
+      }),
+    ).rejects.toThrow(/Invalid git tree path/);
+    expect(called).toBe(false);
+  });
+
   it("throws GitError when the object exists but git show fails unexpectedly", async () => {
     const runGit = createFakeRunner({
       onArgs: (args) => {
@@ -461,6 +498,26 @@ describe("listFilesAtRef", () => {
         runGit,
       }),
     ).rejects.toThrow(/Invalid git ref/);
+    expect(called).toBe(false);
+  });
+
+  it("rejects directories with .. segments before invoking git", async () => {
+    let called = false;
+    const runGit = createFakeRunner({
+      onArgs: () => {
+        called = true;
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+    });
+
+    await expect(
+      listFilesAtRef({
+        cwd: "/repo",
+        ref: "main",
+        directory: "../messages",
+        runGit,
+      }),
+    ).rejects.toThrow(/Invalid git tree path/);
     expect(called).toBe(false);
   });
 
