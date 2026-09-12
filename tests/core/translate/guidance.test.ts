@@ -1,6 +1,6 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -269,6 +269,22 @@ describe("resolveTranslateGuidance", () => {
         guidanceFile: cwd,
       }),
     ).rejects.toThrow(/Guidance path is not a file/);
+  });
+
+  it("rejects a guidance file that is a symbolic link", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-symlink-"));
+    const target = path.join(cwd, "secret.md");
+    const link = path.join(cwd, "glossary.md");
+
+    await writeFile(target, "leaked guidance\n", "utf8");
+    await symlink(target, link);
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: "glossary.md",
+      }),
+    ).rejects.toThrow(/symbolic link/i);
   });
 });
 

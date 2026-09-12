@@ -1,5 +1,5 @@
 //* Libraries imports
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 
 //* Local imports
@@ -92,21 +92,29 @@ export type ResolveTranslateGuidanceOptions = {
   configDir?: string;
 };
 
-async function statGuidanceFile(filePath: string): Promise<{ size: number; isFile: boolean }> {
+async function assertSafeGuidanceReadPath(filePath: string): Promise<{ size: number }> {
   try {
-    const info = await stat(filePath);
-    return { size: info.size, isFile: info.isFile() };
+    const info = await lstat(filePath);
+    if (info.isSymbolicLink()) {
+      throw new TranslateGuidanceError(
+        `Refusing to read guidance file because it is a symbolic link: ${filePath}`,
+      );
+    }
+    if (!info.isFile()) {
+      throw new TranslateGuidanceError(`Guidance path is not a file: ${filePath}`);
+    }
+    return { size: info.size };
   } catch (error) {
+    if (error instanceof TranslateGuidanceError) {
+      throw error;
+    }
     const detail = error instanceof Error ? error.message : String(error);
     throw new TranslateGuidanceError(`Unable to read guidance file: ${filePath} (${detail})`);
   }
 }
 
 async function readGuidanceFile(filePath: string): Promise<string> {
-  const info = await statGuidanceFile(filePath);
-  if (!info.isFile) {
-    throw new TranslateGuidanceError(`Guidance path is not a file: ${filePath}`);
-  }
+  const info = await assertSafeGuidanceReadPath(filePath);
   if (info.size > MAX_TRANSLATE_GUIDANCE_CHARS) {
     throw new TranslateGuidanceError(
       `guidance file must be at most ${MAX_TRANSLATE_GUIDANCE_CHARS} bytes: ${filePath}`,

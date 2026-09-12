@@ -21,6 +21,8 @@ The **base locale** is the file other locales are compared against (default: `en
 
 If the directory is missing, is not a directory, contains no JSON files, or has no `{baseLocale}.json`, Catlex fails with a load error (CLI exit `1`).
 
+Reads refuse symbolic links and non-regular paths (for example a directory named `pt.json`). Locale files must resolve to a regular file inside the messages directory — the same containment policy as [writes](#writes).
+
 ## JSON shape
 
 Each file must be a JSON **object** (not an array or primitive). Nested objects are namespaces; everything else is a leaf.
@@ -70,7 +72,7 @@ When Catlex writes a locale file (`translate --yes`, review `--auto-fix --yes`),
 
 It updates **existing** locale files in place. It does **not** create a new `{locale}.json` if that file is missing — there is nothing to load, so that locale never enters the comparison.
 
-Writes are refused if the target path is outside the messages directory or is a symlink (path traversal / symlink guard).
+Writes are refused if the target path is outside the messages directory or is a symlink (path traversal / symlink guard). Reads use the same symlink / regular-file guard so a locale `*.json` cannot point at secrets or other files outside the messages directory.
 
 ## next-intl mapping
 
