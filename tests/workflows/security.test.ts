@@ -218,6 +218,26 @@ describe("repository GitHub Actions security", () => {
       expect(top).not.toBeNull();
       expect(top ?? "").not.toMatch(/contents:\s*write/);
     });
+
+    it("runs format-check after autofix so GITHUB_TOKEN commits are verified in-run", () => {
+      const yaml = readWorkflow("biome.yml");
+      const checkJob = jobBlocks(yaml).find((job) => job.name === "check");
+      expect(checkJob).toBeDefined();
+      if (!checkJob) {
+        return;
+      }
+
+      // GITHUB_TOKEN pushes do not retrigger workflows; a parallel check on the
+      // pre-autofix head would stay failed forever after a successful format job.
+      expect(checkJob.body).toMatch(/needs:\s*format/);
+      expect(checkJob.body).toContain(
+        "always() && (needs.format.result == 'success' || needs.format.result == 'skipped')",
+      );
+      const headRefExpr = "${{" + " github.head_ref }}";
+      const headRepoExpr = "${{" + " github.event.pull_request.head.repo.full_name }}";
+      expect(checkJob.body).toContain(`ref: ${headRefExpr}`);
+      expect(checkJob.body).toContain(`repository: ${headRepoExpr}`);
+    });
   });
 
   describe("release.yml", () => {
