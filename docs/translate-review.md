@@ -32,7 +32,7 @@ catlex translate review --verbose
 | `--verbose` | Print per-chunk path lists |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Providers, API key, headers, concurrency, and project guidance work the same as [`translate`](./translate.md). Guidance applies to both present-key review and `--auto-fix` missing-key translation.
 

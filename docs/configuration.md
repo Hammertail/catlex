@@ -80,7 +80,7 @@ OpenAI base URL precedence: **CLI `--base-url` > config `openai.baseUrl` > env `
 
 Concurrency: **CLI `--concurrency` > config `translate.concurrency` > 4**. Invalid values (non-integer, outside 1–32) fail at flag parse or at runtime.
 
-Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd` unless absolute.
+Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd`. Absolute paths are allowed only when the resolved real path stays inside that base directory. Symbolic links are refused. File contents are uploaded to the LLM provider inside `<project_guidance>`.
 
 The extra text is fenced in `<project_guidance>` on the user prompt. Built-in system instructions stay in place and are extended by one conflict-priority sentence (built-in rules win; project guidance wins over few-shot examples). The same string is sent for every target locale. `--dry-run --json` reports `guidanceSource` (`flag` | `file` | `config` | `null`) and `guidancePreview`.
 

@@ -166,11 +166,11 @@ catlex translate --json
 | `--json` | Print JSON instead of the interactive terminal UI |
 | `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
 
-To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `translate.guidanceFile`, `--guidance`, or `--guidance-file` (CLI inline text wins over the CLI file, which wins over config inline, which wins over config file; do not pass both CLI flags). `--guidance-file` is relative to `--cwd` unless absolute; `translate.guidanceFile` is relative to the config file:
+To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `translate.guidanceFile`, `--guidance`, or `--guidance-file` (CLI inline text wins over the CLI file, which wins over config inline, which wins over config file; do not pass both CLI flags). `--guidance-file` must resolve inside `--cwd` (absolute only if still under `--cwd`; no symlinks); `translate.guidanceFile` must resolve inside the config file directory. Guidance file contents are sent to the LLM provider:
 
 ```json
 {
@@ -228,7 +228,7 @@ catlex translate review --verbose
 | `--verbose` | Print per-chunk progress details (paths reviewed in each batch) |
 | `--concurrency <n>` | Max parallel translation API calls (default: `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI. Full-corpus review still issues one model call per chunk of 50 keys; the default of 4 concurrent calls reduces wall-clock time but does not change how many calls run in total.
 

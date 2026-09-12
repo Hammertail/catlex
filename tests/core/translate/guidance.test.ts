@@ -172,11 +172,10 @@ describe("resolveTranslateGuidance", () => {
     expect(resolved.source).toBe("config");
   });
 
-  it("resolves an absolute guidance file path", async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-abs-"));
-    const other = await mkdtemp(path.join(tmpdir(), "catlex-guidance-abs-file-"));
-    const absolute = path.join(other, "glossary.md");
-    await writeFile(absolute, "from absolute\n", "utf8");
+  it("resolves an absolute guidance file path when it stays inside cwd", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-abs-inside-"));
+    const absolute = path.join(cwd, "glossary.md");
+    await writeFile(absolute, "from absolute inside\n", "utf8");
 
     const resolved = await resolveTranslateGuidance({
       cwd,
@@ -184,9 +183,103 @@ describe("resolveTranslateGuidance", () => {
     });
 
     expect(resolved).toEqual({
-      text: "from absolute",
+      text: "from absolute inside",
       source: "file",
-      preview: "from absolute",
+      preview: "from absolute inside",
+    });
+  });
+
+  it("rejects an absolute guidance file path outside cwd", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-abs-outside-"));
+    const other = await mkdtemp(path.join(tmpdir(), "catlex-guidance-abs-outside-file-"));
+    const absolute = path.join(other, "secrets.env");
+    await writeFile(absolute, "SECRET=do-not-exfiltrate\n", "utf8");
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: absolute,
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+  });
+
+  it("rejects a relative guidance file path that escapes cwd", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-guidance-rel-escape-"));
+    const cwd = path.join(root, "project");
+    const secretPath = path.join(root, "secrets.env");
+    await mkdir(cwd, { recursive: true });
+    await writeFile(secretPath, "SECRET=do-not-exfiltrate\n", "utf8");
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: path.join("..", "secrets.env"),
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+  });
+
+  it("rejects a config guidanceFile path that escapes the config directory", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-guidance-config-escape-"));
+    const configDir = path.join(root, "config");
+    const secretPath = path.join(root, "secrets.env");
+    await mkdir(configDir, { recursive: true });
+    await writeFile(secretPath, "SECRET=do-not-exfiltrate\n", "utf8");
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd: root,
+        configDir,
+        configGuidanceFile: path.join("..", "secrets.env"),
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+  });
+
+  it("rejects a guidance file that is a symbolic link", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-guidance-symlink-"));
+    const cwd = path.join(root, "project");
+    const secretPath = path.join(root, "secrets.env");
+    const linkPath = path.join(cwd, "glossary.md");
+    await mkdir(cwd, { recursive: true });
+    await writeFile(secretPath, "SECRET=do-not-exfiltrate\n", "utf8");
+    await symlink(secretPath, linkPath);
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: "glossary.md",
+      }),
+    ).rejects.toThrow(/symbolic link/);
+  });
+
+  it("rejects guidance under a parent directory that is a symlink outside cwd", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-guidance-parent-symlink-"));
+    const cwd = path.join(root, "project");
+    const outside = await mkdtemp(path.join(tmpdir(), "catlex-guidance-parent-outside-"));
+    await mkdir(cwd, { recursive: true });
+    await writeFile(path.join(outside, "secrets.env"), "SECRET=do-not-exfiltrate\n", "utf8");
+    await symlink(outside, path.join(cwd, "nested"));
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: path.join("nested", "secrets.env"),
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+  });
+
+  it("accepts an in-tree guidance file whose name starts with ..", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-dotdot-name-"));
+    await writeFile(path.join(cwd, "..secret.md"), "keep brand names\n", "utf8");
+
+    const resolved = await resolveTranslateGuidance({
+      cwd,
+      guidanceFile: "..secret.md",
+    });
+
+    expect(resolved).toEqual({
+      text: "keep brand names",
+      source: "file",
+      preview: "keep brand names",
     });
   });
 
@@ -262,17 +355,18 @@ describe("resolveTranslateGuidance", () => {
 
   it("rejects a guidance path that is not a file", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-dir-"));
+    await mkdir(path.join(cwd, "subdir"), { recursive: true });
 
     await expect(
       resolveTranslateGuidance({
         cwd,
-        guidanceFile: cwd,
+        guidanceFile: "subdir",
       }),
     ).rejects.toThrow(/Guidance path is not a file/);
   });
 
-  it("rejects a guidance file that is a symbolic link", async () => {
-    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-symlink-"));
+  it("rejects a guidance file that is a symbolic link even when the target stays inside cwd", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-symlink-inside-"));
     const target = path.join(cwd, "secret.md");
     const link = path.join(cwd, "glossary.md");
 
