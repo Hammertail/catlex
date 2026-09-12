@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
-import { UnsafeLocaleWritePathError } from "../../../src/core/messages/write.ts";
+import { MessagesLoadError } from "../../../src/core/messages/load.ts";
 import { translateMissingKeys } from "../../../src/core/translate/translate.ts";
 
 async function writeMessages(root: string, files: Record<string, unknown>): Promise<string> {
@@ -230,7 +230,7 @@ describe("translateMissingKeys", () => {
     ]);
   });
 
-  it("refuses to overwrite files outside the messages directory through a locale symlink", async () => {
+  it("refuses to load locale files that are symlinks pointing outside the messages directory", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-symlink-"));
     const messagesDir = path.join(cwd, "messages");
     const victimPath = path.join(cwd, "package.json");
@@ -260,7 +260,7 @@ describe("translateMissingKeys", () => {
           })),
         }),
       }),
-    ).rejects.toBeInstanceOf(UnsafeLocaleWritePathError);
+    ).rejects.toBeInstanceOf(MessagesLoadError);
 
     expect(await readFile(victimPath, "utf8")).toBe(victimBefore);
   });
