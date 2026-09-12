@@ -13,7 +13,9 @@ Catlex looks in the project root (`--cwd`) and stops at the **first** match, in 
 
 There is no merge across files. A JSON file in the same directory as a `.ts` config means the TypeScript file is never loaded.
 
-`.js` / `.mjs` / `.ts` configs are **executable** (dynamic `import`). Treat them like any other untrusted code: they run with your user’s permissions. In CI, prefer `--no-config` and pass `--dir` / `--base` on the command line. Generated GitHub Actions from `catlex ci` already use `--no-config`.
+`.js` / `.mjs` / `.ts` configs are **executable** (dynamic `import`) and are **refused by default**. Pass `--allow-js-config` (or `allowJsConfig: true` in the library API) only in trusted local environments. Prefer `catlex.config.json`, or `--no-config` with CLI flags. Generated GitHub Actions from `catlex ci` already use `--no-config`.
+
+Even JSON config is **attacker-controlled policy** when you run Catlex against an untrusted tree: it can set `openai.baseUrl` / `openai.headers`. Catlex rejects non-https and private/link-local base URLs unless you pass `--allow-insecure-base-url`.
 
 ## Merge order
 
@@ -78,6 +80,8 @@ Module configs can `export default { ... }` with the same shape.
 
 OpenAI base URL precedence: **CLI `--base-url` > config `openai.baseUrl` > env `OPENAI_BASE_URL` > SDK default**.
 
+Resolved base URLs must be **public `https`** by default. `http`, loopback, private, and link-local hosts (including cloud metadata addresses) are rejected unless you pass `--allow-insecure-base-url` (or `allowInsecure` / `allowInsecureBaseUrl` in library calls). Use that only for trusted local proxies.
+
 Concurrency: **CLI `--concurrency` > config `translate.concurrency` > 4**. Invalid values (non-integer, outside 1–32) fail at flag parse or at runtime.
 
 Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd` unless absolute.
@@ -88,10 +92,18 @@ Generated translate/review workflows pass `--no-config --guidance-file ./glossar
 
 ## `--no-config`
 
-Stops Catlex from discovering or executing `catlex.config.*`. Use it:
+Stops Catlex from discovering or loading `catlex.config.*`. Use it:
 
-- In CI, so a compromised or surprising JS/TS config cannot run on the runner.
+- In CI, so a compromised or surprising project config cannot change behavior or (without `--allow-js-config`) execute JS/TS on the runner.
 - When you want a one-off run that ignores the project file.
+
+## `--allow-js-config`
+
+Opt in to loading `catlex.config.js` / `.mjs` / `.ts` via dynamic `import`. Without this flag, those files are refused and do not run. JSON configs still load unless `--no-config` is set.
+
+## `--allow-insecure-base-url`
+
+Opt in to `http` or private/link-local OpenAI-compatible base URLs. Required for local gateways such as `http://127.0.0.1:8080/v1`. Do not use in CI against untrusted repositories.
 
 Generated workflows always pass `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md`. Config `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
 
@@ -103,6 +115,8 @@ import { loadConfig } from "catlex";
 const config = await loadConfig(process.cwd(), {
   messagesDir: "locales",
   noConfig: true,
+  // Or, for trusted local JS modules only:
+  // allowJsConfig: true,
 });
 ```
 

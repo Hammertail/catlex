@@ -60,7 +60,14 @@ export async function findConfigFile(cwd: string): Promise<string | null> {
   return null;
 }
 
-async function loadConfigFile(cwd: string): Promise<Partial<CatlexConfig>> {
+function isExecutableConfigPath(configPath: string): boolean {
+  return configPath.endsWith(".js") || configPath.endsWith(".mjs") || configPath.endsWith(".ts");
+}
+
+async function loadConfigFile(
+  cwd: string,
+  options: { allowJsConfig?: boolean } = {},
+): Promise<Partial<CatlexConfig>> {
   const configPath = await findConfigFile(cwd);
 
   if (!configPath) {
@@ -68,6 +75,12 @@ async function loadConfigFile(cwd: string): Promise<Partial<CatlexConfig>> {
   }
 
   const isJson = configPath.endsWith(".json");
+  if (!isJson && isExecutableConfigPath(configPath) && options.allowJsConfig !== true) {
+    throw new ConfigLoadError(
+      `Refusing to execute ${path.basename(configPath)}. Pass --allow-js-config (or allowJsConfig: true) to load JavaScript/TypeScript config modules, use catlex.config.json, or pass --no-config.`,
+    );
+  }
+
   const raw = isJson ? await loadJsonConfig(configPath) : await loadModuleConfig(configPath);
 
   const parsed = catlexConfigSchema.partial().safeParse(raw);
@@ -82,10 +95,11 @@ async function loadConfigFile(cwd: string): Promise<Partial<CatlexConfig>> {
 /**
  * Merges config in order: defaults < config file < CLI flags.
  * Pass `noConfig: true` to skip loading and executing project config modules.
+ * Executable `.js` / `.mjs` / `.ts` configs require `allowJsConfig: true`.
  */
 export async function loadConfig(cwd: string, flags: ConfigFlags = {}): Promise<CatlexConfig> {
-  const { noConfig, ...configFlags } = flags;
-  const fileConfig = noConfig === true ? {} : await loadConfigFile(cwd);
+  const { noConfig, allowJsConfig, ...configFlags } = flags;
+  const fileConfig = noConfig === true ? {} : await loadConfigFile(cwd, { allowJsConfig });
 
   const merged = {
     ...DEFAULT_CONFIG,

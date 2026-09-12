@@ -28,6 +28,8 @@ catlex translate --json
 | `--dry-run` | List missing/skipped keys; **no API call**, no `OPENAI_API_KEY` required |
 | `--yes` | Skip both interactive prompts and write files |
 | `--no-config` | Ignore `catlex.config.*` |
+| `--allow-js-config` | Allow loading `catlex.config.js\|mjs\|ts` (executes project code) |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs |
 | `--json` | JSON on stdout (progress on stderr when the API runs) |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
@@ -92,7 +94,7 @@ Generated CI workflows use `--no-config --guidance-file ./glossary.md`. Keep tha
 
 Requires `OPENAI_API_KEY` in the environment (except `--dry-run`). Catlex never stores keys in config.
 
-OpenAI-compatible endpoints (OpenRouter, proxies, self-hosted gateways) need a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl`. Precedence: CLI > config > env. The endpoint must support **chat completions with tool calling**.
+OpenAI-compatible endpoints (OpenRouter, proxies, self-hosted gateways) need a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl`. Precedence: CLI > config > env. The URL must be public `https` unless you pass `--allow-insecure-base-url`. The endpoint must support **chat completions with tool calling**.
 
 Optional provider headers (OpenRouter `HTTP-Referer` / `X-Title`) live under `openai.headers` in config only.
 

@@ -28,6 +28,8 @@ catlex translate review --verbose
 | `--auto-fix` | Collect suggested values for `wrong` / missing keys |
 | `--yes` | Apply auto-fix writes without a confirmation prompt |
 | `--no-config` | Ignore `catlex.config.*` |
+| `--allow-js-config` | Allow loading `catlex.config.js\|mjs\|ts` (executes project code) |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs |
 | `--json` | JSON on stdout; banner/progress on stderr |
 | `--verbose` | Print per-chunk path lists |
 | `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |

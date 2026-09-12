@@ -85,7 +85,7 @@ describe("loadConfig", () => {
     expect(config.messagesDir).toBe("messages");
   });
 
-  it("executes JavaScript config modules when loading config by default", async () => {
+  it("refuses JavaScript config modules unless allowJsConfig is true", async () => {
     const cwd = await createTempDir();
     const markerPath = path.join(cwd, "config-executed.txt");
     await writeFile(
@@ -96,12 +96,58 @@ export default { messagesDir: "locales", baseLocale: "pt" };
 `,
     );
 
-    const config = await loadConfig(cwd);
+    await expect(loadConfig(cwd)).rejects.toThrow(/allow-js-config|allowJsConfig/);
+    expect(await Bun.file(markerPath).exists()).toBe(false);
+  });
+
+  it("executes JavaScript config modules when allowJsConfig is true", async () => {
+    const cwd = await createTempDir();
+    const markerPath = path.join(cwd, "config-executed.txt");
+    await writeFile(
+      path.join(cwd, "catlex.config.js"),
+      `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(markerPath)}, "executed");
+export default { messagesDir: "locales", baseLocale: "pt" };
+`,
+    );
+
+    const config = await loadConfig(cwd, { allowJsConfig: true });
 
     expect(await Bun.file(markerPath).text()).toBe("executed");
     expect(config).toEqual({
       messagesDir: "locales",
       baseLocale: "pt",
+      strictExtra: false,
+    });
+  });
+
+  it("refuses TypeScript config modules unless allowJsConfig is true", async () => {
+    const cwd = await createTempDir();
+    const markerPath = path.join(cwd, "config-executed.txt");
+    await writeFile(
+      path.join(cwd, "catlex.config.ts"),
+      `import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(markerPath)}, "executed");
+export default { messagesDir: "locales", baseLocale: "de" };
+`,
+    );
+
+    await expect(loadConfig(cwd)).rejects.toThrow(/allow-js-config|allowJsConfig/);
+    expect(await Bun.file(markerPath).exists()).toBe(false);
+  });
+
+  it("still loads JSON config without allowJsConfig", async () => {
+    const cwd = await createTempDir();
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({ messagesDir: "locales", baseLocale: "fr" }),
+    );
+
+    const config = await loadConfig(cwd);
+
+    expect(config).toEqual({
+      messagesDir: "locales",
+      baseLocale: "fr",
       strictExtra: false,
     });
   });
@@ -259,7 +305,7 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
       `export default { translate: { guidanceFile: "glossary.md" } };\n`,
     );
 
-    const config = await loadConfig(cwd);
+    const config = await loadConfig(cwd, { allowJsConfig: true });
 
     expect(config.translate).toEqual({ guidanceFile: "glossary.md" });
   });
@@ -285,7 +331,7 @@ export default { messagesDir: "locales", baseLocale: "pt", strictExtra: true };
       `export default { translate: { guidance: "from js config" } };\n`,
     );
 
-    const config = await loadConfig(cwd);
+    const config = await loadConfig(cwd, { allowJsConfig: true });
 
     expect(config.translate).toEqual({ guidance: "from js config" });
   });
