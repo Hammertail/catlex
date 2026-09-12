@@ -22,7 +22,13 @@ export type WriteLocaleMessagesOptions = {
 
 function isPathInside(candidate: string, allowedDir: string): boolean {
   const relative = path.relative(allowedDir, candidate);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  // Treat only `..` and `..${sep}…` as escapes so names like `..secret.json` stay allowed.
+  return (
+    relative !== "" &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 function isNotFoundError(error: unknown): boolean {

@@ -251,6 +251,38 @@ describe("resolveTranslateGuidance", () => {
     ).rejects.toThrow(/symbolic link/);
   });
 
+  it("rejects guidance under a parent directory that is a symlink outside cwd", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-guidance-parent-symlink-"));
+    const cwd = path.join(root, "project");
+    const outside = await mkdtemp(path.join(tmpdir(), "catlex-guidance-parent-outside-"));
+    await mkdir(cwd, { recursive: true });
+    await writeFile(path.join(outside, "secrets.env"), "SECRET=do-not-exfiltrate\n", "utf8");
+    await symlink(outside, path.join(cwd, "nested"));
+
+    await expect(
+      resolveTranslateGuidance({
+        cwd,
+        guidanceFile: path.join("nested", "secrets.env"),
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+  });
+
+  it("accepts an in-tree guidance file whose name starts with ..", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-dotdot-name-"));
+    await writeFile(path.join(cwd, "..secret.md"), "keep brand names\n", "utf8");
+
+    const resolved = await resolveTranslateGuidance({
+      cwd,
+      guidanceFile: "..secret.md",
+    });
+
+    expect(resolved).toEqual({
+      text: "keep brand names",
+      source: "file",
+      preview: "keep brand names",
+    });
+  });
+
   it("rejects providing both inline guidance and a guidance file", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-guidance-both-"));
 

@@ -100,7 +100,13 @@ export type ResolveTranslateGuidanceOptions = {
 
 function isPathInside(candidate: string, allowedDir: string): boolean {
   const relative = path.relative(allowedDir, candidate);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  // Treat only `..` and `..${sep}…` as escapes so names like `..secret.md` stay allowed.
+  return (
+    relative !== "" &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 function guidanceErrorDetail(error: unknown): string {
