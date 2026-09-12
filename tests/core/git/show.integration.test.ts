@@ -1,6 +1,8 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
-import { writeFile } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
@@ -8,7 +10,9 @@ import {
   GitError,
   assertGitRepo,
   assertRefExists,
+  listFilesAtRef,
   readFileAtRef,
+  resolveRefSha,
 } from "../../../src/core/git/show.ts";
 import { runGit } from "../../../src/core/git/run.ts";
 import {
@@ -192,5 +196,53 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
     });
 
     expect(missing).toBeNull();
+  });
+
+  it("rejects leading-dash --since-style refs before git can treat them as options", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    const outputPath = path.join(tmpdir(), `catlex-git-injection-${Date.now()}`);
+    const maliciousRef = `--output=${outputPath}`;
+
+    await expect(assertRefExists({ cwd, ref: maliciousRef })).rejects.toThrow(/Invalid git ref/);
+    await expect(resolveRefSha({ cwd, ref: maliciousRef })).rejects.toThrow(/Invalid git ref/);
+    await expect(
+      readFileAtRef({ cwd, ref: maliciousRef, path: "messages/en.json" }),
+    ).rejects.toThrow(/Invalid git ref/);
+    await expect(listFilesAtRef({ cwd, ref: maliciousRef, directory: "messages" })).rejects.toThrow(
+      /Invalid git ref/,
+    );
+
+    await expect(access(outputPath, fsConstants.F_OK)).rejects.toThrow();
+  });
+
+  it("rejects colon, whitespace, and reflog @{ refs used as --since values", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    for (const ref of ["HEAD:messages/en.json", "main bad", "HEAD@{0}"]) {
+      await expect(assertRefExists({ cwd, ref })).rejects.toThrow(GitError);
+      await expect(readFileAtRef({ cwd, ref, path: "messages/en.json" })).rejects.toThrow(GitError);
+      await expect(listFilesAtRef({ cwd, ref, directory: "messages" })).rejects.toThrow(GitError);
+    }
+  });
+
+  it("rejects tree paths with colon or .. before invoking git show/ls-tree", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}" + "\n");
+    await commitAll(cwd, "initial");
+
+    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "foo:bar.json" })).rejects.toThrow(
+      /Invalid git tree path/,
+    );
+    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "../messages/en.json" })).rejects.toThrow(
+      /Invalid git tree path/,
+    );
+    await expect(
+      listFilesAtRef({ cwd, ref: "HEAD", directory: "messages/../messages" }),
+    ).rejects.toThrow(/Invalid git tree path/);
   });
 });
