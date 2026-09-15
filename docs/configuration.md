@@ -30,11 +30,11 @@ Omitted CLI flags do not wipe file values. `--no-config` skips the file entirely
 | `messagesDir` | string | `"messages"` | validate, translate, translate review |
 | `baseLocale` | string | `"en"` | validate, translate, translate review |
 | `strictExtra` | boolean | `false` | validate |
-| `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review |
-| `openai.headers` | `{ [name]: string }` | unset | translate, translate review |
+| `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review, translate markdown |
+| `openai.headers` | `{ [name]: string }` | unset | translate, translate review, translate markdown |
 | `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review |
-| `translate.guidance` | string (max 8192 chars after trim; global, every locale) | unset | translate, translate review |
-| `translate.guidanceFile` | string path (global, every locale) | unset | translate, translate review |
+| `translate.guidance` | string (max 8192 chars after trim; global, every locale) | unset | translate, translate review, translate markdown |
+| `translate.guidanceFile` | string path (global, every locale) | unset | translate, translate review, translate markdown |
 
 [Scan](./scan.md) does **not** read this file. Scan roots, ignore globs, and string allowlists are not configurable yet; use `--dir` / `--cwd` only.
 
