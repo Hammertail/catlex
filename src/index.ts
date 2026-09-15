@@ -58,6 +58,7 @@ export { writeGithubWorkflow, writeGithubWorkflows } from "./core/ci/write.ts";
 export {
   TRANSLATE_ALPHA_MESSAGE,
   REVIEW_ALPHA_MESSAGE,
+  MARKDOWN_TRANSLATE_ALPHA_MESSAGE,
 } from "./core/translate/alpha.ts";
 export {
   collectMissingTranslations,
@@ -99,6 +100,29 @@ export {
   DEFAULT_TRANSLATE_CONCURRENCY,
   translateMissingKeys,
 } from "./core/translate/translate.ts";
+export {
+  MAX_MARKDOWN_SOURCE_BYTES,
+  MarkdownTranslateError,
+  translateMarkdownFile,
+} from "./core/translate/markdown.ts";
+export type {
+  TranslateMarkdownFileOptions,
+  TranslateMarkdownFn,
+  TranslateMarkdownInput,
+  TranslateMarkdownResult,
+} from "./core/translate/markdown.ts";
+export {
+  MARKDOWN_TRANSLATE_INSTRUCTIONS,
+  buildMarkdownTranslatePrompt,
+} from "./core/translate/markdown-prompt.ts";
+export type { BuildMarkdownTranslatePromptOptions } from "./core/translate/markdown-prompt.ts";
+export { submitMarkdownTranslationSchema } from "./core/translate/markdown-schema.ts";
+export type { SubmitMarkdownTranslationInput } from "./core/translate/markdown-schema.ts";
+export {
+  MissingSubmitMarkdownTranslationError,
+  createOpenAiMarkdownTranslator,
+} from "./core/translate/markdown-openai.ts";
+export type { CreateOpenAiMarkdownTranslatorOptions } from "./core/translate/markdown-openai.ts";
 export { writeTranslatedReports } from "./core/translate/write-reports.ts";
 export type { WriteTranslatedReportsOptions } from "./core/translate/write-reports.ts";
 export { resolveReviewScope } from "./core/translate/review-scope.ts";

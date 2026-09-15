@@ -9,6 +9,7 @@ import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./color
 import { runCiCommand } from "./commands/ci.tsx";
 import { runScanCommand } from "./commands/scan.tsx";
 import { runTranslateCommand } from "./commands/translate.tsx";
+import { runTranslateMarkdownCommand } from "./commands/translate-markdown.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
 
@@ -237,6 +238,46 @@ export function createProgram(): Command {
           json: options.json === true,
           verbose: options.verbose === true,
           concurrency: options.concurrency,
+          guidance: options.guidance,
+          guidanceFile: options.guidanceFile,
+        }),
+      );
+    });
+
+  translate
+    .command("markdown")
+    .description("Translate a Markdown file with OpenAI (alpha prototype)")
+    .argument("<file>", "Markdown file to translate")
+    .requiredOption("--from <locale>", "Source locale")
+    .requiredOption("--to <locale>", "Target locale")
+    .requiredOption("--out <path>", "Write translated Markdown to this path")
+    .option("--cwd <path>", "Project root directory", process.cwd())
+    .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
+    .option(
+      "--base-url <url>",
+      "OpenAI-compatible API base URL (default: official OpenAI endpoint)",
+    )
+    .option("--dry-run", "Validate the source file without calling the API or writing", false)
+    .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option("--json", "Print machine-readable JSON instead of text", false)
+    .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
+    .option(
+      "--guidance-file <path>",
+      "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
+    )
+    .action(async (file, options) => {
+      await setExitCodeFrom(() =>
+        runTranslateMarkdownCommand({
+          file,
+          from: options.from,
+          to: options.to,
+          out: options.out,
+          cwd: options.cwd,
+          model: options.model,
+          baseUrl: options.baseUrl,
+          dryRun: options.dryRun === true,
+          noConfig: options.config === false,
+          json: options.json === true,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
         }),
