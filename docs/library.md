@@ -63,6 +63,32 @@ const result = await translateMissingKeys({
 
 `dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). Optional `guidance` / `guidanceFile` append extra project instructions (a glossary, house terms) in a `<project_guidance>` fence. Config may also set `translate.guidance` or `translate.guidanceFile`. Results include `guidanceSource` and `guidancePreview`. See [Translate](./translate.md).
 
+## Translate Markdown
+
+Inject a `translateMarkdown` function or use the OpenAI helper. This prototype translates one file:
+
+```ts
+import {
+  assertOpenAiApiKey,
+  createOpenAiMarkdownTranslator,
+  translateMarkdownFile,
+} from "catlex";
+
+assertOpenAiApiKey();
+
+const result = await translateMarkdownFile({
+  cwd: process.cwd(),
+  source: "docs/en/example.md",
+  from: "en",
+  to: "pt-BR",
+  out: "docs/pt-BR/example.md",
+  noConfig: true,
+  translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
+});
+```
+
+`dryRun: true` never calls `translateMarkdown` and does not write. Source and `--out` must stay inside `cwd`. See [Translate Markdown](./translate-markdown.md).
+
 ## Review
 
 ```ts

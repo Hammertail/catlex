@@ -11,6 +11,7 @@ The [README](../README.md) is the install and command cheat sheet. These pages e
 | [Validate](./validate.md) | `catlex validate` — missing and extra keys |
 | [Source scan](./scan.md) | `catlex scan` (alpha) — hardcoded JSX/TSX/Vue strings |
 | [Translate](./translate.md) | `catlex translate` (alpha) — fill missing string keys |
+| [Translate Markdown](./translate-markdown.md) | `catlex translate markdown` (alpha prototype) — one Markdown file |
 | [Translate review](./translate-review.md) | `catlex translate review` (alpha) — judge and optionally fix copy |
 | [CI workflows](./ci.md) | `catlex ci`, generated GitHub Actions, exit codes |
 | [Library API](./library.md) | Calling the same logic from TypeScript instead of the CLI |
