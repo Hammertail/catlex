@@ -65,18 +65,19 @@ const result = await translateMissingKeys({
 
 ## Translate Markdown
 
-Inject a `translateMarkdown` function or use the OpenAI helper. This prototype translates one file:
+Inject a `translateMarkdown` function or use the OpenAI helper. `translateMarkdownFile` translates one file. `translateMarkdownDirectory` walks a directory, keeps relative paths, and translates each Markdown file into one locale:
 
 ```ts
 import {
   assertOpenAiApiKey,
   createOpenAiMarkdownTranslator,
+  translateMarkdownDirectory,
   translateMarkdownFile,
 } from "catlex";
 
 assertOpenAiApiKey();
 
-const result = await translateMarkdownFile({
+const fileResult = await translateMarkdownFile({
   cwd: process.cwd(),
   source: "docs/en/example.md",
   from: "en",
@@ -85,9 +86,19 @@ const result = await translateMarkdownFile({
   noConfig: true,
   translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
 });
+
+const directoryResult = await translateMarkdownDirectory({
+  cwd: process.cwd(),
+  source: "docs/en",
+  from: "en",
+  to: "pt-BR",
+  out: "docs/pt-BR",
+  noConfig: true,
+  translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
+});
 ```
 
-`dryRun: true` never calls `translateMarkdown` and does not write. Source and `--out` must stay inside `cwd`. See [Translate Markdown](./translate-markdown.md).
+`dryRun: true` never calls `translateMarkdown` and does not write. Source and output paths must stay inside `cwd`. A missing output directory is created on a real run. See [Translate Markdown](./translate-markdown.md).
 
 ## Review
 
