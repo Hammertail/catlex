@@ -198,6 +198,38 @@ In interactive mode (no `--yes` / `--dry-run`), catlex asks whether to run autom
 
 This command is **alpha**: translations may be incorrect and bugs may occur. Only missing **string** leaves are filled; arrays and other non-string values are skipped. Existing locale files are updated in place — new locale files are not created.
 
+## AI translate Markdown (alpha prototype)
+
+Translate one Markdown file, or every Markdown file in a directory. `--to` is one locale.
+
+```bash
+export OPENAI_API_KEY=sk-...
+catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs/pt-BR/example.md
+catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs/pt-BR/example.md --dry-run --json
+catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR
+```
+
+| Option / argument | Description |
+|--------|-------------|
+| `<file>` | Markdown source (`.md` or `.markdown`) for `translate markdown` |
+| `<dir>` | Source directory for `translate markdown dir` |
+| `<out>` | Output directory for `translate markdown dir` (created when missing; existing files are overwritten) |
+| `--from <locale>` | Source locale |
+| `--to <locale>` | Target locale (one locale) |
+| `--out <path>` | Write translated Markdown here (`translate markdown` only) |
+| `--cwd <path>` | Project root (default: current directory) |
+| `--model <id>` | OpenAI model id (default: `gpt-5.4-mini`) |
+| `--base-url <url>` | OpenAI-compatible API base URL (default: official OpenAI endpoint) |
+| `--dry-run` | Validate sources without calling the API or writing |
+| `--no-config` | Do not load or execute project `catlex.config.*` files |
+| `--json` | Print JSON instead of text |
+| `--guidance <text>` | Extra project guidance appended to the model prompt |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+
+`--from` and `--to` are required. The file command also requires `--out`. Sources must stay under `--cwd`. Each file is at most 64 KiB. A missing output directory is created; an existing file is overwritten with no confirm prompt. `translate markdown dir` walks the source directory recursively, keeps relative paths, and skips files that are not Markdown.
+
+This command is **alpha**. See [Translate Markdown](docs/translate-markdown.md).
+
 ## AI translate review (alpha)
 
 Review existing translations with OpenAI. Missing keys in scope are errors. Present keys are judged `ok` or `wrong`.

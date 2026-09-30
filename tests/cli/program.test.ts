@@ -6,10 +6,14 @@ import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
 import * as translateCommand from "../../src/cli/commands/translate.tsx";
+import * as translateMarkdownDirCommand from "../../src/cli/commands/translate-markdown-dir.tsx";
+import * as translateMarkdownCommand from "../../src/cli/commands/translate-markdown.tsx";
 import { createProgram } from "../../src/cli/program.ts";
 
 //* Types imports
 import type { TranslateCommandOptions } from "../../src/cli/commands/translate.tsx";
+import type { TranslateMarkdownDirCommandOptions } from "../../src/cli/commands/translate-markdown-dir.tsx";
+import type { TranslateMarkdownCommandOptions } from "../../src/cli/commands/translate-markdown.tsx";
 
 function findCommand(root: Command, pathSegments: string[]): Command {
   let current: Command = root;
@@ -115,6 +119,47 @@ describe("createProgram", () => {
     return captured;
   }
 
+  /**
+   * Parses argv through the real command actions, capturing options passed to runTranslateMarkdownCommand.
+   */
+  async function captureMarkdownActionOptions(
+    argv: string[],
+  ): Promise<TranslateMarkdownCommandOptions | undefined> {
+    let captured: TranslateMarkdownCommandOptions | undefined;
+    const spy = spyOn(translateMarkdownCommand, "runTranslateMarkdownCommand").mockImplementation(
+      async (options) => {
+        captured = options;
+        return 0;
+      },
+    );
+    actionSpies.push(spy);
+
+    const program = createProgram();
+    await program.parseAsync(["node", "catlex", ...argv], { from: "node" });
+    return captured;
+  }
+
+  /**
+   * Parses argv through the real command actions, capturing options passed to runTranslateMarkdownDirCommand.
+   */
+  async function captureMarkdownDirActionOptions(
+    argv: string[],
+  ): Promise<TranslateMarkdownDirCommandOptions | undefined> {
+    let captured: TranslateMarkdownDirCommandOptions | undefined;
+    const spy = spyOn(
+      translateMarkdownDirCommand,
+      "runTranslateMarkdownDirCommand",
+    ).mockImplementation(async (options) => {
+      captured = options;
+      return 0;
+    });
+    actionSpies.push(spy);
+
+    const program = createProgram();
+    await program.parseAsync(["node", "catlex", ...argv], { from: "node" });
+    return captured;
+  }
+
   describe("command registration", () => {
     it("registers leaf commands and key options", () => {
       const program = createProgram();
@@ -127,6 +172,10 @@ describe("createProgram", () => {
       const review = findCommand(program, ["translate", "review"]);
       expect(review.description()).toContain("--since");
 
+      const markdown = findCommand(program, ["translate", "markdown"]);
+      expect(markdown.description()).toMatch(/Markdown/i);
+      expect(markdown.registeredArguments.map((argument) => argument.name())).toEqual(["file"]);
+
       const reviewFlags = new Set(review.options.map((option) => option.flags));
       expect(reviewFlags.has("--since <ref>")).toBe(true);
       expect(reviewFlags.has("--auto-fix")).toBe(true);
@@ -138,6 +187,29 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--guidance <text>")).toBe(true);
       expect(reviewFlags.has("--guidance-file <path>")).toBe(true);
       expect(reviewFlags.has("--no-config")).toBe(true);
+
+      const markdownFlags = new Set(markdown.options.map((option) => option.flags));
+      expect(markdownFlags.has("--from <locale>")).toBe(true);
+      expect(markdownFlags.has("--to <locale>")).toBe(true);
+      expect(markdownFlags.has("--out <path>")).toBe(true);
+      expect(markdownFlags.has("--json")).toBe(true);
+      expect(markdownFlags.has("--dry-run")).toBe(true);
+      expect(markdownFlags.has("--no-config")).toBe(true);
+      expect(markdownFlags.has("--guidance <text>")).toBe(true);
+      expect(markdownFlags.has("--guidance-file <path>")).toBe(true);
+
+      const markdownDir = findCommand(program, ["translate", "markdown", "dir"]);
+      expect(markdownDir.description()).toMatch(/directory/i);
+      expect(markdownDir.registeredArguments.map((argument) => argument.name())).toEqual([
+        "dir",
+        "out",
+      ]);
+      const markdownDirFlags = new Set(markdownDir.options.map((option) => option.flags));
+      expect(markdownDirFlags.has("--from <locale>")).toBe(true);
+      expect(markdownDirFlags.has("--to <locale>")).toBe(true);
+      expect(markdownDirFlags.has("--out <path>")).toBe(false);
+      expect(markdownDirFlags.has("--json")).toBe(true);
+      expect(markdownDirFlags.has("--dry-run")).toBe(true);
 
       const validateFlags = new Set(
         findCommand(program, ["validate"]).options.map((option) => option.flags),
@@ -180,7 +252,9 @@ describe("createProgram", () => {
 
     it("renders ANSI styling in help output when color is enabled", () => {
       const previousForceColor = process.env.FORCE_COLOR;
+      const previousNoColor = process.env.NO_COLOR;
       process.env.FORCE_COLOR = "1";
+      delete process.env.NO_COLOR;
 
       try {
         const help = createProgram().helpInformation();
@@ -193,6 +267,11 @@ describe("createProgram", () => {
           delete process.env.FORCE_COLOR;
         } else {
           process.env.FORCE_COLOR = previousForceColor;
+        }
+        if (previousNoColor === undefined) {
+          delete process.env.NO_COLOR;
+        } else {
+          process.env.NO_COLOR = previousNoColor;
         }
       }
     });
@@ -391,6 +470,164 @@ describe("createProgram", () => {
       });
     });
 
+    it("binds translate markdown argument and flags", async () => {
+      silenceErrors();
+      const opts = await captureCommandOpts(
+        ["translate", "markdown"],
+        [
+          "translate",
+          "markdown",
+          "./docs/en/example.md",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "--out",
+          "./docs/pt-BR/example.md",
+          "--cwd",
+          "/tmp/markdown-cwd",
+          "--model",
+          "gpt-test",
+          "--base-url",
+          "https://openrouter.ai/api/v1",
+          "--dry-run",
+          "--no-config",
+          "--json",
+          "--guidance",
+          "Do not translate: Catlex.",
+        ],
+      );
+      expect(opts).toMatchObject({
+        from: "en",
+        to: "pt-BR",
+        out: "./docs/pt-BR/example.md",
+        cwd: "/tmp/markdown-cwd",
+        model: "gpt-test",
+        baseUrl: "https://openrouter.ai/api/v1",
+        dryRun: true,
+        config: false,
+        json: true,
+        guidance: "Do not translate: Catlex.",
+      });
+    });
+
+    it("forwards the markdown file argument into runTranslateMarkdownCommand", async () => {
+      silenceErrors();
+      const options = await captureMarkdownActionOptions([
+        "translate",
+        "markdown",
+        "./docs/en/example.md",
+        "--from",
+        "en",
+        "--to",
+        "pt-BR",
+        "--out",
+        "./docs/pt-BR/example.md",
+        "--dry-run",
+        "--json",
+      ]);
+
+      expect(options).toMatchObject({
+        file: "./docs/en/example.md",
+        from: "en",
+        to: "pt-BR",
+        out: "./docs/pt-BR/example.md",
+        dryRun: true,
+        json: true,
+      });
+    });
+
+    it("binds translate markdown dir arguments and flags", async () => {
+      silenceErrors();
+      const opts = await captureCommandOpts(
+        ["translate", "markdown", "dir"],
+        [
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "./example/pt-BR",
+          "--cwd",
+          "/tmp/markdown-dir-cwd",
+          "--model",
+          "gpt-test",
+          "--base-url",
+          "https://openrouter.ai/api/v1",
+          "--dry-run",
+          "--no-config",
+          "--json",
+          "--guidance",
+          "Do not translate: Catlex.",
+        ],
+      );
+      expect(opts).toMatchObject({
+        from: "en",
+        to: "pt-BR",
+        cwd: "/tmp/markdown-dir-cwd",
+        model: "gpt-test",
+        baseUrl: "https://openrouter.ai/api/v1",
+        dryRun: true,
+        config: false,
+        json: true,
+        guidance: "Do not translate: Catlex.",
+      });
+    });
+
+    it("forwards the markdown directory arguments into runTranslateMarkdownDirCommand", async () => {
+      silenceErrors();
+      const options = await captureMarkdownDirActionOptions([
+        "translate",
+        "markdown",
+        "dir",
+        "./example/en",
+        "--from",
+        "en",
+        "--to",
+        "pt-BR",
+        "./example/pt-BR",
+        "--dry-run",
+        "--json",
+      ]);
+
+      expect(options).toMatchObject({
+        source: "./example/en",
+        from: "en",
+        to: "pt-BR",
+        out: "./example/pt-BR",
+        dryRun: true,
+        json: true,
+      });
+    });
+
+    it("still rejects translate markdown when --from is omitted", async () => {
+      silenceErrors();
+      const program = createProgram();
+      const markdown = findCommand(program, ["translate", "markdown"]);
+      markdown.exitOverride();
+      markdown.configureOutput({ writeErr: () => {} });
+
+      await expect(
+        program.parseAsync(
+          [
+            "node",
+            "catlex",
+            "translate",
+            "markdown",
+            "docs/en/example.md",
+            "--to",
+            "pt-BR",
+            "--out",
+            "docs/pt-BR/example.md",
+          ],
+          { from: "node" },
+        ),
+      ).rejects.toThrow(/required option '--from <locale>'/);
+    });
+
     it("prints the installed version and exits for -v", async () => {
       silenceErrors();
 
@@ -474,6 +711,65 @@ describe("createProgram", () => {
       expect(opts.model).toBeUndefined();
       expect(opts.since).toBeUndefined();
       expect(opts.concurrency).toBeUndefined();
+      expect(opts.guidance).toBeUndefined();
+      expect(opts.guidanceFile).toBeUndefined();
+    });
+
+    it("applies translate markdown defaults when optional flags are omitted", async () => {
+      silenceErrors();
+      const opts = await captureCommandOpts(
+        ["translate", "markdown"],
+        [
+          "translate",
+          "markdown",
+          "docs/en/example.md",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "--out",
+          "docs/pt-BR/example.md",
+        ],
+      );
+      expect(opts).toMatchObject({
+        cwd: process.cwd(),
+        dryRun: false,
+        config: true,
+        json: false,
+        from: "en",
+        to: "pt-BR",
+        out: "docs/pt-BR/example.md",
+      });
+      expect(opts.model).toBeUndefined();
+      expect(opts.guidance).toBeUndefined();
+      expect(opts.guidanceFile).toBeUndefined();
+    });
+
+    it("applies translate markdown dir defaults when optional flags are omitted", async () => {
+      silenceErrors();
+      const opts = await captureCommandOpts(
+        ["translate", "markdown", "dir"],
+        [
+          "translate",
+          "markdown",
+          "dir",
+          "example/en",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "example/pt-BR",
+        ],
+      );
+      expect(opts).toMatchObject({
+        cwd: process.cwd(),
+        dryRun: false,
+        config: true,
+        json: false,
+        from: "en",
+        to: "pt-BR",
+      });
+      expect(opts.model).toBeUndefined();
       expect(opts.guidance).toBeUndefined();
       expect(opts.guidanceFile).toBeUndefined();
     });
