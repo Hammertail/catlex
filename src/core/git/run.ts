@@ -7,7 +7,16 @@ export type GitRunResult = {
 export type GitRunner = (args: string[], options: { cwd: string }) => Promise<GitRunResult>;
 
 /**
- * Runs a git command with the given args in cwd.
+ * Low-level git spawn helper. Prefer `assertRefExists`, `resolveRefSha`,
+ * `readFileAtRef`, and `listFilesAtRef` for user-controlled refs/paths — those
+ * APIs validate inputs and place them after `--end-of-options`.
+ *
+ * `runGit` itself does not validate `args`. Callers that pass user-controlled
+ * values must validate refs with `assertSafeGitRef` (and avoid unsafe tree
+ * paths via `toGitTreePath`) and place them after `--end-of-options` / `--`.
+ *
+ * Inherits the process environment (including `GIT_DIR`, `GIT_WORK_TREE`, and
+ * `GIT_CONFIG_*`) so standard git configuration keeps working.
  */
 export const runGit: GitRunner = async (args, options) => {
   const proc = Bun.spawn(["git", ...args], {
