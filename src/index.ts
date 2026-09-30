@@ -111,6 +111,12 @@ export type {
   TranslateMarkdownInput,
   TranslateMarkdownResult,
 } from "./core/translate/markdown.ts";
+export { translateMarkdownDirectory } from "./core/translate/markdown-dir.ts";
+export type {
+  TranslateMarkdownDirectoryFileResult,
+  TranslateMarkdownDirectoryOptions,
+  TranslateMarkdownDirectoryResult,
+} from "./core/translate/markdown-dir.ts";
 export {
   MARKDOWN_TRANSLATE_INSTRUCTIONS,
   buildMarkdownTranslatePrompt,
