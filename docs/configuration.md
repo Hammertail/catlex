@@ -32,7 +32,7 @@ Omitted CLI flags do not wipe file values. `--no-config` skips the file entirely
 | `strictExtra` | boolean | `false` | validate |
 | `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review, translate markdown, translate markdown dir |
 | `openai.headers` | `{ [name]: string }` | unset | translate, translate review, translate markdown, translate markdown dir |
-| `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review |
+| `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review, translate markdown dir |
 | `translate.guidance` | string (max 8192 chars after trim; global, every locale) | unset | translate, translate review, translate markdown, translate markdown dir |
 | `translate.guidanceFile` | string path (global, every locale) | unset | translate, translate review, translate markdown, translate markdown dir |
 

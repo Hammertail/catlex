@@ -224,10 +224,11 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR 
 | `--dry-run` | Validate sources without calling the API or writing |
 | `--no-config` | Do not load or execute project `catlex.config.*` files |
 | `--json` | Print JSON instead of text |
+| `--concurrency <n>` | Max in-flight translations for `translate markdown dir` (default 4, range 1–32) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
 | `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
-`--from` and `--to` are required. The file command also requires `--out`. Sources must stay under `--cwd`. Each file is at most 64 KiB. A missing output directory is created; an existing file is overwritten with no confirm prompt. `translate markdown dir` walks the source directory recursively, keeps relative paths, and skips files that are not Markdown. Each `--to` is one locale followed by its output directory.
+`--from` and `--to` are required. The file command also requires `--out`. Sources must stay under `--cwd`. Each file is at most 64 KiB. A missing output directory is created; an existing file is overwritten with no confirm prompt. `translate markdown dir` walks the source directory recursively, keeps relative paths, and skips files that are not Markdown. Each `--to` is one locale followed by its output directory. File and locale pairs run together, up to `--concurrency` at a time.
 
 This command is **alpha**. See [Translate Markdown](docs/translate-markdown.md).
 
