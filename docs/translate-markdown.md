@@ -2,9 +2,9 @@
 
 `catlex translate markdown` sends **one** Markdown file to an OpenAI-compatible model and writes the translated document to `--out`.
 
-`catlex translate markdown dir` walks a source directory and translates each Markdown file into **one** target locale, preserving relative paths.
+`catlex translate markdown dir` walks a source directory and translates each Markdown file into one or more target locales, preserving relative paths. Each `--to` is a locale followed by its output directory.
 
-This is a **prototype**. It does not parse a Markdown AST, chunk large files, or accept a glob or several locales in one `--to`. Treat the output as a draft.
+This is a **prototype**. It does not parse a Markdown AST or chunk large files. `translate markdown` accepts one `--to` locale. `translate markdown dir` accepts several `--to <locale> <dir>` pairs. Treat the output as a draft.
 
 The command is **alpha**.
 
@@ -47,6 +47,7 @@ catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs
 ```bash
 export OPENAI_API_KEY=sk-...
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR
+catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --to fr ./example/fr --to ru ./example/ru
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --dry-run
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --json
 ```
@@ -54,28 +55,28 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR 
 | Option / argument | Description |
 |--------|-------------|
 | `<dir>` | Source directory. Must exist, be a real directory, and stay inside `--cwd` |
-| `<out>` | Output directory. Created when missing. An existing directory is written into |
 | `--from <locale>` | Source locale |
-| `--to <locale>` | Target locale. One locale; `pt-BR,es` is an error |
+| `--to <locale> <dir>` | Target locale and output directory. Repeat the pair for each locale. `pt-BR,es` in one `--to` is an error. The directory is created when missing |
 | `--cwd <path>` | Project root |
 | `--model <id>` | Model id (default: `gpt-5.4-mini`) |
 | `--base-url <url>` | OpenAI-compatible API base URL |
 | `--dry-run` | List the files that would be translated. **No API call**, no `OPENAI_API_KEY`, no write, no directory creation |
 | `--no-config` | Ignore `catlex.config.*` |
-| `--json` | JSON on stdout (`sourceDir`, `outDir`, `fileCount`, and one entry per file) |
+| `--json` | JSON on stdout (`sourceDir`, `fromLocale`, and a `targets` entry per locale) |
 | `--guidance <text>` | Extra project guidance appended to the model prompt |
 | `--guidance-file <path>` | Same path rules as the file command |
 
-`--from` and `--to` are required. There is no `--out` flag; the output directory is the second argument.
+`--from` and at least one `--to <locale> <dir>` are required. There is no separate output argument and no `--out` flag. The output directory must follow its locale (`--to pt-BR ./example/pt-BR`). A repeated locale, or two pairs that resolve to the same directory, is an error.
 
 ### How a directory is translated
 
-1. The source directory must exist. A missing directory, a path that is not a directory, a path outside `--cwd`, or a symbolic link is an error. An empty `--from` or `--to` is an error.
-2. Markdown files (`.md` and `.markdown`) are listed recursively. Other files are skipped. A directory with no Markdown files is an error. Symbolic links are not followed; a Markdown file that is a symbolic link is an error.
-3. Each file keeps its path relative to the source directory. `example/en/guide/setup.md` is written to `example/pt-BR/guide/setup.md`.
-4. `--dry-run` stops after that list. It does not create `<out>`.
-5. Otherwise each file is translated with the same single-file call, one file after another. A missing output directory (and any missing parents) is created. Files that already exist are overwritten. Extra files already in the output directory are left in place.
-6. The first failed file stops the command. Files already written stay written.
+1. The source directory must exist. A missing directory, a path that is not a directory, a path outside `--cwd`, or a symbolic link is an error. An empty `--from` or `--to` locale is an error. `--to` without a following directory is an error.
+2. Every output directory is checked before the first translation. A path outside `--cwd`, a symbolic link, or a path that is not a directory is an error. A missing directory is allowed and is created only on a real run.
+3. Markdown files (`.md` and `.markdown`) are listed once, recursively. Other files are skipped. A directory with no Markdown files is an error. Symbolic links are not followed; a Markdown file that is a symbolic link is an error.
+4. Each file keeps its path relative to the source directory. `example/en/guide/setup.md` is written to `example/pt-BR/guide/setup.md` for `--to pt-BR ./example/pt-BR`, then to the next locale's directory.
+5. Locales run one after another: every file for the first `--to`, then every file for the next. `--dry-run` stops after the list for every locale. It does not create output directories.
+6. Otherwise each file is translated with the same single-file call. A missing output directory (and any missing parents) is created. Files that already exist are overwritten. Extra files already in an output directory are left in place.
+7. The first failed file stops the command. Files already written stay written, including locales that finished before the failure.
 
 The per-file limit is still **64 KiB**. Each source is wrapped in `<source_text>` and treated as untrusted data. Optional project **guidance** uses the same sources and `<project_guidance>` fence as [Translate](./translate.md).
 
