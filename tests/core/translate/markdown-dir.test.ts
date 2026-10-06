@@ -303,7 +303,6 @@ describe("translateMarkdownDirectory", () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-partial-"));
     await writeSource(cwd, path.join("en", "a.md"), "A");
     await writeSource(cwd, path.join("en", "b.md"), "B");
-    let calls = 0;
 
     await expect(
       translateMarkdownDirectory({
@@ -311,9 +310,8 @@ describe("translateMarkdownDirectory", () => {
         source: "en",
         from: "en",
         targets: [{ to: "pt-BR", out: "pt-BR" }],
-        translateMarkdown: async () => {
-          calls += 1;
-          if (calls === 2) {
+        translateMarkdown: async (input) => {
+          if (input.sourceMarkdown === "B") {
             throw new Error("model failed");
           }
           return { markdown: "translated-a" };
@@ -347,7 +345,8 @@ describe("translateMarkdownDirectory", () => {
     });
 
     expect(translator.calls).toBe(4);
-    expect(seenLocales).toEqual(["pt-BR", "pt-BR", "fr", "fr"]);
+    expect(seenLocales.filter((locale) => locale === "pt-BR")).toHaveLength(2);
+    expect(seenLocales.filter((locale) => locale === "fr")).toHaveLength(2);
     expect(result.targets.map((target) => target.toLocale)).toEqual(["pt-BR", "fr"]);
     expect(result.targets.every((target) => target.fileCount === 2)).toBe(true);
     expect(await readFile(path.join(cwd, "example", "pt-BR", "index.md"), "utf8")).toBe(
@@ -455,5 +454,103 @@ describe("translateMarkdownDirectory", () => {
 
     expect(await readFile(path.join(cwd, "pt-BR", "index.md"), "utf8")).toBe("olá");
     await expect(stat(path.join(cwd, "fr", "index.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps several file translations in flight up to the concurrency limit", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-parallel-files-"));
+    await writeSource(cwd, path.join("en", "a.md"), "A");
+    await writeSource(cwd, path.join("en", "b.md"), "B");
+    await writeSource(cwd, path.join("en", "c.md"), "C");
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    await translateMarkdownDirectory({
+      cwd,
+      source: "en",
+      from: "en",
+      targets: [{ to: "pt-BR", out: "pt-BR" }],
+      concurrency: 3,
+      noConfig: true,
+      translateMarkdown: async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        inFlight -= 1;
+        return { markdown: "x" };
+      },
+    });
+
+    expect(maxInFlight).toBe(3);
+  });
+
+  it("translates one file into several locales at the same time", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-parallel-locales-"));
+    await writeSource(cwd, path.join("en", "index.md"), "Hello");
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    await translateMarkdownDirectory({
+      cwd,
+      source: "en",
+      from: "en",
+      targets: [
+        { to: "pt-BR", out: "pt-BR" },
+        { to: "fr", out: "fr" },
+      ],
+      concurrency: 2,
+      noConfig: true,
+      translateMarkdown: async (input) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        inFlight -= 1;
+        return { markdown: input.targetLocale };
+      },
+    });
+
+    expect(maxInFlight).toBe(2);
+    expect(await readFile(path.join(cwd, "pt-BR", "index.md"), "utf8")).toBe("pt-BR");
+    expect(await readFile(path.join(cwd, "fr", "index.md"), "utf8")).toBe("fr");
+  });
+
+  it("uses config concurrency when the option is omitted and lets the option override it", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-config-concurrency-"));
+    await writeFile(
+      path.join(cwd, "catlex.config.json"),
+      JSON.stringify({ translate: { concurrency: 1 } }),
+    );
+    await writeSource(cwd, path.join("en", "a.md"), "A");
+    await writeSource(cwd, path.join("en", "b.md"), "B");
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const translateMarkdown: TranslateMarkdownFn = async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      inFlight -= 1;
+      return { markdown: "x" };
+    };
+
+    await translateMarkdownDirectory({
+      cwd,
+      source: "en",
+      from: "en",
+      targets: [{ to: "pt-BR", out: "pt-BR" }],
+      translateMarkdown,
+    });
+    expect(maxInFlight).toBe(1);
+
+    inFlight = 0;
+    maxInFlight = 0;
+    await translateMarkdownDirectory({
+      cwd,
+      source: "en",
+      from: "en",
+      targets: [{ to: "fr", out: "fr" }],
+      concurrency: 2,
+      translateMarkdown,
+    });
+    expect(maxInFlight).toBe(2);
   });
 });
