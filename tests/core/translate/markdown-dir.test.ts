@@ -46,19 +46,18 @@ describe("translateMarkdownDirectory", () => {
       cwd,
       source: sourceDir,
       from: "en",
-      to: "pt-BR",
-      out: outRelative,
+      targets: [{ to: "pt-BR", out: outRelative }],
       dryRun: true,
       translateMarkdown: translator.translateMarkdown,
     });
 
     expect(translator.calls).toBe(0);
     expect(result.dryRun).toBe(true);
-    expect(result.fileCount).toBe(2);
-    expect(result.files.every((file) => file.written === false)).toBe(true);
+    expect(result.targets[0]?.fileCount).toBe(2);
+    expect(result.targets[0]?.files.every((file) => file.written === false)).toBe(true);
     expect(result.fromLocale).toBe("en");
-    expect(result.toLocale).toBe("pt-BR");
-    expect(result.files.map((file) => path.basename(file.sourcePath))).toEqual([
+    expect(result.targets[0]?.toLocale).toBe("pt-BR");
+    expect(result.targets[0]?.files.map((file) => path.basename(file.sourcePath))).toEqual([
       "setup.md",
       "index.md",
     ]);
@@ -77,14 +76,13 @@ describe("translateMarkdownDirectory", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       translateMarkdown: translator.translateMarkdown,
     });
 
     expect(translator.calls).toBe(2);
-    expect(result.files.every((file) => file.written)).toBe(true);
-    expect(result.fileCount).toBe(2);
+    expect(result.targets[0]?.files.every((file) => file.written)).toBe(true);
+    expect(result.targets[0]?.fileCount).toBe(2);
     expect(await readFile(path.join(cwd, "example", "pt-BR", "guide", "setup.md"), "utf8")).toBe(
       "PT:# Setup\n",
     );
@@ -103,8 +101,7 @@ describe("translateMarkdownDirectory", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       translateMarkdown: async () => ({ markdown: "new" }),
     });
 
@@ -123,8 +120,7 @@ describe("translateMarkdownDirectory", () => {
       cwd,
       source: path.join("docs", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("docs", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("docs", "pt-BR") }],
       translateMarkdown: translator.translateMarkdown,
     });
 
@@ -143,8 +139,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("example", "en"),
         from: "en",
-        to: "pt-BR",
-        out: path.join("example", "pt-BR"),
+        targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toBeInstanceOf(MarkdownTranslateError);
@@ -159,8 +154,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: "notes.md",
         from: "en",
-        to: "pt-BR",
-        out: "out",
+        targets: [{ to: "pt-BR", out: "out" }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/not a directory/);
@@ -175,8 +169,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("example", "en"),
         from: "en",
-        to: "pt-BR",
-        out: path.join("example", "pt-BR"),
+        targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/No Markdown files found/);
@@ -191,8 +184,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("example", "en"),
         from: "   ",
-        to: "pt-BR",
-        out: path.join("example", "pt-BR"),
+        targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/--from locale must not be empty/);
@@ -207,8 +199,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("example", "en"),
         from: "en",
-        to: "pt-BR,es",
-        out: path.join("example", "pt-BR"),
+        targets: [{ to: "pt-BR,es", out: path.join("example", "pt-BR") }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/--to accepts a single locale/);
@@ -224,8 +215,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("example", "en"),
         from: "en",
-        to: "pt-BR",
-        out: path.join("example", "pt-BR"),
+        targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
         translateMarkdown: async () => ({ markdown: "new" }),
       }),
     ).rejects.toThrow(/not a directory/);
@@ -244,8 +234,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: "en",
         from: "en",
-        to: "pt-BR",
-        out: "pt-BR",
+        targets: [{ to: "pt-BR", out: "pt-BR" }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/symbolic link/);
@@ -263,8 +252,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: "en",
         from: "en",
-        to: "pt-BR",
-        out: "pt-BR",
+        targets: [{ to: "pt-BR", out: "pt-BR" }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/symbolic link/);
@@ -282,13 +270,12 @@ describe("translateMarkdownDirectory", () => {
       cwd,
       source: "en",
       from: "en",
-      to: "pt-BR",
-      out: "pt-BR",
+      targets: [{ to: "pt-BR", out: "pt-BR" }],
       translateMarkdown: translator.translateMarkdown,
     });
 
     expect(translator.calls).toBe(1);
-    expect(result.fileCount).toBe(1);
+    expect(result.targets[0]?.fileCount).toBe(1);
     expect(await readFile(path.join(cwd, "pt-BR", "index.md"), "utf8")).toBe("PT:# Hello\n");
     await expect(stat(path.join(cwd, "pt-BR", "linked", "hidden.md"))).rejects.toMatchObject({
       code: "ENOENT",
@@ -306,8 +293,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: path.join("..", "outside"),
         from: "en",
-        to: "pt-BR",
-        out: "pt-BR",
+        targets: [{ to: "pt-BR", out: "pt-BR" }],
         translateMarkdown: async () => ({ markdown: "" }),
       }),
     ).rejects.toThrow(/outside the working directory/);
@@ -324,8 +310,7 @@ describe("translateMarkdownDirectory", () => {
         cwd,
         source: "en",
         from: "en",
-        to: "pt-BR",
-        out: "pt-BR",
+        targets: [{ to: "pt-BR", out: "pt-BR" }],
         translateMarkdown: async () => {
           calls += 1;
           if (calls === 2) {
@@ -338,5 +323,137 @@ describe("translateMarkdownDirectory", () => {
 
     expect(await readFile(path.join(cwd, "pt-BR", "a.md"), "utf8")).toBe("translated-a");
     await expect(stat(path.join(cwd, "pt-BR", "b.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("translates each source file into every target locale", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-multi-"));
+    await writeSource(cwd, path.join("example", "en", "guide", "setup.md"), "# Setup\n");
+    await writeSource(cwd, path.join("example", "en", "index.md"), "# Hello\n");
+    const seenLocales: string[] = [];
+    const translator = createTranslateSpy(async (input) => {
+      seenLocales.push(input.targetLocale);
+      return { markdown: `${input.targetLocale}:${input.sourceMarkdown}` };
+    });
+
+    const result = await translateMarkdownDirectory({
+      cwd,
+      source: path.join("example", "en"),
+      from: "en",
+      targets: [
+        { to: "pt-BR", out: path.join("example", "pt-BR") },
+        { to: "fr", out: path.join("example", "fr") },
+      ],
+      translateMarkdown: translator.translateMarkdown,
+    });
+
+    expect(translator.calls).toBe(4);
+    expect(seenLocales).toEqual(["pt-BR", "pt-BR", "fr", "fr"]);
+    expect(result.targets.map((target) => target.toLocale)).toEqual(["pt-BR", "fr"]);
+    expect(result.targets.every((target) => target.fileCount === 2)).toBe(true);
+    expect(await readFile(path.join(cwd, "example", "pt-BR", "index.md"), "utf8")).toBe(
+      "pt-BR:# Hello\n",
+    );
+    expect(await readFile(path.join(cwd, "example", "fr", "guide", "setup.md"), "utf8")).toBe(
+      "fr:# Setup\n",
+    );
+  });
+
+  it("does not create output directories in dry-run mode when several locales are requested", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-multi-dry-"));
+    await writeSource(cwd, path.join("example", "en", "index.md"), "# Hello\n");
+    const translator = createTranslateSpy();
+
+    const result = await translateMarkdownDirectory({
+      cwd,
+      source: path.join("example", "en"),
+      from: "en",
+      targets: [
+        { to: "pt-BR", out: path.join("example", "pt-BR") },
+        { to: "fr", out: path.join("example", "fr") },
+      ],
+      dryRun: true,
+      translateMarkdown: translator.translateMarkdown,
+    });
+
+    expect(translator.calls).toBe(0);
+    expect(result.targets).toHaveLength(2);
+    expect(
+      result.targets.every(
+        (target) => target.fileCount === 1 && target.files[0]?.written === false,
+      ),
+    ).toBe(true);
+    await expect(stat(path.join(cwd, "example", "pt-BR"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(stat(path.join(cwd, "example", "fr"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a duplicate --to locale before calling the translator", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-dup-locale-"));
+    await writeSource(cwd, path.join("example", "en", "index.md"), "Hello");
+    const translator = createTranslateSpy();
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: path.join("example", "en"),
+        from: "en",
+        targets: [
+          { to: "pt-BR", out: path.join("example", "pt-BR") },
+          { to: " pt-BR ", out: path.join("example", "pt") },
+        ],
+        translateMarkdown: translator.translateMarkdown,
+      }),
+    ).rejects.toThrow(/Duplicate --to locale: pt-BR/);
+    expect(translator.calls).toBe(0);
+  });
+
+  it("rejects two targets that resolve to the same output directory", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-dup-out-"));
+    await writeSource(cwd, path.join("example", "en", "index.md"), "Hello");
+    const translator = createTranslateSpy();
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: path.join("example", "en"),
+        from: "en",
+        targets: [
+          { to: "pt-BR", out: path.join("example", "pt-BR") },
+          { to: "fr", out: path.join("example", "pt-BR") },
+        ],
+        translateMarkdown: translator.translateMarkdown,
+      }),
+    ).rejects.toThrow(/Duplicate --to output directory/);
+    expect(translator.calls).toBe(0);
+    await expect(stat(path.join(cwd, "example", "pt-BR"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("leaves the first locale written when a later locale fails", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-later-locale-"));
+    await writeSource(cwd, path.join("en", "index.md"), "Hello");
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: "en",
+        from: "en",
+        targets: [
+          { to: "pt-BR", out: "pt-BR" },
+          { to: "fr", out: "fr" },
+        ],
+        translateMarkdown: async (input) => {
+          if (input.targetLocale === "fr") {
+            throw new Error("model failed");
+          }
+          return { markdown: "olá" };
+        },
+      }),
+    ).rejects.toThrow("model failed");
+
+    expect(await readFile(path.join(cwd, "pt-BR", "index.md"), "utf8")).toBe("olá");
+    await expect(stat(path.join(cwd, "fr", "index.md"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
