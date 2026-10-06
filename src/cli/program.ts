@@ -4,6 +4,7 @@ import { styleText } from "node:util";
 import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
+import { pairMarkdownDirectoryTargets } from "../core/translate/markdown-dir.ts";
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
 import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
@@ -313,9 +314,11 @@ export function createProgram(): Command {
     .command("dir")
     .description("Translate Markdown files in a directory with OpenAI (alpha prototype)")
     .argument("<dir>", "Source directory of Markdown files")
-    .argument("<out>", "Directory to write translated Markdown files")
     .requiredOption("--from <locale>", "Source locale")
-    .requiredOption("--to <locale>", "Target locale (one locale)")
+    .requiredOption(
+      "--to <locale> <dir...>",
+      "Target locale and output directory (repeat for each locale: --to <locale> <dir>)",
+    )
     .option("--cwd <path>", "Project root directory", process.cwd())
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
     .option(
@@ -325,28 +328,37 @@ export function createProgram(): Command {
     .option("--dry-run", "Validate source files without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of text", false)
+    .option(
+      "--concurrency <n>",
+      "Max parallel translation API calls (default: 4)",
+      parseConcurrencyOption,
+    )
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
       "--guidance-file <path>",
       "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
-    .action(async (source, out, options) => {
-      await setExitCodeFrom(() =>
-        runTranslateMarkdownDirCommand({
+    .action(async (source, options) => {
+      await setExitCodeFrom(() => {
+        const toValues: unknown = options.to;
+        const targets = pairMarkdownDirectoryTargets(
+          Array.isArray(toValues) ? toValues.map((value) => String(value)) : [],
+        );
+        return runTranslateMarkdownDirCommand({
           source,
           from: options.from,
-          to: options.to,
-          out,
+          targets,
           cwd: options.cwd,
           model: options.model,
           baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
           json: options.json === true,
+          concurrency: options.concurrency,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
-        }),
-      );
+        });
+      });
     });
 
   return program;

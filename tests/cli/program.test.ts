@@ -200,13 +200,11 @@ describe("createProgram", () => {
 
       const markdownDir = findCommand(program, ["translate", "markdown", "dir"]);
       expect(markdownDir.description()).toMatch(/directory/i);
-      expect(markdownDir.registeredArguments.map((argument) => argument.name())).toEqual([
-        "dir",
-        "out",
-      ]);
+      expect(markdownDir.registeredArguments.map((argument) => argument.name())).toEqual(["dir"]);
       const markdownDirFlags = new Set(markdownDir.options.map((option) => option.flags));
       expect(markdownDirFlags.has("--from <locale>")).toBe(true);
-      expect(markdownDirFlags.has("--to <locale>")).toBe(true);
+      expect(markdownDirFlags.has("--to <locale> <dir...>")).toBe(true);
+      expect(markdownDirFlags.has("--concurrency <n>")).toBe(true);
       expect(markdownDirFlags.has("--out <path>")).toBe(false);
       expect(markdownDirFlags.has("--json")).toBe(true);
       expect(markdownDirFlags.has("--dry-run")).toBe(true);
@@ -560,13 +558,16 @@ describe("createProgram", () => {
           "--dry-run",
           "--no-config",
           "--json",
+          "--concurrency",
+          "3",
           "--guidance",
           "Do not translate: Catlex.",
         ],
       );
       expect(opts).toMatchObject({
         from: "en",
-        to: "pt-BR",
+        to: ["pt-BR", "./example/pt-BR"],
+        concurrency: 3,
         cwd: "/tmp/markdown-dir-cwd",
         model: "gpt-test",
         baseUrl: "https://openrouter.ai/api/v1",
@@ -589,6 +590,8 @@ describe("createProgram", () => {
         "--to",
         "pt-BR",
         "./example/pt-BR",
+        "--concurrency",
+        "3",
         "--dry-run",
         "--json",
       ]);
@@ -596,11 +599,67 @@ describe("createProgram", () => {
       expect(options).toMatchObject({
         source: "./example/en",
         from: "en",
-        to: "pt-BR",
-        out: "./example/pt-BR",
+        targets: [{ to: "pt-BR", out: "./example/pt-BR" }],
+        concurrency: 3,
         dryRun: true,
         json: true,
       });
+    });
+
+    it("forwards repeated --to locale and directory pairs", async () => {
+      silenceErrors();
+      const options = await captureMarkdownDirActionOptions([
+        "translate",
+        "markdown",
+        "dir",
+        "./example/en",
+        "--from=en",
+        "--to",
+        "pt-BR",
+        "./example/pt-BR",
+        "--to",
+        "fr",
+        "./example/fr",
+        "--to",
+        "ru",
+        "./example/ru",
+        "--dry-run",
+      ]);
+
+      expect(options).toMatchObject({
+        source: "./example/en",
+        from: "en",
+        targets: [
+          { to: "pt-BR", out: "./example/pt-BR" },
+          { to: "fr", out: "./example/fr" },
+          { to: "ru", out: "./example/ru" },
+        ],
+        dryRun: true,
+      });
+    });
+
+    it("rejects translate markdown dir when --to has no output directory", async () => {
+      silenceErrors();
+      const program = createProgram();
+      await program.parseAsync(
+        [
+          "node",
+          "catlex",
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+        ],
+        { from: "node" },
+      );
+
+      expect(process.exitCode).toBe(1);
+      const errorOutput = errorSpies.map((spy) => String(spy.mock.calls[0]?.[0] ?? "")).join("\n");
+      expect(errorOutput).toMatch(/--to <locale> <dir>/);
     });
 
     it("still rejects translate markdown when --from is omitted", async () => {
@@ -767,9 +826,10 @@ describe("createProgram", () => {
         config: true,
         json: false,
         from: "en",
-        to: "pt-BR",
+        to: ["pt-BR", "example/pt-BR"],
       });
       expect(opts.model).toBeUndefined();
+      expect(opts.concurrency).toBeUndefined();
       expect(opts.guidance).toBeUndefined();
       expect(opts.guidanceFile).toBeUndefined();
     });

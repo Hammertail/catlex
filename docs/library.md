@@ -65,7 +65,7 @@ const result = await translateMissingKeys({
 
 ## Translate Markdown
 
-Inject a `translateMarkdown` function or use the OpenAI helper. `translateMarkdownFile` translates one file. `translateMarkdownDirectory` walks a directory, keeps relative paths, and translates each Markdown file into one locale:
+Inject a `translateMarkdown` function or use the OpenAI helper. `translateMarkdownFile` translates one file. `translateMarkdownDirectory` walks a directory, keeps relative paths, and translates each Markdown file into every target locale:
 
 ```ts
 import {
@@ -91,8 +91,10 @@ const directoryResult = await translateMarkdownDirectory({
   cwd: process.cwd(),
   source: "docs/en",
   from: "en",
-  to: "pt-BR",
-  out: "docs/pt-BR",
+  targets: [
+    { to: "pt-BR", out: "docs/pt-BR" },
+    { to: "fr", out: "docs/fr" },
+  ],
   noConfig: true,
   translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
 });

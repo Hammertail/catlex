@@ -14,20 +14,21 @@ import type { CatlexConfig } from "../../core/config/schema.ts";
 import type {
   TranslateMarkdownDirectoryFileResult,
   TranslateMarkdownDirectoryResult,
+  TranslateMarkdownDirectoryTarget,
 } from "../../core/translate/markdown-dir.ts";
 import type { TranslateMarkdownFn } from "../../core/translate/markdown.ts";
 
 export type TranslateMarkdownDirCommandOptions = {
   source: string;
   from: string;
-  to: string;
-  out: string;
+  targets: TranslateMarkdownDirectoryTarget[];
   cwd?: string;
   model?: string;
   baseUrl?: string;
   dryRun?: boolean;
   noConfig?: boolean;
   json?: boolean;
+  concurrency?: number;
   guidance?: string;
   guidanceFile?: string;
   translateMarkdown?: TranslateMarkdownFn;
@@ -42,16 +43,18 @@ function printJson(result: TranslateMarkdownDirectoryResult): void {
         alpha: true,
         alphaMessage: MARKDOWN_TRANSLATE_ALPHA_MESSAGE,
         sourceDir: result.sourceDir,
-        outDir: result.outDir,
         fromLocale: result.fromLocale,
-        toLocale: result.toLocale,
         dryRun: result.dryRun,
-        fileCount: result.fileCount,
-        files: result.files.map((file) => ({
-          sourcePath: file.sourcePath,
-          outPath: file.outPath,
-          sourceBytes: file.sourceBytes,
-          written: file.written,
+        targets: result.targets.map((target) => ({
+          toLocale: target.toLocale,
+          outDir: target.outDir,
+          fileCount: target.fileCount,
+          files: target.files.map((file) => ({
+            sourcePath: file.sourcePath,
+            outPath: file.outPath,
+            sourceBytes: file.sourceBytes,
+            written: file.written,
+          })),
         })),
         guidanceSource: result.guidanceSource,
         guidancePreview: result.guidancePreview,
@@ -69,18 +72,22 @@ function fileLine(file: TranslateMarkdownDirectoryFileResult): string {
 function printText(result: TranslateMarkdownDirectoryResult): void {
   console.log(MARKDOWN_TRANSLATE_ALPHA_MESSAGE);
   console.log(`Source: ${result.sourceDir}`);
-  console.log(`From: ${result.fromLocale} → ${result.toLocale}`);
-  console.log(`Out: ${result.outDir}`);
-  console.log(`Files: ${result.fileCount}`);
-  for (const file of result.files) {
-    console.log(fileLine(file));
+  console.log(`From: ${result.fromLocale}`);
+  for (const target of result.targets) {
+    console.log(`${target.toLocale} → ${target.outDir}`);
+    console.log(`Files: ${target.fileCount}`);
+    for (const file of target.files) {
+      console.log(fileLine(file));
+    }
   }
   if (result.dryRun) {
     console.log("Dry run: no API call, no write.");
     return;
   }
-  const label = result.fileCount === 1 ? "file" : "files";
-  console.log(`Wrote ${result.fileCount} translated Markdown ${label}.`);
+  for (const target of result.targets) {
+    const label = target.fileCount === 1 ? "file" : "files";
+    console.log(`Wrote ${target.fileCount} translated Markdown ${label} for ${target.toLocale}.`);
+  }
 }
 
 function emitOutput(result: TranslateMarkdownDirectoryResult, json: boolean): void {
@@ -150,10 +157,10 @@ export async function runTranslateMarkdownDirCommand(
     cwd,
     source: options.source,
     from: options.from,
-    to: options.to,
-    out: options.out,
+    targets: options.targets,
     dryRun,
     noConfig,
+    concurrency: options.concurrency,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,
     translateMarkdown,

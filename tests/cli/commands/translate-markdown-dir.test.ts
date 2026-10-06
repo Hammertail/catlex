@@ -69,8 +69,7 @@ describe("runTranslateMarkdownDirCommand", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       json: true,
       dryRun: true,
       env: {},
@@ -84,12 +83,18 @@ describe("runTranslateMarkdownDirCommand", () => {
     expect(payload.alphaMessage).toBe(MARKDOWN_TRANSLATE_ALPHA_MESSAGE);
     expect(payload.dryRun).toBe(true);
     expect(payload.fromLocale).toBe("en");
-    expect(payload.toLocale).toBe("pt-BR");
-    expect(payload.fileCount).toBe(2);
-    expect(payload.files).toHaveLength(2);
-    expect(payload.files.every((file: { written: boolean }) => file.written === false)).toBe(true);
+    expect(payload.toLocale).toBeUndefined();
+    expect(payload.targets).toHaveLength(1);
+    expect(payload.targets[0]?.toLocale).toBe("pt-BR");
+    expect(payload.targets[0]?.fileCount).toBe(2);
+    expect(payload.targets[0]?.files).toHaveLength(2);
     expect(
-      payload.files.map((file: { sourcePath: string }) => path.basename(file.sourcePath)),
+      payload.targets[0]?.files.every((file: { written: boolean }) => file.written === false),
+    ).toBe(true);
+    expect(
+      payload.targets[0]?.files.map((file: { sourcePath: string }) =>
+        path.basename(file.sourcePath),
+      ),
     ).toEqual(["setup.md", "index.md"]);
   });
 
@@ -102,8 +107,7 @@ describe("runTranslateMarkdownDirCommand", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       json: true,
       env: {},
       translateMarkdown: async () => ({ markdown: "# Olá\n" }),
@@ -123,8 +127,7 @@ describe("runTranslateMarkdownDirCommand", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       json: true,
       dryRun: true,
       env: {},
@@ -135,8 +138,8 @@ describe("runTranslateMarkdownDirCommand", () => {
     expect(translator.callCount()).toBe(0);
     const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
     expect(payload.dryRun).toBe(true);
-    expect(payload.fileCount).toBe(1);
-    expect(payload.files[0]?.written).toBe(false);
+    expect(payload.targets[0]?.fileCount).toBe(1);
+    expect(payload.targets[0]?.files[0]?.written).toBe(false);
   });
 
   it("writes translated Markdown files when an API key is present", async () => {
@@ -152,8 +155,7 @@ describe("runTranslateMarkdownDirCommand", () => {
       cwd,
       source: path.join("example", "en"),
       from: "en",
-      to: "pt-BR",
-      out: path.join("example", "pt-BR"),
+      targets: [{ to: "pt-BR", out: path.join("example", "pt-BR") }],
       json: false,
       env: { OPENAI_API_KEY: "sk-test" },
       translateMarkdown: translator.translateMarkdown,
@@ -166,6 +168,67 @@ describe("runTranslateMarkdownDirCommand", () => {
     );
     expect(await readFile(path.join(cwd, "example", "pt-BR", "guide", "setup.md"), "utf8")).toBe(
       "PT:# Setup\n",
+    );
+  });
+
+  it("prints one block per locale in text output", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-cli-text-"));
+    await writeSource(cwd, path.join("example", "en", "index.md"), "# Hello\n");
+    const log = captureLog();
+
+    const exitCode = await runTranslateMarkdownDirCommand({
+      cwd,
+      source: path.join("example", "en"),
+      from: "en",
+      targets: [
+        { to: "pt-BR", out: path.join("example", "pt-BR") },
+        { to: "fr", out: path.join("example", "fr") },
+      ],
+      json: false,
+      env: { OPENAI_API_KEY: "sk-test" },
+      translateMarkdown: async (input) => ({
+        markdown: `${input.targetLocale}:${input.sourceMarkdown}`,
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    const lines: string[] = log.mock.calls.map((call: readonly unknown[]) => String(call[0]));
+    expect(lines.some((line) => line.startsWith("pt-BR → "))).toBe(true);
+    expect(lines.some((line) => line.startsWith("fr → "))).toBe(true);
+    expect(lines).toContain("Wrote 1 translated Markdown file for pt-BR.");
+    expect(lines).toContain("Wrote 1 translated Markdown file for fr.");
+    expect(await readFile(path.join(cwd, "example", "fr", "index.md"), "utf8")).toBe(
+      "fr:# Hello\n",
+    );
+  });
+
+  it("includes every target locale in JSON output", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-cli-multi-json-"));
+    await writeSource(cwd, path.join("example", "en", "index.md"), "# Hello\n");
+    const log = captureLog();
+
+    const exitCode = await runTranslateMarkdownDirCommand({
+      cwd,
+      source: path.join("example", "en"),
+      from: "en",
+      targets: [
+        { to: "pt-BR", out: path.join("example", "pt-BR") },
+        { to: "ru", out: path.join("example", "ru") },
+      ],
+      json: true,
+      dryRun: true,
+      env: {},
+      translateMarkdown: async () => ({ markdown: "" }),
+    });
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.targets.map((target: { toLocale: string }) => target.toLocale)).toEqual([
+      "pt-BR",
+      "ru",
+    ]);
+    expect(payload.targets.every((target: { fileCount: number }) => target.fileCount === 1)).toBe(
+      true,
     );
   });
 });
