@@ -4,6 +4,7 @@ import { styleText } from "node:util";
 import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
+import { pairMarkdownDirectoryTargets } from "../core/translate/markdown-dir.ts";
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
 import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
@@ -313,9 +314,11 @@ export function createProgram(): Command {
     .command("dir")
     .description("Translate Markdown files in a directory with OpenAI (alpha prototype)")
     .argument("<dir>", "Source directory of Markdown files")
-    .argument("<out>", "Directory to write translated Markdown files")
     .requiredOption("--from <locale>", "Source locale")
-    .requiredOption("--to <locale>", "Target locale (one locale)")
+    .requiredOption(
+      "--to <locale> <dir...>",
+      "Target locale and output directory (repeat for each locale: --to <locale> <dir>)",
+    )
     .option("--cwd <path>", "Project root directory", process.cwd())
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
     .option(
@@ -330,13 +333,16 @@ export function createProgram(): Command {
       "--guidance-file <path>",
       "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
-    .action(async (source, out, options) => {
-      await setExitCodeFrom(() =>
-        runTranslateMarkdownDirCommand({
+    .action(async (source, options) => {
+      await setExitCodeFrom(() => {
+        const toValues: unknown = options.to;
+        const targets = pairMarkdownDirectoryTargets(
+          Array.isArray(toValues) ? toValues.map((value) => String(value)) : [],
+        );
+        return runTranslateMarkdownDirCommand({
           source,
           from: options.from,
-          to: options.to,
-          out,
+          targets,
           cwd: options.cwd,
           model: options.model,
           baseUrl: options.baseUrl,
@@ -345,8 +351,8 @@ export function createProgram(): Command {
           json: options.json === true,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
-        }),
-      );
+        });
+      });
     });
 
   return program;
