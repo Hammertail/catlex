@@ -116,6 +116,8 @@ export type {
   TranslateMarkdownDirectoryFileResult,
   TranslateMarkdownDirectoryOptions,
   TranslateMarkdownDirectoryResult,
+  TranslateMarkdownDirectoryTarget,
+  TranslateMarkdownDirectoryTargetResult,
 } from "./core/translate/markdown-dir.ts";
 export {
   MARKDOWN_TRANSLATE_INSTRUCTIONS,
