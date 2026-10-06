@@ -28,6 +28,7 @@ export type TranslateMarkdownDirCommandOptions = {
   dryRun?: boolean;
   noConfig?: boolean;
   json?: boolean;
+  concurrency?: number;
   guidance?: string;
   guidanceFile?: string;
   translateMarkdown?: TranslateMarkdownFn;
@@ -159,6 +160,7 @@ export async function runTranslateMarkdownDirCommand(
     targets: options.targets,
     dryRun,
     noConfig,
+    concurrency: options.concurrency,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,
     translateMarkdown,

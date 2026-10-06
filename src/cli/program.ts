@@ -328,6 +328,11 @@ export function createProgram(): Command {
     .option("--dry-run", "Validate source files without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
     .option("--json", "Print machine-readable JSON instead of text", false)
+    .option(
+      "--concurrency <n>",
+      "Max parallel translation API calls (default: 4)",
+      parseConcurrencyOption,
+    )
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
       "--guidance-file <path>",
@@ -349,6 +354,7 @@ export function createProgram(): Command {
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
           json: options.json === true,
+          concurrency: options.concurrency,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
         });
