@@ -4,11 +4,11 @@ Catlex is meant to run in GitHub Actions (and any other runner that can install 
 
 ## Exit codes (all commands)
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success: validate/scan/translate finished cleanly (including translate cancel / nothing to do), or review **passed** (including successful auto-fix) |
-| `1` | Validate failed, scan found hardcoded strings (and no file errors), review failed, missing API key, or an unexpected error |
-| `2` | `scan` finished with one or more **per-file** scanner errors (other files may still have findings) |
+| Code | Meaning                                                                                                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success: validate/scan/translate finished cleanly (including translate cancel / nothing to do), or review **passed** (including successful auto-fix) |
+| `1`  | Validate failed, scan found hardcoded strings (and no file errors), review failed, missing API key, or an unexpected error                           |
+| `2`  | `scan` finished with one or more **per-file** scanner errors (other files may still have findings)                                                   |
 
 For pipelines, prefer `--json` and `--no-config` so stdout is machine-readable and project JS/TS config is not executed on the runner:
 
@@ -31,12 +31,12 @@ catlex ci
 
 Interactive multi-select (Space to toggle, Enter to confirm). You pick one or more workflow kinds. If a target file already exists, you are asked whether to overwrite it. Cancel (empty selection, or decline every overwrite) writes nothing and exits `0`.
 
-| Workflow | File | Command |
-|----------|------|---------|
-| Validate messages | `.github/workflows/validate-messages.yml` | `catlex validate --no-config --json` |
-| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --no-config --since … --json --guidance-file ./glossary.md` (gate only) |
-| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes --guidance-file ./glossary.md`, then commit |
-| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes --json --guidance-file ./glossary.md`, then commit |
+| Workflow                             | File                                            | Command                                                                                          |
+| ------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Validate messages                    | `.github/workflows/validate-messages.yml`       | `catlex validate --no-config --json`                                                             |
+| Review translations                  | `.github/workflows/review-translations.yml`     | `catlex translate review --no-config --since … --json --guidance-file ./glossary.md` (gate only) |
+| Review, auto-fix, and commit         | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes --guidance-file ./glossary.md`, then commit                        |
+| Fill missing translations and commit | `.github/workflows/translate-fill.yml`          | `catlex translate --no-config --yes --json --guidance-file ./glossary.md`, then commit           |
 
 All generated jobs:
 
@@ -73,9 +73,9 @@ Fork PRs still run the Catlex command (so the gate can fail) but will not push c
 
 ## Secrets and variables
 
-| Name | Kind | Required for |
-|------|------|----------------|
-| `OPENAI_API_KEY` | secret | review, review-fix, translate-fill |
+| Name              | Kind                | Required for                        |
+| ----------------- | ------------------- | ----------------------------------- |
+| `OPENAI_API_KEY`  | secret              | review, review-fix, translate-fill  |
 | `OPENAI_BASE_URL` | variable (optional) | same, when not using api.openai.com |
 
 Validate and scan need neither.
@@ -96,3 +96,9 @@ Pin a version with `CATLEX_VERSION` if you do not want `latest`. Windows runners
 - Edit existing workflows except overwrite-after-confirm.
 - Generate a scan workflow (add `catlex scan --json` yourself if you want it in CI).
 - Read `catlex.config.*` when generating files; the YAML is static besides GitHub expressions.
+
+## Generated workflow versions
+
+Generated workflows pin Checkout 7.0.1 and auto-commit 7.2.1 to immutable commits. They pin `CATLEX_VERSION` to the version of the CLI that generated them; edit that environment value to adopt a newer release. Read-only jobs disable credential persistence. AI jobs skip fork pull requests, where repository secrets are unavailable; write jobs also select the branch explicitly and scope `contents: write` to the job. Each generated workflow has a timeout and concurrency control.
+
+The repository's own CI uses Bun from `.bun-version`, TypeScript 7 for typechecking, and Fallow 3.37.0 in both local commands and the action's explicit `version` input. Formatting is a read-only check; run `bun run check:fix` locally when needed.

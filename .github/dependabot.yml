@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    # Update the Fallow action and explicit CLI version together.
+    ignore:
+      - dependency-name: "fallow-rs/fallow"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: bun
+    directory: /
+    # Update runtime, packageManager and Bun types together as one change.
+    ignore:
+      - dependency-name: "@types/bun"
+      - dependency-name: "fallow"
+    schedule:
+      interval: weekly
+    groups:
+      ai-sdk:
+        patterns: ["ai", "@ai-sdk/*"]
+      terminal:
+        patterns: ["ink", "react", "@types/react", "react-devtools-core", "ink-testing-library"]

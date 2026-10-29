@@ -9,9 +9,9 @@ describe("generateValidateMessagesWorkflow", () => {
     const yaml = generateValidateMessagesWorkflow();
 
     expect(yaml).toContain("name: Validate messages");
-    expect(yaml).toContain("actions/checkout@v4");
+    expect(yaml).toContain("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1");
     expect(yaml).toContain(
-      "https://github.com/Hammertail/catlex/releases/latest/download/install.sh",
+      `https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh`,
     );
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');

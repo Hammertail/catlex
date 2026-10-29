@@ -6,7 +6,7 @@ Guidance for AI agents and humans working on **catlex**.
 
 catlex is a Bun/TypeScript CLI that validates next-intl-style translation JSON files against a base locale.
 
-- Runtime: **Bun** only (tests, scripts, compile)
+- Runtime: **Bun** only (tests, scripts, compile), pinned in `.bun-version`
 - CLI: **commander**
 - Terminal UI: **Ink** + React
 - Config: **zod**
@@ -37,7 +37,9 @@ Flow: `bin` → `cli` → `core`. Keep business logic in `src/core`; keep CLI/UI
 ```bash
 bun install
 bun test
+bun run typecheck
 bun run build
+bun run smoke
 bun run build:all
 bun run validate
 bun run dev
@@ -66,7 +68,7 @@ bun run fallow:audit
 bun run fallow -- audit --base main
 ```
 
-CI runs `fallow audit` with `gate: new-only` via [`.github/workflows/fallow.yml`](.github/workflows/fallow.yml). A Cursor `beforeShellExecution` hook in [`.cursor/hooks.json`](.cursor/hooks.json) blocks `git commit` / `git push` when `fallow:audit` returns verdict `fail`. Do not enable fallow telemetry on the user's behalf.
+Local scripts and CI pin Fallow 3.37.0. CI runs `fallow audit` with `gate: new-only` via [`.github/workflows/fallow.yml`](.github/workflows/fallow.yml). A Cursor `beforeShellExecution` hook in [`.cursor/hooks.json`](.cursor/hooks.json) blocks `git commit` / `git push` when `fallow:audit` returns verdict `fail`. Do not enable fallow telemetry on the user's behalf.
 
 ## Architecture rules
 
@@ -98,7 +100,7 @@ CI runs `fallow audit` with `gate: new-only` via [`.github/workflows/fallow.yml`
 ## Do not
 
 - Invent an npm publish workflow while the package remains `"private": true`.
-- Let the CLI version in `src/cli/program.ts` drift from `package.json` (the release workflow updates both).
+- Hard-code a separate CLI version: `src/cli/program.ts` reads `package.json`, which the release workflow updates.
 - Add eslint or prettier; use Biome (`biome.json`) for lint and format.
 
 ## Releases
@@ -125,20 +127,20 @@ For non-skill agents, treat the task map below as the local onboarding source: r
 
 ## Fallow task map
 
-| When the agent is about to... | Run |
-|---|---|
-| delete an "unused" export or file | `fallow dead-code --trace <file>:<export>` |
-| delete an "unused" dependency | `fallow dead-code --trace-dependency <name>` |
-| commit or open a PR | `fallow audit --base <ref>` |
-| prioritize refactoring | `fallow health --hotspots --targets` |
-| ask who owns code | `fallow health --ownership` |
-| check untested-but-reachable code | `fallow health --coverage-gaps` |
-| consolidate duplication | `fallow dupes --trace dup:<fingerprint>` |
-| find feature flags | `fallow flags` |
-| check which architecture rules apply to a file before changing it | `fallow guard <files>` |
-| surface security candidates | `fallow security` |
-| understand a finding | `fallow explain <issue-type>` |
-| scope a monorepo | `--workspace <glob> / --changed-workspaces <ref>` (global flags, prefix any command) |
+| When the agent is about to...                                     | Run                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| delete an "unused" export or file                                 | `fallow dead-code --trace <file>:<export>`                                           |
+| delete an "unused" dependency                                     | `fallow dead-code --trace-dependency <name>`                                         |
+| commit or open a PR                                               | `fallow audit --base <ref>`                                                          |
+| prioritize refactoring                                            | `fallow health --hotspots --targets`                                                 |
+| ask who owns code                                                 | `fallow health --ownership`                                                          |
+| check untested-but-reachable code                                 | `fallow health --coverage-gaps`                                                      |
+| consolidate duplication                                           | `fallow dupes --trace dup:<fingerprint>`                                             |
+| find feature flags                                                | `fallow flags`                                                                       |
+| check which architecture rules apply to a file before changing it | `fallow guard <files>`                                                               |
+| surface security candidates                                       | `fallow security`                                                                    |
+| understand a finding                                              | `fallow explain <issue-type>`                                                        |
+| scope a monorepo                                                  | `--workspace <glob> / --changed-workspaces <ref>` (global flags, prefix any command) |
 <!-- fallow:setup-hooks:end -->
 
 ## Cursor Cloud specific instructions
@@ -147,13 +149,15 @@ Standard commands live in the `## Commands` section above (lint = `bun run check
 
 Non-obvious caveats:
 
-- **`.gitignore` only hides the *root* `messages/`.** The rule is root-anchored (`/messages`), so it hides only top-level test-fixture message dirs, not `src/core/messages/` (verify with `git check-ignore -v src/core/messages/load.ts` → not ignored). Keep it anchored: an unanchored `messages` pattern would silently untrack the `src/core/messages/` source. For a local `validate` smoke test, put sample locales outside the repo (e.g. a temp dir) and target them with `--cwd`, since a root `messages/` would be git-ignored.
-- **A single missing module breaks the whole CLI.** `src/bin/catlex.ts` → `src/cli/program.ts` eagerly imports every command, so any unresolved import under `src/core` makes `bun run build`, `bun run dev`, and *all* subcommands (including `scan` and `--help`) fail to load, not just the affected command.
+- **`.gitignore` only hides the _root_ `messages/`.** The rule is root-anchored (`/messages`), so it hides only top-level test-fixture message dirs, not `src/core/messages/` (verify with `git check-ignore -v src/core/messages/load.ts` → not ignored). Keep it anchored: an unanchored `messages` pattern would silently untrack the `src/core/messages/` source. For a local `validate` smoke test, put sample locales outside the repo (e.g. a temp dir) and target them with `--cwd`, since a root `messages/` would be git-ignored.
+- **A single missing module breaks the whole CLI.** `src/bin/catlex.ts` → `src/cli/program.ts` eagerly imports every command, so any unresolved import under `src/core` makes `bun run build`, `bun run dev`, and _all_ subcommands (including `scan` and `--help`) fail to load, not just the affected command.
 - **`translate` / `translate review` / `translate markdown` need OpenAI (or an OpenAI-compatible API).** These alpha commands call the AI SDK with `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL` / `--base-url` / config `openai.baseUrl` for compatible providers; `validate`, `scan`, and `ci`/`init-ci` run fully offline. `translate markdown` translates one file (`--from`, `--to`, `--out`). `translate markdown dir` walks a directory into one `--to` locale.
 
 ### Before opening a PR
 
-Run both gates locally before committing/opening a PR (both are `package.json` scripts):
+Run lint, typecheck, tests and the Fallow gate locally before committing/opening a PR:
 
+- `bun run typecheck` — TypeScript 7 type checking; the scanner uses the TypeScript 6 compatibility API.
+- `bun run test` — isolated test suite, including mocked AI adapters.
 - `bun run check` — Biome lint + format check (use `bun run check:fix` to auto-fix). CI enforces it via [`.github/workflows/biome.yml`](.github/workflows/biome.yml).
 - `bun run fallow:audit` — Fallow codebase audit; if the JSON `verdict` is `fail`, fix the reported findings before retrying. This is the same check the `beforeShellExecution` git hook and [`.github/workflows/fallow.yml`](.github/workflows/fallow.yml) run, so a clean local run avoids a blocked commit/push.

@@ -239,17 +239,6 @@ describe("createProgram", () => {
       expect(ci.aliases()).toContain("init-ci");
     });
 
-    it("styles help headings and highlighted terms", () => {
-      const program = createProgram();
-      const help = program.createHelp();
-
-      expect(help.styleTitle("Usage:")).not.toBe("Usage:");
-      expect(help.styleCommandText("catlex")).not.toBe("catlex");
-      expect(help.styleSubcommandText("translate")).not.toBe("translate");
-      expect(help.styleOptionText("--help")).not.toBe("--help");
-      expect(help.styleDescriptionText("plain description")).toBe("plain description");
-    });
-
     it("renders ANSI styling in help output when color is enabled", () => {
       const previousForceColor = process.env.FORCE_COLOR;
       const previousNoColor = process.env.NO_COLOR;
@@ -257,7 +246,14 @@ describe("createProgram", () => {
       delete process.env.NO_COLOR;
 
       try {
-        const help = createProgram().helpInformation();
+        const program = createProgram();
+        const styles = program.createHelp();
+        expect(styles.styleTitle("Usage:")).not.toBe("Usage:");
+        expect(styles.styleCommandText("catlex")).not.toBe("catlex");
+        expect(styles.styleSubcommandText("translate")).not.toBe("translate");
+        expect(styles.styleOptionText("--help")).not.toBe("--help");
+        expect(styles.styleDescriptionText("plain description")).toBe("plain description");
+        const help = program.helpInformation();
         expect(help).toContain("Usage:");
         expect(help).toContain("Options:");
         expect(help).toContain("Commands:");
@@ -273,6 +269,23 @@ describe("createProgram", () => {
         } else {
           process.env.NO_COLOR = previousNoColor;
         }
+      }
+    });
+
+    it("renders help without ANSI styling when colors are disabled", () => {
+      const previousForceColor = process.env.FORCE_COLOR;
+      const previousNoColor = process.env.NO_COLOR;
+      delete process.env.FORCE_COLOR;
+      process.env.NO_COLOR = "1";
+      try {
+        const help = createProgram().helpInformation();
+        expect(help).toContain("Usage:");
+        expect(help).not.toContain("\u001b[");
+      } finally {
+        if (previousForceColor === undefined) delete process.env.FORCE_COLOR;
+        else process.env.FORCE_COLOR = previousForceColor;
+        if (previousNoColor === undefined) delete process.env.NO_COLOR;
+        else process.env.NO_COLOR = previousNoColor;
       }
     });
 
