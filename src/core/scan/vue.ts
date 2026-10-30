@@ -1,5 +1,5 @@
 //* Libraries imports
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 //* Local imports
 import { isLikelyUserVisible, isUserFacingAttribute } from "./filters.ts";
@@ -250,7 +250,7 @@ function reportAttributes(
     }
 
     const valueOffset = match[0].indexOf(rawValue);
-    const absoluteIndex = absoluteTagStart + match.index + (valueOffset >= 0 ? valueOffset : 0);
+    const absoluteIndex = absoluteTagStart + match.index + Math.max(valueOffset, 0);
 
     addIssue(collector, absoluteIndex, text, "jsx-attribute", attributeName);
   }
@@ -322,7 +322,7 @@ function handleOpeningTag(
   }
 
   const tagNameOffset = tagMarkup.indexOf(tagName);
-  const nameStart = tagNameOffset >= 0 ? tagNameOffset : 0;
+  const nameStart = Math.max(tagNameOffset, 0);
   const tagContentOffset = nameStart + tagName.length;
   const tagContent = tagMarkup.slice(tagContentOffset);
   // tagMarkup starts after `<`, so attributes begin at cursor + 1 + tagContentOffset.

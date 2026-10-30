@@ -161,7 +161,7 @@ describe("runTranslateReviewCommand", () => {
     expect(stderrText).toContain("[review] pt:");
     expect(error.mock.calls.length).toBe(0);
     expect(
-      log.mock.calls.every((call) => {
+      log.mock.calls.every((call: unknown[]) => {
         try {
           JSON.parse(String(call[0]));
           return true;

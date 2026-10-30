@@ -17,19 +17,19 @@ catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs
 catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs/pt-BR/example.md --json
 ```
 
-| Option / argument | Description |
-|--------|-------------|
-| `<file>` | Markdown source (`.md` or `.markdown`) |
-| `--from <locale>` | Source locale |
-| `--to <locale>` | Target locale |
-| `--out <path>` | Write translated Markdown here (parent dirs are created; existing files are overwritten) |
-| `--cwd <path>` | Project root |
-| `--model <id>` | Model id (default: `gpt-5.4-mini`) |
-| `--base-url <url>` | OpenAI-compatible API base URL |
-| `--dry-run` | Validate the source and report paths; **no API call**, no `OPENAI_API_KEY` required, no write |
-| `--no-config` | Ignore `catlex.config.*` |
-| `--json` | JSON on stdout |
-| `--guidance <text>` | Extra project guidance appended to the model prompt |
+| Option / argument        | Description                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `<file>`                 | Markdown source (`.md` or `.markdown`)                                                                          |
+| `--from <locale>`        | Source locale                                                                                                   |
+| `--to <locale>`          | Target locale                                                                                                   |
+| `--out <path>`           | Write translated Markdown here (parent dirs are created; existing files are overwritten)                        |
+| `--cwd <path>`           | Project root                                                                                                    |
+| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
+| `--dry-run`              | Validate the source and report paths; **no API call**, no `OPENAI_API_KEY` required, no write                   |
+| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
+| `--json`                 | JSON on stdout                                                                                                  |
+| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
 | `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 `--from`, `--to`, and `--out` are required. `--from` does not default to config `baseLocale`.
@@ -51,20 +51,20 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR 
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --json
 ```
 
-| Option / argument | Description |
-|--------|-------------|
-| `<dir>` | Source directory. Must exist, be a real directory, and stay inside `--cwd` |
-| `<out>` | Output directory. Created when missing. An existing directory is written into |
-| `--from <locale>` | Source locale |
-| `--to <locale>` | Target locale. One locale; `pt-BR,es` is an error |
-| `--cwd <path>` | Project root |
-| `--model <id>` | Model id (default: `gpt-5.4-mini`) |
-| `--base-url <url>` | OpenAI-compatible API base URL |
-| `--dry-run` | List the files that would be translated. **No API call**, no `OPENAI_API_KEY`, no write, no directory creation |
-| `--no-config` | Ignore `catlex.config.*` |
-| `--json` | JSON on stdout (`sourceDir`, `outDir`, `fileCount`, and one entry per file) |
-| `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Same path rules as the file command |
+| Option / argument        | Description                                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `<dir>`                  | Source directory. Must exist, be a real directory, and stay inside `--cwd`                                     |
+| `<out>`                  | Output directory. Created when missing. An existing directory is written into                                  |
+| `--from <locale>`        | Source locale                                                                                                  |
+| `--to <locale>`          | Target locale. One locale; `pt-BR,es` is an error                                                              |
+| `--cwd <path>`           | Project root                                                                                                   |
+| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                             |
+| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                 |
+| `--dry-run`              | List the files that would be translated. **No API call**, no `OPENAI_API_KEY`, no write, no directory creation |
+| `--no-config`            | Ignore `catlex.config.*`                                                                                       |
+| `--json`                 | JSON on stdout (`sourceDir`, `outDir`, `fileCount`, and one entry per file)                                    |
+| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                            |
+| `--guidance-file <path>` | Same path rules as the file command                                                                            |
 
 `--from` and `--to` are required. There is no `--out` flag; the output directory is the second argument.
 

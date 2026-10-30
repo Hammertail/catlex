@@ -24,7 +24,7 @@ const optionalTrimmedGuidance = z
 
 const translateConfigSchema = z.object({
   concurrency: z.number().int().min(1).max(32).optional(),
-  guidance: optionalTrimmedGuidance,
+  guidance: optionalTrimmedGuidance.optional(),
   guidanceFile: z.string().trim().min(1).optional(),
 });
 

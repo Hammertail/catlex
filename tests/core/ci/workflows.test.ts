@@ -11,7 +11,7 @@ import {
 } from "../../../src/core/ci/workflows.ts";
 import { CI_WORKFLOW_OPTIONS } from "../../../src/core/ci/kinds.ts";
 
-const INSTALL_URL = "https://github.com/Hammertail/catlex/releases/latest/download/install.sh";
+const INSTALL_URL = `https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh`;
 const SINCE_EXPR =
   "${{" +
   " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
@@ -35,7 +35,7 @@ describe("generateValidateMessagesWorkflow", () => {
     const yaml = generateValidateMessagesWorkflow();
 
     expect(yaml).toContain("name: Validate messages");
-    expect(yaml).toContain("actions/checkout@v4");
+    expect(yaml).toContain("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1");
     expect(yaml).toContain(INSTALL_URL);
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');
@@ -92,7 +92,9 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
-    expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
+    expect(yaml).toContain(
+      "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1",
+    );
     expect(yaml).toContain("chore: apply catlex translation review fixes");
   });
 
@@ -101,7 +103,9 @@ describe("generateReviewFixTranslationsWorkflow", () => {
 
     expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
     expect(yaml.indexOf(`if: ${SAME_REPO_COMMIT_GUARD}`)).toBeLessThan(
-      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+      yaml.indexOf(
+        "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1",
+      ),
     );
   });
 
@@ -121,7 +125,9 @@ describe("generateTranslateFillWorkflow", () => {
     );
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
-    expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
+    expect(yaml).toContain(
+      "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1",
+    );
     expect(yaml).toContain("chore: fill missing translations with catlex");
   });
 
@@ -130,12 +136,20 @@ describe("generateTranslateFillWorkflow", () => {
 
     expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
     expect(yaml.indexOf(`if: ${SAME_REPO_COMMIT_GUARD}`)).toBeLessThan(
-      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+      yaml.indexOf(
+        "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1",
+      ),
     );
   });
 });
 
 describe("generated CI workflows", () => {
+  it("generates valid YAML for every workflow, including commit messages", () => {
+    for (const option of CI_WORKFLOW_OPTIONS) {
+      expect(() => Bun.YAML.parse(generateWorkflow(option.kind))).not.toThrow();
+    }
+  });
+
   it("runs every workflow command with --no-config", () => {
     const workflows = [
       generateValidateMessagesWorkflow(),

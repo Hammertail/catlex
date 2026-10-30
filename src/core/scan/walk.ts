@@ -1,5 +1,5 @@
 //* Libraries imports
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 //* Local imports
 import { isLikelyUserVisible, isUserFacingAttribute } from "./filters.ts";

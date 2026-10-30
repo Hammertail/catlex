@@ -42,11 +42,7 @@ console.log(result.issues, result.errors);
 Inject a `translateLocale` function (tests, a non-OpenAI backend) or use the OpenAI helper:
 
 ```ts
-import {
-  assertOpenAiApiKey,
-  createOpenAiTranslator,
-  translateMissingKeys,
-} from "catlex";
+import { assertOpenAiApiKey, createOpenAiTranslator, translateMissingKeys } from "catlex";
 
 assertOpenAiApiKey();
 
@@ -103,11 +99,7 @@ const directoryResult = await translateMarkdownDirectory({
 ## Review
 
 ```ts
-import {
-  createOpenAiReviewer,
-  createOpenAiTranslator,
-  reviewTranslations,
-} from "catlex";
+import { createOpenAiReviewer, createOpenAiTranslator, reviewTranslations } from "catlex";
 
 const result = await reviewTranslations({
   cwd: process.cwd(),
@@ -144,10 +136,7 @@ Merge order and `--no-config` semantics: [Configuration](./configuration.md).
 ## CI file generation
 
 ```ts
-import {
-  generateValidateMessagesWorkflow,
-  writeGithubWorkflows,
-} from "catlex";
+import { generateValidateMessagesWorkflow, writeGithubWorkflows } from "catlex";
 
 await writeGithubWorkflows({
   cwd: process.cwd(),
