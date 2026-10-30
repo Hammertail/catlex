@@ -17,21 +17,21 @@ catlex translate --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.4-
 catlex translate --json
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--dir <path>` | Messages directory relative to `--cwd` |
-| `--base <locale>` | Base locale stem |
-| `--cwd <path>` | Project root |
-| `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
-| `--model <id>` | Model id (default: `gpt-5.4-mini`) |
-| `--base-url <url>` | OpenAI-compatible API base URL |
-| `--dry-run` | List missing/skipped keys; **no API call**, no `OPENAI_API_KEY` required |
-| `--yes` | Skip both interactive prompts and write files |
-| `--no-config` | Ignore `catlex.config.*` |
-| `--json` | JSON on stdout (progress on stderr when the API runs) |
-| `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
-| `--guidance <text>` | Extra project guidance appended to the model prompt |
-| `--guidance-file <path>` | Read extra project guidance from a file (relative to `--cwd` unless absolute) |
+| Option                   | Description                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`           | Messages directory relative to `--cwd`                                                                          |
+| `--base <locale>`        | Base locale stem                                                                                                |
+| `--cwd <path>`           | Project root                                                                                                    |
+| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
+| `--dry-run`              | List missing/skipped keys; **no API call**, no `OPENAI_API_KEY` required                                        |
+| `--yes`                  | Skip both interactive prompts and write files                                                                   |
+| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
+| `--json`                 | JSON on stdout (progress on stderr when the API runs)                                                           |
+| `--concurrency <n>`      | Max parallel API calls (default `4`, range 1–32)                                                                |
+| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 ## How it works
 
@@ -52,12 +52,12 @@ Message values in the prompt are wrapped in `<source_text>` and treated as untru
 
 ### Interactive vs `--yes` vs `--dry-run`
 
-| Mode | API | Writes | Prompts |
-|------|-----|--------|---------|
-| default (TTY) | after first confirm | after second confirm | two |
-| `--yes` | yes | yes | none |
-| `--dry-run` | no | no | none |
-| cancel at a prompt | maybe none / no write | no | —; exit `0`, `cancelled: true` in JSON |
+| Mode               | API                   | Writes               | Prompts                                |
+| ------------------ | --------------------- | -------------------- | -------------------------------------- |
+| default (TTY)      | after first confirm   | after second confirm | two                                    |
+| `--yes`            | yes                   | yes                  | none                                   |
+| `--dry-run`        | no                    | no                   | none                                   |
+| cancel at a prompt | maybe none / no write | no                   | —; exit `0`, `cancelled: true` in JSON |
 
 Nothing to translate (all locales already complete) exits `0` without calling the API.
 
@@ -71,9 +71,9 @@ After the first chunk failure, no new chunks are started; in-flight calls finish
 
 ### Project guidance
 
-Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error.
+Sources, in order: `--guidance` > `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`. Do not pass both CLI flags. Empty `--guidance` falls through; an empty guidance file is an error. Guidance file paths must be regular files (symbolic links are refused).
 
-`translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd` unless absolute.
+`translate.guidanceFile` is resolved relative to the config file directory. CLI `--guidance-file` is relative to `--cwd`. Absolute paths are allowed only when the resolved real path stays inside that base directory. Symbolic links are refused. Guidance file contents are uploaded to the configured LLM provider inside `<project_guidance>`.
 
 The extra text is fenced in `<project_guidance>` on the user prompt. One system-prompt sentence states the priority: built-in instructions win; project guidance wins over few-shot examples. The string is global (not per locale).
 
@@ -111,10 +111,10 @@ Patches are applied onto the existing locale tree and written as pretty JSON. Ne
 
 ## Exit codes
 
-| Code | When |
-|------|------|
-| `0` | Finished, including dry-run, nothing to do, or user cancelled a prompt |
-| `1` | Missing API key, invalid config, load error, model/tool failure |
+| Code | When                                                                   |
+| ---- | ---------------------------------------------------------------------- |
+| `0`  | Finished, including dry-run, nothing to do, or user cancelled a prompt |
+| `1`  | Missing API key, invalid config, load error, model/tool failure        |
 
 Translate does **not** fail the process because some paths were incomplete or had placeholder warnings. Inspect the report.
 

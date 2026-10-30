@@ -102,4 +102,13 @@ describe("writeLocaleMessages", () => {
 
     expect(JSON.parse(await readFile(filePath, "utf8"))).toEqual({ hello: "Olá" });
   });
+
+  it("writes a locale file whose name starts with .. inside the allowed directory", async () => {
+    const messagesDir = await mkdtemp(path.join(tmpdir(), "catlex-write-dotdot-name-"));
+    const filePath = path.join(messagesDir, "..secret.json");
+
+    await writeLocaleMessages(filePath, { hello: "Olá" }, { allowedDir: messagesDir });
+
+    expect(JSON.parse(await readFile(filePath, "utf8"))).toEqual({ hello: "Olá" });
+  });
 });
