@@ -7,6 +7,8 @@ import path from "node:path";
 const roots: string[] = [];
 const installer = path.resolve(import.meta.dir, "../../scripts/install.sh");
 const powershellInstaller = path.resolve(import.meta.dir, "../../scripts/install.ps1");
+// pwsh cold start alone can exceed bun's default 5s timeout on shared CI runners.
+const POWERSHELL_TEST_TIMEOUT_MS = 30_000;
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -124,15 +126,18 @@ function Invoke-WebRequest {
 `,
         );
         if (valid) f.env.CATLEX_VERSION = "latest";
-        const exit = await run(["pwsh", "-NoProfile", "-File", harness], {
+        const exit = await run(["pwsh", "-NoProfile", "-NonInteractive", "-File", harness], {
           ...f.env,
           INSTALLER_PATH: powershellInstaller,
+          POWERSHELL_TELEMETRY_OPTOUT: "1",
+          POWERSHELL_UPDATECHECK: "Off",
         });
         expect(exit === 0).toBe(valid);
         expect(await readFile(path.join(f.destination, "catlex.exe"), "utf8")).toBe(
           valid ? "verified catlex binary\n" : "original",
         );
       },
+      POWERSHELL_TEST_TIMEOUT_MS,
     );
   }
 });
