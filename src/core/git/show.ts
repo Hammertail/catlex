@@ -29,7 +29,8 @@ function resolveRunner(options: GitCwdOptions): GitRunner {
  *
  * Callers pass user-controlled values (e.g. `--since`) into argv arrays. Leading
  * dashes can be parsed as git options (`git show --output=…` writes a file).
- * Colons collide with `rev:path`; whitespace and `@{` enable awkward / reflog forms.
+ * Colons collide with `rev:path`; whitespace enables awkward forms. Reflog / upstream
+ * syntax (`@{u}`, `main@{1}`) is allowed: it only selects a commit and is useful locally.
  */
 export function assertSafeGitRef(ref: string): void {
   const trimmed = ref.trim();
@@ -52,12 +53,6 @@ export function assertSafeGitRef(ref: string): void {
   if (ref.includes(":")) {
     throw new GitError(
       `Invalid git ref: "${ref}". Refs must not contain ":" (reserved for rev:path syntax).`,
-    );
-  }
-
-  if (ref.includes("@{")) {
-    throw new GitError(
-      `Invalid git ref: "${ref}". Refs must not contain "@{" (reflog syntax is not allowed).`,
     );
   }
 }
@@ -105,9 +100,9 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
  * makes the path relative to `cwd`, which is required when Catlex runs from a
  * subdirectory (e.g. a monorepo package). Also normalizes Windows separators.
  *
- * Rejects empty paths, `:` (which would confuse `rev:path`), and `..` segments
- * so callers cannot escape the intended tree even if path arguments become
- * user-controlled later.
+ * Rejects empty paths and `:` (which would confuse `rev:path`). `..` segments are
+ * allowed: git resolves `<ref>:./../dir` inside the same repository, which monorepo
+ * packages rely on for sibling `messagesDir` values such as `../messages`.
  */
 export function toGitTreePath(relativePath: string): string {
   const normalized = relativePath
@@ -125,13 +120,6 @@ export function toGitTreePath(relativePath: string): string {
   if (normalized.includes(":")) {
     throw new GitError(
       `Invalid git tree path: "${relativePath}". Paths must not contain ":" (reserved for rev:path syntax).`,
-    );
-  }
-
-  const segments = normalized.split("/");
-  if (segments.some((segment) => segment === "..")) {
-    throw new GitError(
-      `Invalid git tree path: "${relativePath}". Paths must not contain ".." segments.`,
     );
   }
 

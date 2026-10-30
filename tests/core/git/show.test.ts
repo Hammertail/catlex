@@ -63,10 +63,15 @@ describe("assertSafeGitRef", () => {
     expect(() => assertSafeGitRef("--upload-pack=echo")).toThrow(GitError);
   });
 
-  it("rejects refs that contain a colon, whitespace, or reflog @{ syntax", () => {
+  it("accepts reflog and upstream @{ syntax", () => {
+    for (const ref of ["@{u}", "@{upstream}", "@{-1}", "main@{1}", "HEAD@{0}"]) {
+      expect(() => assertSafeGitRef(ref)).not.toThrow();
+    }
+  });
+
+  it("rejects refs that contain a colon or whitespace", () => {
     expect(() => assertSafeGitRef("HEAD:package.json")).toThrow(GitError);
     expect(() => assertSafeGitRef("main bad")).toThrow(GitError);
-    expect(() => assertSafeGitRef("HEAD@{0}")).toThrow(GitError);
     expect(() => assertSafeGitRef("main\norigin")).toThrow(GitError);
   });
 
@@ -198,7 +203,7 @@ describe("resolveRefSha", () => {
       },
     });
 
-    await expect(resolveRefSha({ cwd: "/repo", ref: "HEAD@{0}", runGit })).rejects.toThrow(
+    await expect(resolveRefSha({ cwd: "/repo", ref: "--abbrev=4", runGit })).rejects.toThrow(
       /Invalid git ref/,
     );
     expect(called).toBe(false);
@@ -220,10 +225,9 @@ describe("toGitTreePath", () => {
     expect(() => toGitTreePath("foo:bar")).toThrow(/Invalid git tree path/);
   });
 
-  it("rejects paths that contain .. segments", () => {
-    expect(() => toGitTreePath("../messages/en.json")).toThrow(GitError);
-    expect(() => toGitTreePath("messages/../en.json")).toThrow(GitError);
-    expect(() => toGitTreePath("..\\messages\\en.json")).toThrow(GitError);
+  it("keeps .. segments so monorepo packages can reach sibling directories", () => {
+    expect(toGitTreePath("../messages/en.json")).toBe("./../messages/en.json");
+    expect(toGitTreePath("..\\messages\\en.json")).toBe("./../messages/en.json");
   });
 
   it("rejects empty paths", () => {
@@ -395,7 +399,7 @@ describe("readFileAtRef", () => {
       readFileAtRef({
         cwd: "/repo",
         ref: "main",
-        path: "../secrets.json",
+        path: "foo:secrets.json",
         runGit,
       }),
     ).rejects.toThrow(/Invalid git tree path/);
@@ -498,26 +502,6 @@ describe("listFilesAtRef", () => {
         runGit,
       }),
     ).rejects.toThrow(/Invalid git ref/);
-    expect(called).toBe(false);
-  });
-
-  it("rejects directories with .. segments before invoking git", async () => {
-    let called = false;
-    const runGit = createFakeRunner({
-      onArgs: () => {
-        called = true;
-        return { stdout: "", stderr: "", exitCode: 0 };
-      },
-    });
-
-    await expect(
-      listFilesAtRef({
-        cwd: "/repo",
-        ref: "main",
-        directory: "../messages",
-        runGit,
-      }),
-    ).rejects.toThrow(/Invalid git tree path/);
     expect(called).toBe(false);
   });
 

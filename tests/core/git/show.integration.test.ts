@@ -218,19 +218,33 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
     await expect(access(outputPath, fsConstants.F_OK)).rejects.toThrow();
   });
 
-  it("rejects colon, whitespace, and reflog @{ refs used as --since values", async () => {
+  it("rejects colon and whitespace refs used as --since values", async () => {
     const { cwd } = await createTempGitRepo();
     await writeRepoFile(cwd, "messages/en.json", "{}\n");
     await commitAll(cwd, "initial");
 
-    for (const ref of ["HEAD:messages/en.json", "main bad", "HEAD@{0}"]) {
+    for (const ref of ["HEAD:messages/en.json", "main bad"]) {
       await expect(assertRefExists({ cwd, ref })).rejects.toThrow(GitError);
       await expect(readFileAtRef({ cwd, ref, path: "messages/en.json" })).rejects.toThrow(GitError);
       await expect(listFilesAtRef({ cwd, ref, directory: "messages" })).rejects.toThrow(GitError);
     }
   });
 
-  it("rejects tree paths with colon or .. before invoking git show/ls-tree", async () => {
+  it("reads a file at a reflog ref such as main@{1}", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", `${JSON.stringify({ welcome: "Old" })}\n`);
+    await commitAll(cwd, "initial");
+    await runGit(["branch", "-M", "main"], { cwd });
+    await writeRepoFile(cwd, "messages/en.json", `${JSON.stringify({ welcome: "New" })}\n`);
+    await commitAll(cwd, "update");
+
+    await assertRefExists({ cwd, ref: "main@{1}" });
+    const previous = await readFileAtRef({ cwd, ref: "main@{1}", path: "messages/en.json" });
+
+    expect(JSON.parse(previous ?? "")).toEqual({ welcome: "Old" });
+  });
+
+  it("rejects tree paths with a colon before invoking git show/ls-tree", async () => {
     const { cwd } = await createTempGitRepo();
     await writeRepoFile(cwd, "messages/en.json", "{}" + "\n");
     await commitAll(cwd, "initial");
@@ -238,11 +252,24 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
     await expect(readFileAtRef({ cwd, ref: "HEAD", path: "foo:bar.json" })).rejects.toThrow(
       /Invalid git tree path/,
     );
-    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "../messages/en.json" })).rejects.toThrow(
-      /Invalid git tree path/,
+  });
+
+  it("lists and reads a sibling ../messages directory when cwd is a monorepo package", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(
+      cwd,
+      "packages/messages/en.json",
+      `${JSON.stringify({ welcome: "Welcome" }, null, 2)}\n`,
     );
-    await expect(
-      listFilesAtRef({ cwd, ref: "HEAD", directory: "messages/../messages" }),
-    ).rejects.toThrow(/Invalid git tree path/);
+    await writeRepoFile(cwd, "packages/app/package.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    const packageCwd = path.join(cwd, "packages", "app");
+    const files = await listFilesAtRef({ cwd: packageCwd, ref: "HEAD", directory: "../messages" });
+    expect(files).toEqual(["../messages/en.json"]);
+
+    const [firstFile] = files;
+    const content = await readFileAtRef({ cwd: packageCwd, ref: "HEAD", path: firstFile ?? "" });
+    expect(JSON.parse(content ?? "")).toEqual({ welcome: "Welcome" });
   });
 });
