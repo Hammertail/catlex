@@ -1,6 +1,8 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
-import { writeFile } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
@@ -8,7 +10,9 @@ import {
   GitError,
   assertGitRepo,
   assertRefExists,
+  listFilesAtRef,
   readFileAtRef,
+  resolveRefSha,
 } from "../../../src/core/git/show.ts";
 import { runGit } from "../../../src/core/git/run.ts";
 import {
@@ -192,5 +196,80 @@ describe.skipIf(!gitAvailable)("git show integration", () => {
     });
 
     expect(missing).toBeNull();
+  });
+
+  it("rejects leading-dash --since-style refs before git can treat them as options", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    const outputPath = path.join(tmpdir(), `catlex-git-injection-${Date.now()}`);
+    const maliciousRef = `--output=${outputPath}`;
+
+    await expect(assertRefExists({ cwd, ref: maliciousRef })).rejects.toThrow(/Invalid git ref/);
+    await expect(resolveRefSha({ cwd, ref: maliciousRef })).rejects.toThrow(/Invalid git ref/);
+    await expect(
+      readFileAtRef({ cwd, ref: maliciousRef, path: "messages/en.json" }),
+    ).rejects.toThrow(/Invalid git ref/);
+    await expect(listFilesAtRef({ cwd, ref: maliciousRef, directory: "messages" })).rejects.toThrow(
+      /Invalid git ref/,
+    );
+
+    await expect(access(outputPath, fsConstants.F_OK)).rejects.toThrow();
+  });
+
+  it("rejects colon and whitespace refs used as --since values", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    for (const ref of ["HEAD:messages/en.json", "main bad"]) {
+      await expect(assertRefExists({ cwd, ref })).rejects.toThrow(GitError);
+      await expect(readFileAtRef({ cwd, ref, path: "messages/en.json" })).rejects.toThrow(GitError);
+      await expect(listFilesAtRef({ cwd, ref, directory: "messages" })).rejects.toThrow(GitError);
+    }
+  });
+
+  it("reads a file at a reflog ref such as main@{1}", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", `${JSON.stringify({ welcome: "Old" })}\n`);
+    await commitAll(cwd, "initial");
+    await runGit(["branch", "-M", "main"], { cwd });
+    await writeRepoFile(cwd, "messages/en.json", `${JSON.stringify({ welcome: "New" })}\n`);
+    await commitAll(cwd, "update");
+
+    await assertRefExists({ cwd, ref: "main@{1}" });
+    const previous = await readFileAtRef({ cwd, ref: "main@{1}", path: "messages/en.json" });
+
+    expect(JSON.parse(previous ?? "")).toEqual({ welcome: "Old" });
+  });
+
+  it("rejects tree paths with a colon before invoking git show/ls-tree", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "messages/en.json", "{}" + "\n");
+    await commitAll(cwd, "initial");
+
+    await expect(readFileAtRef({ cwd, ref: "HEAD", path: "foo:bar.json" })).rejects.toThrow(
+      /Invalid git tree path/,
+    );
+  });
+
+  it("lists and reads a sibling ../messages directory when cwd is a monorepo package", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(
+      cwd,
+      "packages/messages/en.json",
+      `${JSON.stringify({ welcome: "Welcome" }, null, 2)}\n`,
+    );
+    await writeRepoFile(cwd, "packages/app/package.json", "{}\n");
+    await commitAll(cwd, "initial");
+
+    const packageCwd = path.join(cwd, "packages", "app");
+    const files = await listFilesAtRef({ cwd: packageCwd, ref: "HEAD", directory: "../messages" });
+    expect(files).toEqual(["../messages/en.json"]);
+
+    const [firstFile] = files;
+    const content = await readFileAtRef({ cwd: packageCwd, ref: "HEAD", path: firstFile ?? "" });
+    expect(JSON.parse(content ?? "")).toEqual({ welcome: "Welcome" });
   });
 });
