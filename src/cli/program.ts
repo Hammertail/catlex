@@ -15,6 +15,9 @@ import { runTranslateMarkdownCommand } from "./commands/translate-markdown.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
 
+//* Types imports
+import type { TranslateMarkdownDirectoryTarget } from "../core/translate/markdown-dir.ts";
+
 const packageVersion = packageJson.version;
 
 async function setExitCodeFrom(run: () => Promise<number>): Promise<void> {
@@ -43,6 +46,30 @@ function parseConcurrencyOption(value: string): number {
     const message = error instanceof Error ? error.message : String(error);
     throw new InvalidArgumentError(message);
   }
+}
+
+function parseMarkdownDirectoryTargets(command: Command): TranslateMarkdownDirectoryTarget[] {
+  // The parent retains the directory command's arguments before its options are parsed.
+  const args = command.parent?.args.slice(1) ?? [];
+  const targets: TranslateMarkdownDirectoryTarget[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--") {
+      break;
+    }
+    if (arg === "--to" || arg?.startsWith("--to=")) {
+      const values: string[] = arg === "--to" ? [] : [arg.slice("--to=".length)];
+      while (args[index + 1] !== undefined && !args[index + 1]?.startsWith("-")) {
+        index += 1;
+        values.push(args[index] ?? "");
+      }
+      targets.push(...pairMarkdownDirectoryTargets(values));
+    } else if (command.options.some((option) => option.is(arg ?? "") && option.required)) {
+      // Required scalar options consume their value even when it looks like --to.
+      index += 1;
+    }
+  }
+  return targets;
 }
 
 function styleHeading(text: string): string {
@@ -338,12 +365,9 @@ export function createProgram(): Command {
       "--guidance-file <path>",
       "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
-    .action(async (source, options) => {
+    .action(async (source, options, command: Command) => {
       await setExitCodeFrom(() => {
-        const toValues: unknown = options.to;
-        const targets = pairMarkdownDirectoryTargets(
-          Array.isArray(toValues) ? toValues.map((value) => String(value)) : [],
-        );
+        const targets = parseMarkdownDirectoryTargets(command);
         return runTranslateMarkdownDirCommand({
           source,
           from: options.from,

@@ -662,6 +662,36 @@ describe("createProgram", () => {
       expect(errorOutput).toMatch(/--to <locale> <dir>/);
     });
 
+    it.each([
+      ["--to", "pt", "--to", "fr"],
+      ["--to=pt", "--to=fr"],
+      ["--to", "pt", "./example/pt", "--to", "fr", "--to", "ru"],
+    ])("rejects incomplete --to occurrences in %j", async (...targets) => {
+      silenceErrors();
+      const program = createProgram();
+      await program.parseAsync(
+        [
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          ...targets,
+          "--dry-run",
+          "--no-config",
+        ],
+        { from: "user" },
+      );
+
+      expect(process.exitCode).toBe(1);
+      const errorOutput = errorSpies
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .join("\n");
+      expect(errorOutput).toMatch(/Each --to requires a locale and an output directory/);
+    });
+
     it("still rejects translate markdown when --from is omitted", async () => {
       silenceErrors();
       const program = createProgram();

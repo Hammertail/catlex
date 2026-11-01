@@ -430,6 +430,29 @@ describe("translateMarkdownDirectory", () => {
     });
   });
 
+  it("rejects colliding target files before translating or creating output directories", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-collision-"));
+    await writeSource(cwd, "en/a.md", "A");
+    await writeSource(cwd, "en/guide/a.md", "Guide A");
+    const translator = createTranslateSpy();
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: "en",
+        from: "en",
+        targets: [
+          { to: "pt", out: "out" },
+          { to: "fr", out: "out/guide" },
+        ],
+        noConfig: true,
+        translateMarkdown: translator.translateMarkdown,
+      }),
+    ).rejects.toThrow(/Conflicting Markdown output path/);
+    expect(translator.calls).toBe(0);
+    await expect(stat(path.join(cwd, "out"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("leaves the first locale written when a later locale fails", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-later-locale-"));
     await writeSource(cwd, path.join("en", "index.md"), "Hello");

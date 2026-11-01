@@ -336,9 +336,15 @@ function buildDirectoryJobs(
   outputTargets: ResolvedMarkdownDirectoryTarget[],
 ): MarkdownDirectoryJob[] {
   const jobs: MarkdownDirectoryJob[] = [];
+  const outputPaths = new Set<string>();
   for (const markdownFile of markdownFiles) {
     const relativeFile = path.relative(sourceDir, markdownFile);
     for (const [targetIndex, target] of outputTargets.entries()) {
+      const outPath = path.join(target.logicalOutDir, relativeFile);
+      if (outputPaths.has(outPath)) {
+        throw new MarkdownTranslateError(`Conflicting Markdown output path: ${outPath}`);
+      }
+      outputPaths.add(outPath);
       jobs.push({
         targetIndex,
         markdownFile,
