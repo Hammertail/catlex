@@ -1,10 +1,13 @@
 //* Local imports
+import packageJson from "../../../package.json" with { type: "json" };
 import type { CiWorkflowKind } from "./kinds.ts";
 
 const INSTALL_STEP = `      - name: Install catlex
+        env:
+          CATLEX_VERSION: "${packageJson.version}"
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
+          curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh" | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"`;
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;
@@ -19,16 +22,18 @@ const SAME_REPO_COMMIT_GUARD =
 /** Path passed as `--guidance-file` on generated translate/review workflows. */
 export const CI_TRANSLATE_GUIDANCE_FILE = "./glossary.md";
 
-function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
-  if (options?.fetchDepthZero) {
-    return `      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0`;
+function checkoutStep(options?: { fetchDepthZero?: boolean; write?: boolean }): string {
+  const lines = [
+    "      - name: Checkout",
+    "        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    "        with:",
+    `          persist-credentials: ${options?.write === true}`,
+  ];
+  if (options?.write) {
+    lines.push(`          ref: ${GITHUB_EXPR("github.head_ref || github.ref_name")}`);
   }
-
-  return `      - name: Checkout
-        uses: actions/checkout@v4`;
+  if (options?.fetchDepthZero) lines.push("          fetch-depth: 0");
+  return lines.join("\n");
 }
 
 function openaiEnvBlock(options?: { since?: boolean }): string {
@@ -47,9 +52,9 @@ ${lines.join("\n")}`;
 function autoCommitStep(commitMessage: string): string {
   return `      - name: Commit changes
         if: ${SAME_REPO_COMMIT_GUARD}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
         with:
-          commit_message: ${commitMessage}`;
+          commit_message: ${JSON.stringify(commitMessage)}`;
 }
 
 export function generateValidateMessagesWorkflow(): string {
@@ -59,10 +64,18 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   validate-messages:
     name: Validate translation messages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep()}
 
@@ -80,10 +93,19 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   review-translations:
+    if: ${SAME_REPO_COMMIT_GUARD}
     name: Review translation quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep({ fetchDepthZero: true })}
 
@@ -103,14 +125,23 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 
 jobs:
   review-fix-translations:
+    if: ${SAME_REPO_COMMIT_GUARD}
+    permissions:
+      contents: write
     name: Review, fix, and commit translations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-${checkoutStep({ fetchDepthZero: true })}
+${checkoutStep({ fetchDepthZero: true, write: true })}
 
 ${INSTALL_STEP}
 
@@ -130,14 +161,23 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 
 jobs:
   translate-fill:
+    if: ${SAME_REPO_COMMIT_GUARD}
+    permissions:
+      contents: write
     name: Fill missing translations and commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-${checkoutStep()}
+${checkoutStep({ write: true })}
 
 ${INSTALL_STEP}
 

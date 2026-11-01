@@ -16,22 +16,22 @@ catlex translate review --since main --auto-fix --yes --json
 catlex translate review --verbose
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--dir <path>` | Messages directory relative to `--cwd` |
-| `--base <locale>` | Base locale stem |
-| `--cwd <path>` | Project root |
-| `--locale <locale>` | Target locale (repeatable or comma-separated; default: all non-base) |
-| `--model <id>` | Model id (default: `gpt-5.4-mini`) |
-| `--base-url <url>` | OpenAI-compatible API base URL |
-| `--since <ref>` | Only review keys changed between `<ref>` and the **working tree** (includes uncommitted edits) |
-| `--auto-fix` | Collect suggested values for `wrong` / missing keys |
-| `--yes` | Apply auto-fix writes without a confirmation prompt |
-| `--no-config` | Ignore `catlex.config.*` |
-| `--json` | JSON on stdout; banner/progress on stderr |
-| `--verbose` | Print per-chunk path lists |
-| `--concurrency <n>` | Max parallel API calls (default `4`, range 1–32) |
-| `--guidance <text>` | Extra project guidance appended to the model prompt |
+| Option                   | Description                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`           | Messages directory relative to `--cwd`                                                                          |
+| `--base <locale>`        | Base locale stem                                                                                                |
+| `--cwd <path>`           | Project root                                                                                                    |
+| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
+| `--since <ref>`          | Only review keys changed between `<ref>` and the **working tree** (includes uncommitted edits)                  |
+| `--auto-fix`             | Collect suggested values for `wrong` / missing keys                                                             |
+| `--yes`                  | Apply auto-fix writes without a confirmation prompt                                                             |
+| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
+| `--json`                 | JSON on stdout; banner/progress on stderr                                                                       |
+| `--verbose`              | Print per-chunk path lists                                                                                      |
+| `--concurrency <n>`      | Max parallel API calls (default `4`, range 1–32)                                                                |
+| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
 | `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Providers, API key, headers, concurrency, and project guidance work the same as [`translate`](./translate.md). Guidance applies to both present-key review and `--auto-fix` missing-key translation.
@@ -53,11 +53,11 @@ Full-corpus review still issues one model call per chunk of 50; concurrency only
 
 ### Verdicts
 
-| Verdict | Meaning |
-|---------|---------|
-| `ok` | Locale string is acceptable vs the base |
-| `wrong` | Locale string is incorrect; optional `reason` and `suggestedValue` |
-| `missing` | Key is in scope on the base but the locale has no string |
+| Verdict   | Meaning                                                            |
+| --------- | ------------------------------------------------------------------ |
+| `ok`      | Locale string is acceptable vs the base                            |
+| `wrong`   | Locale string is incorrect; optional `reason` and `suggestedValue` |
+| `missing` | Key is in scope on the base but the locale has no string           |
 
 Removed keys (present at `--since`, gone in the working tree) are listed informatively and **do not fail** the gate.
 
@@ -98,10 +98,10 @@ With `--json`, banner and progress go to **stderr**.
 
 ## Exit codes
 
-| Code | When |
-|------|------|
-| `0` | `result.ok` is true: no unresolved `wrong`/`missing` items and no structural failures (including after a successful `--auto-fix --yes` write) |
-| `1` | Review failed (`ok: false`), user declined to write fixes while issues remain, missing API key, git/ref error, config/load error, or model failure |
+| Code | When                                                                                                                                               |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | `result.ok` is true: no unresolved `wrong`/`missing` items and no structural failures (including after a successful `--auto-fix --yes` write)      |
+| `1`  | Review failed (`ok: false`), user declined to write fixes while issues remain, missing API key, git/ref error, config/load error, or model failure |
 
 Declining the write prompt sets `cancelled: true` in JSON but still exits `1` if the review had issues — the gate is `ok`, not `cancelled`. Prefer `--json` and inspect `ok` in CI. Generated review workflows treat a non-zero process exit as a failed job.
 

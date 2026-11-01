@@ -357,6 +357,36 @@ function buildDirectoryJobs(
   return jobs;
 }
 
+async function buildDirectoryTargetResults(
+  outputTargets: ResolvedMarkdownDirectoryTarget[],
+  filesByTarget: TranslateMarkdownDirectoryFileResult[][],
+  dryRun: boolean,
+): Promise<TranslateMarkdownDirectoryTargetResult[]> {
+  const targets: TranslateMarkdownDirectoryTargetResult[] = [];
+  for (const [targetIndex, target] of outputTargets.entries()) {
+    const files = filesByTarget[targetIndex] ?? [];
+    let outDir = target.logicalOutDir;
+    if (!dryRun) {
+      try {
+        outDir = await realpath(target.logicalOutDir);
+      } catch (error) {
+        throw new MarkdownTranslateError(
+          `Unable to write Markdown directory: ${target.outInput} (${errorDetail(error)})`,
+        );
+      }
+    }
+
+    targets.push({
+      outDir,
+      toLocale: target.toLocale,
+      fileCount: files.length,
+      files,
+    });
+  }
+
+  return targets;
+}
+
 /**
  * Translates every Markdown file in a directory into each target locale.
  * Relative paths are preserved. Every output directory is validated before
@@ -427,27 +457,7 @@ export async function translateMarkdownDirectory(
     });
   }
 
-  const targets: TranslateMarkdownDirectoryTargetResult[] = [];
-  for (const [targetIndex, target] of outputTargets.entries()) {
-    const files = filesByTarget[targetIndex] ?? [];
-    let outDir = target.logicalOutDir;
-    if (!dryRun) {
-      try {
-        outDir = await realpath(target.logicalOutDir);
-      } catch (error) {
-        throw new MarkdownTranslateError(
-          `Unable to write Markdown directory: ${target.outInput} (${errorDetail(error)})`,
-        );
-      }
-    }
-
-    targets.push({
-      outDir,
-      toLocale: target.toLocale,
-      fileCount: files.length,
-      files,
-    });
-  }
+  const targets = await buildDirectoryTargetResults(outputTargets, filesByTarget, dryRun);
 
   return {
     sourceDir,

@@ -41,12 +41,12 @@ Catlex flattens nested objects into **dot-path keys**: `nav.home`, `nav.about`, 
 
 ### What counts as a leaf
 
-| Value | Flattened as | Notes |
-|-------|----------------|-------|
-| Nested object | Recursed into | Keys joined with `.` |
-| String | Leaf | The only type `translate` / review will fill or judge |
-| Array | Single leaf | The whole array is one path; Catlex does not walk array elements |
-| Number, boolean, `null` | Leaf | Compared for presence; skipped by AI fill/review |
+| Value                   | Flattened as  | Notes                                                            |
+| ----------------------- | ------------- | ---------------------------------------------------------------- |
+| Nested object           | Recursed into | Keys joined with `.`                                             |
+| String                  | Leaf          | The only type `translate` / review will fill or judge            |
+| Array                   | Single leaf   | The whole array is one path; Catlex does not walk array elements |
+| Number, boolean, `null` | Leaf          | Compared for presence; skipped by AI fill/review                 |
 
 So this:
 

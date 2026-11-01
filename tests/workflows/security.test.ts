@@ -81,6 +81,42 @@ function topLevelPermissionsBlock(yaml: string): string | null {
 }
 
 describe("repository GitHub Actions security", () => {
+  it("uses one Bun baseline and locks the local and CI Fallow versions", () => {
+    const root = join(WORKFLOWS_DIR, "../..");
+    const bunVersion = readFileSync(join(root, ".bun-version"), "utf8").trim();
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    expect(pkg.packageManager).toBe(`bun@${bunVersion}`);
+    expect(pkg.devDependencies["@types/bun"]).toBe(bunVersion);
+    for (const fileName of WORKFLOW_FILES) {
+      const yaml = readWorkflow(fileName);
+      if (yaml.includes("oven-sh/setup-bun@")) {
+        expect(yaml).toContain("bun-version-file: .bun-version");
+        expect(yaml).not.toMatch(/bun-version:/);
+      }
+    }
+    expect(readWorkflow("fallow.yml")).toContain(`version: "${pkg.devDependencies.fallow}"`);
+  });
+
+  it("validates release artifacts before publishing and includes their checksums", () => {
+    const yaml = readWorkflow("release.yml");
+    const publishing = yaml.indexOf("- name: Commit, tag and push");
+    for (const command of [
+      "bun run check",
+      "bun run typecheck",
+      "bun run test",
+      "bun audit",
+      "sha256sum --check SHA256SUMS",
+      "bun run smoke",
+    ]) {
+      expect(yaml.indexOf(command)).toBeGreaterThan(-1);
+      expect(yaml.indexOf(command)).toBeLessThan(publishing);
+    }
+    expect(yaml.slice(yaml.indexOf("gh release create"))).toContain("SHA256SUMS");
+    expect(yaml).toContain("fetch-depth: 0");
+    expect(yaml).toContain("git describe --tags --abbrev=0 HEAD");
+    expect(yaml).toContain('audit --base "$BASE_REF"');
+  });
+
   it("discovers the expected workflow files", () => {
     expect(WORKFLOW_FILES).toEqual([
       "biome.yml",
@@ -169,13 +205,12 @@ describe("repository GitHub Actions security", () => {
   });
 
   describe("biome.yml", () => {
-    it("splits format-check (read-only) from optional auto-commit", () => {
+    it("checks the event revision without committing formatting changes", () => {
       const yaml = readWorkflow("biome.yml");
-      const jobs = jobBlocks(yaml);
-      const jobNames = jobs.map((job) => job.name);
-
-      expect(jobNames).toContain("check");
-      expect(jobNames.some((name) => name === "format" || name === "autofix")).toBe(true);
+      expect(jobBlocks(yaml).map((job) => job.name)).toEqual(["check"]);
+      expect(yaml).not.toContain("git-auto-commit-action");
+      expect(yaml).not.toContain("github.head_ref");
+      expect(yaml).not.toMatch(/contents:\s*write/);
     });
 
     it("runs the format-check job with contents: read and without write", () => {
@@ -194,49 +229,11 @@ describe("repository GitHub Actions security", () => {
       expect(checkJob.body).toContain("persist-credentials: false");
     });
 
-    it("limits the auto-commit job to same-repository pull requests", () => {
-      const yaml = readWorkflow("biome.yml");
-      const formatJob = jobBlocks(yaml).find(
-        (job) => job.name === "format" || job.name === "autofix",
-      );
-      expect(formatJob).toBeDefined();
-      if (!formatJob) {
-        return;
-      }
-
-      expect(formatJob.body).toContain(
-        "github.event.pull_request.head.repo.full_name == github.repository",
-      );
-      expect(formatJob.body).toMatch(/contents:\s*write/);
-      expect(formatJob.body).toContain("check:fix");
-      expect(formatJob.body).toContain("git-auto-commit-action");
-    });
-
     it("does not grant contents: write at the workflow top level", () => {
       const yaml = readWorkflow("biome.yml");
       const top = topLevelPermissionsBlock(yaml);
       expect(top).not.toBeNull();
       expect(top ?? "").not.toMatch(/contents:\s*write/);
-    });
-
-    it("runs format-check after autofix so GITHUB_TOKEN commits are verified in-run", () => {
-      const yaml = readWorkflow("biome.yml");
-      const checkJob = jobBlocks(yaml).find((job) => job.name === "check");
-      expect(checkJob).toBeDefined();
-      if (!checkJob) {
-        return;
-      }
-
-      // GITHUB_TOKEN pushes do not retrigger workflows; a parallel check on the
-      // pre-autofix head would stay failed forever after a successful format job.
-      expect(checkJob.body).toMatch(/needs:\s*format/);
-      expect(checkJob.body).toContain(
-        "always() && (needs.format.result == 'success' || needs.format.result == 'skipped')",
-      );
-      const headRefExpr = "${{" + " github.head_ref }}";
-      const headRepoExpr = "${{" + " github.event.pull_request.head.repo.full_name }}";
-      expect(checkJob.body).toContain(`ref: ${headRefExpr}`);
-      expect(checkJob.body).toContain(`repository: ${headRepoExpr}`);
     });
   });
 

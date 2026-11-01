@@ -48,6 +48,16 @@ function parseConcurrencyOption(value: string): number {
   }
 }
 
+function readMarkdownDirectoryTargetValues(args: string[], index: number) {
+  const arg = args[index] ?? "";
+  const values: string[] = arg === "--to" ? [] : [arg.slice("--to=".length)];
+  while (args[index + 1] !== undefined && !args[index + 1]?.startsWith("-")) {
+    index += 1;
+    values.push(args[index] ?? "");
+  }
+  return { values, lastIndex: index };
+}
+
 function parseMarkdownDirectoryTargets(command: Command): TranslateMarkdownDirectoryTarget[] {
   // The parent retains the directory command's arguments before its options are parsed.
   const args = command.parent?.args.slice(1) ?? [];
@@ -58,13 +68,14 @@ function parseMarkdownDirectoryTargets(command: Command): TranslateMarkdownDirec
       break;
     }
     if (arg === "--to" || arg?.startsWith("--to=")) {
-      const values: string[] = arg === "--to" ? [] : [arg.slice("--to=".length)];
-      while (args[index + 1] !== undefined && !args[index + 1]?.startsWith("-")) {
-        index += 1;
-        values.push(args[index] ?? "");
-      }
-      targets.push(...pairMarkdownDirectoryTargets(values));
-    } else if (command.options.some((option) => option.is(arg ?? "") && option.required)) {
+      const collected = readMarkdownDirectoryTargetValues(args, index);
+      targets.push(...pairMarkdownDirectoryTargets(collected.values));
+      index = collected.lastIndex;
+    } else if (
+      command.options.some(
+        (option) => (option.long === arg || option.short === arg) && option.required,
+      )
+    ) {
       // Required scalar options consume their value even when it looks like --to.
       index += 1;
     }
