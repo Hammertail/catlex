@@ -4,7 +4,7 @@ import { styleText } from "node:util";
 import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
-import { pairMarkdownDirectoryTargets } from "../core/translate/markdown-dir.ts";
+import { parseMarkdownDirectoryTarget } from "../core/translate/markdown-dir.ts";
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
 import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
@@ -69,7 +69,7 @@ function parseMarkdownDirectoryTargets(command: Command): TranslateMarkdownDirec
     }
     if (arg === "--to" || arg?.startsWith("--to=")) {
       const collected = readMarkdownDirectoryTargetValues(args, index);
-      targets.push(...pairMarkdownDirectoryTargets(collected.values));
+      targets.push(parseMarkdownDirectoryTarget(collected.values));
       index = collected.lastIndex;
     } else if (
       command.options.some(

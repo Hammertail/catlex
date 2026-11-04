@@ -4,7 +4,11 @@ import path from "node:path";
 
 //* Local imports
 import { loadConfig } from "../config/load.ts";
-import { MarkdownTranslateError, translateMarkdownFile } from "./markdown.ts";
+import {
+  MarkdownTranslateError,
+  resolveMarkdownGuidance,
+  translateMarkdownFileWithGuidance,
+} from "./markdown.ts";
 import { mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
 
 //* Types imports
@@ -73,31 +77,31 @@ type MarkdownDirectoryJob = {
   logicalOutDir: string;
 };
 
+type TranslatedDirectoryFile = {
+  targetIndex: number;
+  file: TranslateMarkdownDirectoryFileResult;
+};
+
 /**
- * Pairs variadic `--to` values as locale, output directory, locale, output directory.
- * An odd count, including a locale with no directory, is an error.
+ * Reads the values of one `--to` occurrence as a locale and an output directory.
+ * Missing values are an error. So are extra values, which are named in the
+ * message because a stray path is otherwise easy to miss.
  */
-export function pairMarkdownDirectoryTargets(
+export function parseMarkdownDirectoryTarget(
   values: readonly string[],
-): TranslateMarkdownDirectoryTarget[] {
-  if (values.length === 0 || values.length % 2 !== 0) {
+): TranslateMarkdownDirectoryTarget {
+  const [to, out, ...extra] = values;
+  if (to === undefined || out === undefined) {
     throw new MarkdownTranslateError(
       `Each --to requires a locale and an output directory: ${MARKDOWN_DIR_TO_USAGE}`,
     );
   }
-
-  const targets: TranslateMarkdownDirectoryTarget[] = [];
-  for (let index = 0; index < values.length; index += 2) {
-    const to = values[index];
-    const out = values[index + 1];
-    if (to === undefined || out === undefined) {
-      throw new MarkdownTranslateError(
-        `Each --to requires a locale and an output directory: ${MARKDOWN_DIR_TO_USAGE}`,
-      );
-    }
-    targets.push({ to, out });
+  if (extra.length > 0) {
+    throw new MarkdownTranslateError(
+      `Unexpected value after --to ${to} ${out}: ${extra.join(" ")}. Repeat --to for each locale: ${MARKDOWN_DIR_TO_USAGE}`,
+    );
   }
-  return targets;
+  return { to, out };
 }
 
 function normalizeTargets(
@@ -359,12 +363,14 @@ function buildDirectoryJobs(
 
 async function buildDirectoryTargetResults(
   outputTargets: ResolvedMarkdownDirectoryTarget[],
-  filesByTarget: TranslateMarkdownDirectoryFileResult[][],
+  translatedFiles: TranslatedDirectoryFile[],
   dryRun: boolean,
 ): Promise<TranslateMarkdownDirectoryTargetResult[]> {
   const targets: TranslateMarkdownDirectoryTargetResult[] = [];
   for (const [targetIndex, target] of outputTargets.entries()) {
-    const files = filesByTarget[targetIndex] ?? [];
+    const files = translatedFiles
+      .filter((translated) => translated.targetIndex === targetIndex)
+      .map((translated) => translated.file);
     let outDir = target.logicalOutDir;
     if (!dryRun) {
       try {
@@ -389,10 +395,10 @@ async function buildDirectoryTargetResults(
 
 /**
  * Translates every Markdown file in a directory into each target locale.
- * Relative paths are preserved. Every output directory is validated before
- * the first translation. File and locale pairs run together up to the
- * concurrency limit. Dry-run reports paths without calling the translator
- * or writing.
+ * Relative paths are preserved. Every output directory is validated, and config
+ * and guidance are resolved once, before the first translation. File and locale
+ * pairs run together up to the concurrency limit. Dry-run reports paths without
+ * calling the translator or writing.
  */
 export async function translateMarkdownDirectory(
   options: TranslateMarkdownDirectoryOptions,
@@ -419,52 +425,49 @@ export async function translateMarkdownDirectory(
     options.concurrency ?? config.translate?.concurrency,
   );
   const jobs = buildDirectoryJobs(markdownFiles, sourceDir, outputTargets);
+  const resolvedGuidance = await resolveMarkdownGuidance({
+    cwd,
+    config,
+    noConfig: options.noConfig,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
+  });
   const translatedFiles = await mapWithConcurrency({
     items: jobs,
     concurrency,
-    mapper: (job) =>
-      translateMarkdownFile({
-        cwd,
-        source: job.markdownFile,
-        from: fromLocale,
-        to: job.toLocale,
-        out: path.join(job.logicalOutDir, job.relativeFile),
-        dryRun,
-        noConfig: options.noConfig,
-        guidance: options.guidance,
-        guidanceFile: options.guidanceFile,
-        translateMarkdown: options.translateMarkdown,
-      }),
+    mapper: async (job): Promise<TranslatedDirectoryFile> => {
+      const result = await translateMarkdownFileWithGuidance(
+        {
+          cwd,
+          source: job.markdownFile,
+          from: fromLocale,
+          to: job.toLocale,
+          out: path.join(job.logicalOutDir, job.relativeFile),
+          dryRun,
+          translateMarkdown: options.translateMarkdown,
+        },
+        async () => resolvedGuidance,
+      );
+      return {
+        targetIndex: job.targetIndex,
+        file: {
+          sourcePath: result.sourcePath,
+          outPath: result.outPath,
+          sourceBytes: result.sourceBytes,
+          written: result.written,
+        },
+      };
+    },
   });
 
-  const firstTranslation = translatedFiles[0];
-  if (firstTranslation === undefined) {
-    throw new MarkdownTranslateError("Markdown directory translation produced no file results");
-  }
-
-  const filesByTarget: TranslateMarkdownDirectoryFileResult[][] = outputTargets.map(() => []);
-  for (const [index, result] of translatedFiles.entries()) {
-    const job = jobs[index];
-    const bucket = job === undefined ? undefined : filesByTarget[job.targetIndex];
-    if (job === undefined || bucket === undefined) {
-      throw new MarkdownTranslateError("Markdown directory translation is missing a queued file");
-    }
-    bucket.push({
-      sourcePath: result.sourcePath,
-      outPath: result.outPath,
-      sourceBytes: result.sourceBytes,
-      written: result.written,
-    });
-  }
-
-  const targets = await buildDirectoryTargetResults(outputTargets, filesByTarget, dryRun);
+  const targets = await buildDirectoryTargetResults(outputTargets, translatedFiles, dryRun);
 
   return {
     sourceDir,
     fromLocale,
     dryRun,
     targets,
-    guidanceSource: firstTranslation.guidanceSource,
-    guidancePreview: firstTranslation.guidancePreview,
+    guidanceSource: resolvedGuidance.source,
+    guidancePreview: resolvedGuidance.preview,
   };
 }

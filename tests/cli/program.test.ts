@@ -705,6 +705,38 @@ describe("createProgram", () => {
       expect(errorOutput).toMatch(/Each --to requires a locale and an output directory/);
     });
 
+    it.each([
+      { targets: ["--to", "pt", "./example/pt", "./example/fr"], extra: "./example/fr" },
+      { targets: ["--to", "pt", "./example/pt", "fr", "./example/fr"], extra: "fr ./example/fr" },
+    ])("names the extra --to values in %j", async (testCase) => {
+      silenceErrors();
+      const program = createProgram();
+      await program.parseAsync(
+        [
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          ...testCase.targets,
+          "--dry-run",
+          "--no-config",
+        ],
+        { from: "user" },
+      );
+
+      expect(process.exitCode).toBe(1);
+      const errorOutput = errorSpies
+        .flatMap((spy) => spy.mock.calls)
+        .flat()
+        .join("\n");
+      expect(errorOutput).toContain(
+        `Unexpected value after --to pt ./example/pt: ${testCase.extra}`,
+      );
+      expect(errorOutput).toContain("Repeat --to for each locale");
+    });
+
     it("still rejects translate markdown when --from is omitted", async () => {
       silenceErrors();
       const program = createProgram();

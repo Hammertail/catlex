@@ -479,6 +479,105 @@ describe("translateMarkdownDirectory", () => {
     await expect(stat(path.join(cwd, "fr", "index.md"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("lets an in-flight translation finish and starts nothing new after another fails", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-in-flight-"));
+    await writeSource(cwd, path.join("en", "index.md"), "Hello");
+    const started: string[] = [];
+    let markBothStarted = () => {};
+    const bothStarted = new Promise<void>((resolve) => {
+      markBothStarted = resolve;
+    });
+    let releaseInFlight = () => {};
+    const failureRecorded = new Promise<void>((resolve) => {
+      releaseInFlight = resolve;
+    });
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: "en",
+        from: "en",
+        targets: [
+          { to: "pt-BR", out: "pt-BR" },
+          { to: "fr", out: "fr" },
+          { to: "ru", out: "ru" },
+        ],
+        concurrency: 2,
+        noConfig: true,
+        translateMarkdown: async (input) => {
+          started.push(input.targetLocale);
+          if (started.length === 2) {
+            markBothStarted();
+          }
+          await bothStarted;
+          if (input.targetLocale === "fr") {
+            // A later macrotask runs after the pool has recorded this rejection.
+            setTimeout(releaseInFlight, 0);
+            throw new Error("model failed");
+          }
+          await failureRecorded;
+          return { markdown: `translated-${input.targetLocale}` };
+        },
+      }),
+    ).rejects.toThrow("model failed");
+
+    expect(started).toHaveLength(2);
+    expect(started).not.toContain("ru");
+    expect(await readFile(path.join(cwd, "pt-BR", "index.md"), "utf8")).toBe("translated-pt-BR");
+    await expect(stat(path.join(cwd, "fr", "index.md"))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(path.join(cwd, "ru", "index.md"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("resolves guidance once and shares it across every translation", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-guidance-once-"));
+    await writeSource(cwd, path.join("en", "a.md"), "A");
+    await writeSource(cwd, path.join("en", "b.md"), "B");
+    const guidancePath = await writeSource(cwd, "guidance.md", "Keep the brand name.");
+    const prompts: string[] = [];
+
+    const result = await translateMarkdownDirectory({
+      cwd,
+      source: "en",
+      from: "en",
+      targets: [{ to: "pt-BR", out: "pt-BR" }],
+      concurrency: 1,
+      noConfig: true,
+      guidanceFile: "guidance.md",
+      translateMarkdown: async (input) => {
+        prompts.push(input.prompt);
+        await writeFile(guidancePath, "Changed during the run.", "utf8");
+        return { markdown: "x" };
+      },
+    });
+
+    expect(prompts).toHaveLength(2);
+    expect(prompts.every((prompt) => prompt.includes("Keep the brand name."))).toBe(true);
+    expect(prompts.some((prompt) => prompt.includes("Changed during the run."))).toBe(false);
+    expect(result.guidanceSource).toBe("file");
+    expect(result.guidancePreview).toContain("Keep the brand name.");
+  });
+
+  it("rejects an invalid guidance file before calling the translator", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-guidance-missing-"));
+    await writeSource(cwd, path.join("en", "index.md"), "Hello");
+    const translator = createTranslateSpy();
+
+    await expect(
+      translateMarkdownDirectory({
+        cwd,
+        source: "en",
+        from: "en",
+        targets: [{ to: "pt-BR", out: "pt-BR" }],
+        noConfig: true,
+        guidanceFile: "missing.md",
+        translateMarkdown: translator.translateMarkdown,
+      }),
+    ).rejects.toThrow();
+
+    expect(translator.calls).toBe(0);
+    await expect(stat(path.join(cwd, "pt-BR"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("keeps several file translations in flight up to the concurrency limit", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-parallel-files-"));
     await writeSource(cwd, path.join("en", "a.md"), "A");

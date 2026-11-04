@@ -67,12 +67,24 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR 
 | `--guidance <text>`      | Extra project guidance appended to the model prompt                                                                                              |
 | `--guidance-file <path>` | Same path rules as the file command                                                                                                              |
 
-`--from` and at least one `--to <locale> <dir>` are required. There is no separate output argument and no `--out` flag. The output directory must follow its locale (`--to pt-BR ./example/pt-BR`). A repeated locale, or two pairs that resolve to the same directory, is an error.
+`--from` and at least one `--to <locale> <dir>` are required. There is no separate output argument and no `--out` flag. The output directory must follow its locale (`--to pt-BR ./example/pt-BR`). Each `--to` takes exactly those two values, so an extra value after the directory is an error that names it. A repeated locale, or two pairs that resolve to the same directory, is an error.
+
+`--json` reports each locale under `targets`. This replaces the earlier flat output on `main`, so read `targets[n].outDir`, `.toLocale`, `.fileCount`, and `.files` instead of the same top-level fields. Library callers of `translateMarkdownDirectory` pass `targets: [{ to, out }]` instead of `to` and `out`.
+
+```json
+{
+  "sourceDir": "/project/example/en",
+  "fromLocale": "en",
+  "targets": [
+    { "toLocale": "pt-BR", "outDir": "/project/example/pt-BR", "fileCount": 1, "files": [] }
+  ]
+}
+```
 
 ### How a directory is translated
 
 1. The source directory must exist. A missing directory, a path that is not a directory, a path outside `--cwd`, or a symbolic link is an error. An empty `--from` or `--to` locale is an error. `--to` without a following directory is an error.
-2. Every output directory is checked before the first translation. A path outside `--cwd`, a symbolic link, or a path that is not a directory is an error. A missing directory is allowed and is created only on a real run.
+2. Every output directory is checked before the first translation. A path outside `--cwd`, a symbolic link, or a path that is not a directory is an error. A missing directory is allowed and is created only on a real run. Config and guidance are also resolved once at this point, and every translation uses the same guidance.
 3. Markdown files (`.md` and `.markdown`) are listed once, recursively. Other files are skipped. A directory with no Markdown files is an error. Symbolic links are not followed; a Markdown file that is a symbolic link is an error.
 4. Each file keeps its path relative to the source directory. `example/en/guide/setup.md` is written to `example/pt-BR/guide/setup.md` for `--to pt-BR ./example/pt-BR`, and to each other `--to` directory.
 5. Every file × locale pair is queued together. Up to `--concurrency` translations run at once (default 4, maximum 32). `--dry-run` lists every locale and does not call the API or create output directories.
