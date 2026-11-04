@@ -14,15 +14,15 @@ catlex validate --json
 catlex validate --no-config --json
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--dir <path>` | Messages directory relative to `--cwd` |
-| `--base <locale>` | Base locale stem (`en` → `en.json`) |
-| `--cwd <path>` | Project root (default: current directory) |
-| `--strict-extra` | Treat extra keys as errors (default: warnings) |
-| `--no-config` | Ignore `catlex.config.*` |
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--dir <path>`      | Messages directory relative to `--cwd`                            |
+| `--base <locale>`   | Base locale stem (`en` → `en.json`)                               |
+| `--cwd <path>`      | Project root (default: current directory)                         |
+| `--strict-extra`    | Treat extra keys as errors (default: warnings)                    |
+| `--no-config`       | Ignore `catlex.config.*`                                          |
 | `--allow-js-config` | Allow loading `catlex.config.js\|mjs\|ts` (executes project code) |
-| `--json` | Print JSON instead of the Ink report |
+| `--json`            | Print JSON instead of the Ink report                              |
 
 Config: `messagesDir`, `baseLocale`, `strictExtra`. See [Configuration](./configuration.md) and [Message files](./message-files.md).
 
@@ -40,10 +40,10 @@ Values are ignored. `{ "home": "Casa" }` vs `{ "home": "Home" }` is not an issue
 
 ## Missing vs extra
 
-| Kind | Meaning | Default severity |
-|------|---------|------------------|
-| `missing` | Base has a key the locale lacks | Always a failure (exit `1`) |
-| `extra` | Locale has a key the base lacks | Warning unless `--strict-extra` |
+| Kind      | Meaning                         | Default severity                |
+| --------- | ------------------------------- | ------------------------------- |
+| `missing` | Base has a key the locale lacks | Always a failure (exit `1`)     |
+| `extra`   | Locale has a key the base lacks | Warning unless `--strict-extra` |
 
 Typical next-intl workflow: add copy to `en.json` first, then fill other locales (manually or with [`translate`](./translate.md)). Extra keys usually mean a locale drifted (typo, leftover after a rename, or a key that was never added to the base).
 
@@ -51,10 +51,10 @@ Typical next-intl workflow: add copy to `en.json` first, then fill other locales
 
 ## Exit codes
 
-| Code | When |
-|------|------|
-| `0` | No missing keys, and no extra keys if `--strict-extra` |
-| `1` | At least one failing issue, or a load/config error |
+| Code | When                                                   |
+| ---- | ------------------------------------------------------ |
+| `0`  | No missing keys, and no extra keys if `--strict-extra` |
+| `1`  | At least one failing issue, or a load/config error     |
 
 A clean extra-only run without `--strict-extra` exits `0`. The extras still appear in the report.
 

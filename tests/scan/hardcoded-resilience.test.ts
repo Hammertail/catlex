@@ -61,16 +61,15 @@ describe("scanHardcoded resilience", () => {
     await writeFile(path.join(root, "c-good.tsx"), "export const C = () => <span>Cancel</span>;\n");
 
     const originalFile = Bun.file.bind(Bun);
-    Bun.file = ((pathLike: string | URL | ArrayBuffer | DataView) => {
-      const filePath = String(pathLike);
+    Bun.file = ((...args: Parameters<typeof Bun.file>) => {
+      const file = originalFile(...args);
+      const filePath = String(args[0]);
       if (filePath.endsWith(`${path.sep}b-bad.tsx`)) {
-        return {
-          text: async () => {
-            throw new RangeError("Maximum call stack size exceeded");
-          },
-        } as ReturnType<typeof Bun.file>;
+        file.text = async () => {
+          throw new RangeError("Maximum call stack size exceeded");
+        };
       }
-      return originalFile(pathLike);
+      return file;
     }) as typeof Bun.file;
 
     try {

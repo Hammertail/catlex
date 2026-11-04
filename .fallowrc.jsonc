@@ -27,7 +27,7 @@
     ],
     "coverage": {
       "requireAllFiles": true,
-      "allowUnmatched": ["src/index.ts", "tests/**"]
+      "allowUnmatched": ["src/index.ts", "tests/**", "scripts/**"]
     }
   },
   "rules": {}

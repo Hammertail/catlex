@@ -1,10 +1,16 @@
 //* Local imports
+import packageJson from "../../../package.json" with { type: "json" };
 import type { CiWorkflowKind } from "./kinds.ts";
 
+/** Version pinned into generated CI install steps (matches this CLI release). */
+export const CI_CATLEX_VERSION = packageJson.version;
+
 const INSTALL_STEP = `      - name: Install catlex
+        env:
+          CATLEX_VERSION: "${CI_CATLEX_VERSION}"
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
+          curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh" | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"`;
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;
@@ -19,16 +25,23 @@ const SAME_REPO_COMMIT_GUARD =
 /** Path passed as `--guidance-file` on generated translate/review workflows. */
 export const CI_TRANSLATE_GUIDANCE_FILE = "./glossary.md";
 
-function checkoutStep(options?: { fetchDepthZero?: boolean }): string {
-  if (options?.fetchDepthZero) {
-    return `      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0`;
+function checkoutStep(options?: {
+  fetchDepthZero?: boolean;
+  /** Use the branch tip so a patch made by the read job applies in the commit job. */
+  headRef?: boolean;
+  write?: boolean;
+}): string {
+  const lines = [
+    "      - name: Checkout",
+    "        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    "        with:",
+    `          persist-credentials: ${options?.write === true}`,
+  ];
+  if (options?.headRef) {
+    lines.push(`          ref: ${GITHUB_EXPR("github.head_ref || github.ref_name")}`);
   }
-
-  return `      - name: Checkout
-        uses: actions/checkout@v4`;
+  if (options?.fetchDepthZero) lines.push("          fetch-depth: 0");
+  return lines.join("\n");
 }
 
 function openaiEnvBlock(options?: { since?: boolean }): string {
@@ -44,12 +57,60 @@ function openaiEnvBlock(options?: { since?: boolean }): string {
 ${lines.join("\n")}`;
 }
 
-function autoCommitStep(commitMessage: string): string {
-  return `      - name: Commit changes
-        if: ${SAME_REPO_COMMIT_GUARD}
-        uses: stefanzweifel/git-auto-commit-action@v5
+function packageChangesStep(outputId: string, artifactName: string): string {
+  return `      - name: Package translation changes
+        id: ${outputId}
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git add -A
+          git diff --cached --binary > "\${RUNNER_TEMP}/catlex-changes.patch"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload translation changes
+        if: ${GITHUB_EXPR(`steps.${outputId}.outputs.changed == 'true'`)}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          commit_message: ${commitMessage}`;
+          name: ${artifactName}
+          path: \${{ runner.temp }}/catlex-changes.patch`;
+}
+
+function commitChangesJob(options: {
+  jobId: string;
+  jobName: string;
+  needsJobId: string;
+  artifactName: string;
+  commitMessage: string;
+}): string {
+  return `  ${options.jobId}:
+    name: ${options.jobName}
+    needs: ${options.needsJobId}
+    if: ${GITHUB_EXPR(`needs.${options.needsJobId}.outputs.changed == 'true' && (${SAME_REPO_COMMIT_GUARD})`)}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+${checkoutStep({ headRef: true, write: true })}
+
+      - name: Download translation changes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${options.artifactName}
+          path: \${{ runner.temp }}/catlex-changes
+
+      - name: Apply translation changes
+        run: |
+          set -euo pipefail
+          git apply "\${RUNNER_TEMP}/catlex-changes/catlex-changes.patch"
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
+        with:
+          commit_message: ${JSON.stringify(options.commitMessage)}`;
 }
 
 export function generateValidateMessagesWorkflow(): string {
@@ -59,10 +120,18 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   validate-messages:
     name: Validate translation messages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep()}
 
@@ -80,10 +149,19 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   review-translations:
+    if: ${SAME_REPO_COMMIT_GUARD}
     name: Review translation quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep({ fetchDepthZero: true })}
 
@@ -103,14 +181,24 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
 
 jobs:
   review-fix-translations:
-    name: Review, fix, and commit translations
-    runs-on: ubuntu-latest
+    if: ${SAME_REPO_COMMIT_GUARD}
+    name: Review, fix, and prepare commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      changed: ${GITHUB_EXPR("steps.changes.outputs.changed")}
     steps:
-${checkoutStep({ fetchDepthZero: true })}
+${checkoutStep({ fetchDepthZero: true, headRef: true })}
 
 ${INSTALL_STEP}
 
@@ -118,7 +206,15 @@ ${INSTALL_STEP}
         run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
 ${openaiEnvBlock({ since: true })}
 
-${autoCommitStep("chore: apply catlex translation review fixes")}
+${packageChangesStep("changes", "catlex-review-fix-changes")}
+
+${commitChangesJob({
+  jobId: "commit-fixes",
+  jobName: "Commit translation fixes",
+  needsJobId: "review-fix-translations",
+  artifactName: "catlex-review-fix-changes",
+  commitMessage: "chore: apply catlex translation review fixes",
+})}
 `;
 }
 
@@ -130,14 +226,24 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
 
 jobs:
   translate-fill:
-    name: Fill missing translations and commit
-    runs-on: ubuntu-latest
+    if: ${SAME_REPO_COMMIT_GUARD}
+    name: Fill missing translations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      changed: ${GITHUB_EXPR("steps.changes.outputs.changed")}
     steps:
-${checkoutStep()}
+${checkoutStep({ headRef: true })}
 
 ${INSTALL_STEP}
 
@@ -145,7 +251,15 @@ ${INSTALL_STEP}
         run: catlex translate --no-config --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
 ${openaiEnvBlock()}
 
-${autoCommitStep("chore: fill missing translations with catlex")}
+${packageChangesStep("changes", "catlex-translate-fill-changes")}
+
+${commitChangesJob({
+  jobId: "commit-translations",
+  jobName: "Commit filled translations",
+  needsJobId: "translate-fill",
+  artifactName: "catlex-translate-fill-changes",
+  commitMessage: "chore: fill missing translations with catlex",
+})}
 `;
 }
 
