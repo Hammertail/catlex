@@ -374,4 +374,12 @@ TypeScript 7 checks types. The scanner uses Microsoft's `@typescript/typescript6
 
 New releases include `SHA256SUMS`. The Unix and Windows installers verify the selected binary before replacing an existing installation; `CATLEX_INSTALL_DIR` can override the destination. The latest installer requires a checksum-bearing release. To install an older release without a manifest, use that release's own installer. Checksums detect corruption; they do not authenticate a compromised publisher.
 
+New releases also carry a signed SLSA build provenance attestation for every asset. The installers do not check it because they cannot assume the GitHub CLI is present, so verify a downloaded file yourself:
+
+```bash
+gh attestation verify catlex-linux-x64 --repo Hammertail/catlex --signer-workflow Hammertail/catlex/.github/workflows/release.yml
+```
+
+An attestation proves which workflow and commit produced a file; the commit is the one the release was dispatched from, before the automated version bump. It does not prove that the source or its dependencies are benign. The release workflow builds and tests in a read-only job, and only a separate job that runs no repository or dependency code can sign, push and publish. Release assets are immutable once published, and `gh release verify` confirms a release still matches what was published. Binaries are not byte-for-byte reproducible across checkout paths or output names, so rely on the attestation instead of comparing a local rebuild. Windows binaries have no Authenticode signature.
+
 Repository CI checks formatting without committing changes, checks types and dependencies, and tests both color modes. It cross-compiles every release target and runs native offline smoke and installer tests on Linux, macOS and Windows. Native checks for other operating systems run in GitHub Actions; cross-compilation locally does not execute those binaries.

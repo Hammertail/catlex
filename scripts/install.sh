@@ -50,7 +50,10 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 echo "Downloading catlex (${OS}/${ARCH}) ${VERSION}..."
 curl -fsSL --retry 3 "${BASE_URL}/${ASSET_NAME}" -o "${TMP_DIR}/${ASSET_NAME}"
 curl -fsSL --retry 3 "${BASE_URL}/SHA256SUMS" -o "${TMP_DIR}/SHA256SUMS"
-EXPECTED="$(awk -v asset="${ASSET_NAME}" '$2 == asset { print $1; count++ } END { if (count != 1) exit 1 }' "${TMP_DIR}/SHA256SUMS")"
+EXPECTED="$(awk -v asset="${ASSET_NAME}" '$2 == asset { print $1; count++ } END { if (count != 1) exit 1 }' "${TMP_DIR}/SHA256SUMS")" || {
+  echo "Missing or ambiguous checksum for ${ASSET_NAME}" >&2
+  exit 1
+}
 if command -v sha256sum >/dev/null 2>&1; then
   ACTUAL="$(sha256sum "${TMP_DIR}/${ASSET_NAME}" | awk '{ print $1 }')"
 else

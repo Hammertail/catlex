@@ -90,7 +90,7 @@ curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v${CATLEX_VER
 echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 ```
 
-`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. Installers from releases that publish `SHA256SUMS` always verify the binary and fail if the manifest is missing or does not match. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
+`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. Installers from releases that publish `SHA256SUMS` always verify the binary and fail if the manifest is missing or does not match. Installers do not check build provenance attestations; see the [README](../README.md) for the `gh attestation verify` command. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
 
 ## What `catlex ci` does not do
 

@@ -9,6 +9,7 @@ const installer = path.resolve(import.meta.dir, "../../scripts/install.sh");
 const powershellInstaller = path.resolve(import.meta.dir, "../../scripts/install.ps1");
 // pwsh cold start alone can exceed bun's default 5s timeout on shared CI runners.
 const POWERSHELL_TEST_TIMEOUT_MS = 30_000;
+const UNSAFE_VERSIONS = ["0.5.2/../../evil", "0.5.2\n", "0.5.2?asset=evil", "0.5.2;touch evil"];
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -70,10 +71,48 @@ esac
   };
 }
 
-async function run(command: string[], env: NodeJS.ProcessEnv): Promise<number> {
+async function runWithOutput(
+  command: string[],
+  env: NodeJS.ProcessEnv,
+): Promise<{ exitCode: number; stderr: string }> {
   const child = Bun.spawn(command, { env, stdout: "pipe", stderr: "pipe" });
-  await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
-  return child.exited;
+  const [, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { exitCode, stderr };
+}
+
+async function run(command: string[], env: NodeJS.ProcessEnv): Promise<number> {
+  return (await runWithOutput(command, env)).exitCode;
+}
+
+async function runPowershellInstaller(f: {
+  root: string;
+  env: NodeJS.ProcessEnv;
+}): Promise<{ exitCode: number; stderr: string }> {
+  const harness = path.join(f.root, "harness.ps1");
+  await writeFile(
+    harness,
+    `
+$ErrorActionPreference = 'Stop'
+function Invoke-WebRequest {
+  param($Uri, $OutFile, $Method, $MaximumRedirection, [switch]$UseBasicParsing)
+  if ($Method -eq 'Head' -and $Uri -eq 'https://github.com/Hammertail/catlex/releases/latest') { return [pscustomobject]@{ BaseResponse = [pscustomobject]@{ RequestMessage = [pscustomobject]@{ RequestUri = [uri]'https://github.com/Hammertail/catlex/releases/tag/v0.5.2' } } } }
+  if ($Uri -eq 'https://github.com/Hammertail/catlex/releases/download/v0.5.2/SHA256SUMS') { Copy-Item (Join-Path $env:FIXTURE_ROOT 'SHA256SUMS') $OutFile }
+  elseif ($Uri -eq 'https://github.com/Hammertail/catlex/releases/download/v0.5.2/catlex-windows-x64.exe') { Copy-Item (Join-Path $env:FIXTURE_ROOT 'payload') $OutFile }
+  else { throw "Unexpected URL: $Uri" }
+}
+& $env:INSTALLER_PATH
+`,
+  );
+  return runWithOutput(["pwsh", "-NoProfile", "-NonInteractive", "-File", harness], {
+    ...f.env,
+    INSTALLER_PATH: powershellInstaller,
+    POWERSHELL_TELEMETRY_OPTOUT: "1",
+    POWERSHELL_UPDATECHECK: "Off",
+  });
 }
 
 describe.skipIf(process.platform === "win32")("Unix release installer", () => {
@@ -107,6 +146,23 @@ describe.skipIf(process.platform === "win32")("Unix release installer", () => {
     expect(await run(["bash", installer], f.env)).not.toBe(0);
     expect(await Bun.file(path.join(f.destination, "catlex")).exists()).toBe(false);
   });
+
+  it("explains the failure when the manifest has no entry for the selected asset", async () => {
+    const f = await fixture(true);
+    await writeFile(path.join(f.root, "SHA256SUMS"), "");
+    const result = await runWithOutput(["bash", installer], f.env);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Missing or ambiguous checksum for catlex-linux-x64");
+  });
+
+  it.each(UNSAFE_VERSIONS)("rejects the unsafe version %j before downloading", async (version) => {
+    const f = await fixture(true);
+    f.env.CATLEX_VERSION = version;
+    const result = await runWithOutput(["bash", installer], f.env);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Invalid release version");
+    expect(await Bun.file(path.join(f.destination, "catlex")).exists()).toBe(false);
+  });
 });
 
 describe.skipIf(!Bun.which("pwsh"))("Windows release installer", () => {
@@ -117,32 +173,27 @@ describe.skipIf(!Bun.which("pwsh"))("Windows release installer", () => {
         const f = await fixture(valid);
         await mkdir(f.destination);
         await writeFile(path.join(f.destination, "catlex.exe"), "original");
-        const harness = path.join(f.root, "harness.ps1");
-        await writeFile(
-          harness,
-          `
-$ErrorActionPreference = 'Stop'
-function Invoke-WebRequest {
-  param($Uri, $OutFile, $Method, $MaximumRedirection, [switch]$UseBasicParsing)
-  if ($Method -eq 'Head' -and $Uri -eq 'https://github.com/Hammertail/catlex/releases/latest') { return [pscustomobject]@{ BaseResponse = [pscustomobject]@{ RequestMessage = [pscustomobject]@{ RequestUri = [uri]'https://github.com/Hammertail/catlex/releases/tag/v0.5.2' } } } }
-  if ($Uri -eq 'https://github.com/Hammertail/catlex/releases/download/v0.5.2/SHA256SUMS') { Copy-Item (Join-Path $env:FIXTURE_ROOT 'SHA256SUMS') $OutFile }
-  elseif ($Uri -eq 'https://github.com/Hammertail/catlex/releases/download/v0.5.2/catlex-windows-x64.exe') { Copy-Item (Join-Path $env:FIXTURE_ROOT 'payload') $OutFile }
-  else { throw "Unexpected URL: $Uri" }
-}
-& $env:INSTALLER_PATH
-`,
-        );
         if (valid) f.env.CATLEX_VERSION = "latest";
-        const exit = await run(["pwsh", "-NoProfile", "-NonInteractive", "-File", harness], {
-          ...f.env,
-          INSTALLER_PATH: powershellInstaller,
-          POWERSHELL_TELEMETRY_OPTOUT: "1",
-          POWERSHELL_UPDATECHECK: "Off",
-        });
-        expect(exit === 0).toBe(valid);
+        const { exitCode } = await runPowershellInstaller(f);
+        expect(exitCode === 0).toBe(valid);
         expect(await readFile(path.join(f.destination, "catlex.exe"), "utf8")).toBe(
           valid ? "verified catlex binary\n" : "original",
         );
+      },
+      POWERSHELL_TEST_TIMEOUT_MS,
+    );
+  }
+
+  for (const version of UNSAFE_VERSIONS) {
+    it(
+      `rejects the unsafe version ${JSON.stringify(version)} before downloading`,
+      async () => {
+        const f = await fixture(true);
+        f.env.CATLEX_VERSION = version;
+        const result = await runPowershellInstaller(f);
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr).toContain("Invalid release version");
+        expect(await Bun.file(path.join(f.destination, "catlex.exe")).exists()).toBe(false);
       },
       POWERSHELL_TEST_TIMEOUT_MS,
     );

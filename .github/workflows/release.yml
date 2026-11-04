@@ -9,17 +9,24 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: catlex-release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Create release
+  # Runs repository and dependency code, so it must never hold write access or
+  # the OIDC identity used to sign attestations.
+  build:
+    name: Build release assets
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Ensure main branch
         if: github.ref != 'refs/heads/main'
@@ -43,7 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Setup Bun
@@ -93,6 +100,60 @@ jobs:
       - name: Smoke test release binary
         run: bun run smoke -- ./catlex-linux-x64
 
+      - name: Upload release assets
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-assets
+          path: |
+            catlex-linux-x64
+            catlex-linux-arm64
+            catlex-darwin-x64
+            catlex-darwin-arm64
+            catlex-windows-x64.exe
+            install.sh
+            install.ps1
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
+
+  # Holds write access and the signing identity, so it must not run repository
+  # or dependency code: no Bun, no package scripts, and no executed assets.
+  publish:
+    name: Attest and publish release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download release assets
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Verify release assets
+        working-directory: release-assets
+        run: sha256sum --check SHA256SUMS
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-assets/*
+
+      - name: Bump version
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          jq --arg version "${VERSION}" '.version = $version' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -100,7 +161,7 @@ jobs:
 
       - name: Commit, tag and push
         env:
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           git add package.json
           git commit -m "chore: release ${TAG}"
@@ -109,10 +170,11 @@ jobs:
           git push origin "${TAG}"
 
       - name: Create GitHub Release
+        working-directory: release-assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+          TAG: ${{ needs.build.outputs.tag }}
         run: |
           gh release create "${TAG}" \
             catlex-linux-x64 \
@@ -153,6 +215,14 @@ jobs:
 
           \`\`\`powershell
           \$env:CATLEX_VERSION='${VERSION}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
+          \`\`\`
+
+          ## Verify provenance
+
+          Every asset has a signed build provenance attestation. Check a downloaded file with the GitHub CLI:
+
+          \`\`\`bash
+          gh attestation verify catlex-linux-x64 --repo ${{ github.repository }} --signer-workflow ${{ github.repository }}/.github/workflows/release.yml
           \`\`\`
           EOF
           )"
