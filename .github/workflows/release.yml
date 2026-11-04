@@ -140,7 +140,7 @@ jobs:
           To install a specific version:
 
           \`\`\`powershell
-          \$env:CATLEX_VERSION='${VERSION}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
+          \$env:CATLEX_VERSION='${VERSION}'; \$env:CATLEX_REQUIRE_CHECKSUM='1'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
           \`\`\`
           EOF
           )"
