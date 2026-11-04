@@ -39,6 +39,7 @@ export type CreateOpenAiReviewerOptions = {
   apiKey?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
+  allowInsecureBaseUrl?: boolean;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   generateText?: GenerateTextFn;
   createModel?: (modelId: string) => Parameters<GenerateTextFn>[0]["model"];
@@ -54,7 +55,11 @@ export function createOpenAiReviewer(options: CreateOpenAiReviewerOptions = {}):
   return async (input: ReviewLocaleInput): Promise<SubmitTranslationReviewsInput> => {
     const env = options.env ?? process.env;
     const apiKey = options.apiKey ?? assertOpenAiApiKey(env);
-    const baseUrl = resolveOpenAiBaseUrl({ baseUrl: options.baseUrl, env });
+    const baseUrl = resolveOpenAiBaseUrl({
+      baseUrl: options.baseUrl,
+      env,
+      allowInsecure: options.allowInsecureBaseUrl,
+    });
 
     const model =
       options.createModel?.(modelId) ??

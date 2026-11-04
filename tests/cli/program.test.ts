@@ -187,6 +187,8 @@ describe("createProgram", () => {
       expect(reviewFlags.has("--guidance <text>")).toBe(true);
       expect(reviewFlags.has("--guidance-file <path>")).toBe(true);
       expect(reviewFlags.has("--no-config")).toBe(true);
+      expect(reviewFlags.has("--allow-js-config")).toBe(true);
+      expect(reviewFlags.has("--allow-insecure-base-url")).toBe(true);
 
       const markdownFlags = new Set(markdown.options.map((option) => option.flags));
       expect(markdownFlags.has("--from <locale>")).toBe(true);
@@ -195,6 +197,8 @@ describe("createProgram", () => {
       expect(markdownFlags.has("--json")).toBe(true);
       expect(markdownFlags.has("--dry-run")).toBe(true);
       expect(markdownFlags.has("--no-config")).toBe(true);
+      expect(markdownFlags.has("--allow-js-config")).toBe(true);
+      expect(markdownFlags.has("--allow-insecure-base-url")).toBe(true);
       expect(markdownFlags.has("--guidance <text>")).toBe(true);
       expect(markdownFlags.has("--guidance-file <path>")).toBe(true);
 
@@ -208,16 +212,21 @@ describe("createProgram", () => {
       expect(markdownDirFlags.has("--out <path>")).toBe(false);
       expect(markdownDirFlags.has("--json")).toBe(true);
       expect(markdownDirFlags.has("--dry-run")).toBe(true);
+      expect(markdownDirFlags.has("--allow-js-config")).toBe(true);
+      expect(markdownDirFlags.has("--allow-insecure-base-url")).toBe(true);
 
       const validateFlags = new Set(
         findCommand(program, ["validate"]).options.map((option) => option.flags),
       );
       expect(validateFlags.has("--no-config")).toBe(true);
+      expect(validateFlags.has("--allow-js-config")).toBe(true);
 
       const translateFlags = new Set(
         findCommand(program, ["translate"]).options.map((option) => option.flags),
       );
       expect(translateFlags.has("--no-config")).toBe(true);
+      expect(translateFlags.has("--allow-js-config")).toBe(true);
+      expect(translateFlags.has("--allow-insecure-base-url")).toBe(true);
       expect(translateFlags.has("--concurrency <n>")).toBe(true);
       expect(translateFlags.has("--guidance <text>")).toBe(true);
       expect(translateFlags.has("--guidance-file <path>")).toBe(true);
@@ -735,6 +744,41 @@ describe("createProgram", () => {
         `Unexpected value after --to pt ./example/pt: ${testCase.extra}`,
       );
       expect(errorOutput).toContain("Repeat --to for each locale");
+    });
+
+    it("forwards the opt-in security flags to the markdown commands", async () => {
+      silenceErrors();
+      const flags = ["--allow-js-config", "--allow-insecure-base-url"];
+      const expected = { allowJsConfig: true, allowInsecureBaseUrl: true };
+
+      expect(
+        await captureMarkdownActionOptions([
+          "translate",
+          "markdown",
+          "./docs/en/example.md",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "--out",
+          "./docs/pt-BR/example.md",
+          ...flags,
+        ]),
+      ).toMatchObject(expected);
+      expect(
+        await captureMarkdownDirActionOptions([
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "./example/pt-BR",
+          ...flags,
+        ]),
+      ).toMatchObject(expected);
     });
 
     it("still rejects translate markdown when --from is omitted", async () => {

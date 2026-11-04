@@ -17,20 +17,22 @@ catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs
 catlex translate markdown ./docs/en/example.md --from en --to pt-BR --out ./docs/pt-BR/example.md --json
 ```
 
-| Option / argument        | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `<file>`                 | Markdown source (`.md` or `.markdown`)                                                                          |
-| `--from <locale>`        | Source locale                                                                                                   |
-| `--to <locale>`          | Target locale                                                                                                   |
-| `--out <path>`           | Write translated Markdown here (parent dirs are created; existing files are overwritten)                        |
-| `--cwd <path>`           | Project root                                                                                                    |
-| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
-| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
-| `--dry-run`              | Validate the source and report paths; **no API call**, no `OPENAI_API_KEY` required, no write                   |
-| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
-| `--json`                 | JSON on stdout                                                                                                  |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option / argument           | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `<file>`                    | Markdown source (`.md` or `.markdown`)                                                                          |
+| `--from <locale>`           | Source locale                                                                                                   |
+| `--to <locale>`             | Target locale                                                                                                   |
+| `--out <path>`              | Write translated Markdown here (parent dirs are created; existing files are overwritten)                        |
+| `--cwd <path>`              | Project root                                                                                                    |
+| `--model <id>`              | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`          | OpenAI-compatible API base URL                                                                                  |
+| `--dry-run`                 | Validate the source and report paths; **no API call**, no `OPENAI_API_KEY` required, no write                   |
+| `--no-config`               | Ignore `catlex.config.*`                                                                                        |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | JSON on stdout                                                                                                  |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 `--from`, `--to`, and `--out` are required. `--from` does not default to config `baseLocale`.
 
@@ -52,20 +54,22 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR 
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --json
 ```
 
-| Option / argument        | Description                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `<dir>`                  | Source directory. Must exist, be a real directory, and stay inside `--cwd`                                                                       |
-| `--from <locale>`        | Source locale                                                                                                                                    |
-| `--to <locale> <dir>`    | Target locale and output directory. Repeat the pair for each locale. `pt-BR,es` in one `--to` is an error. The directory is created when missing |
-| `--cwd <path>`           | Project root                                                                                                                                     |
-| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                                                               |
-| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                                                   |
-| `--dry-run`              | List the files that would be translated. **No API call**, no `OPENAI_API_KEY`, no write, no directory creation                                   |
-| `--no-config`            | Ignore `catlex.config.*`                                                                                                                         |
-| `--json`                 | JSON on stdout (`sourceDir`, `fromLocale`, and a `targets` entry per locale)                                                                     |
-| `--concurrency <n>`      | Max in-flight translations (default `4`, range 1–32). CLI wins over config `translate.concurrency`                                               |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                                                              |
-| `--guidance-file <path>` | Same path rules as the file command                                                                                                              |
+| Option / argument           | Description                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<dir>`                     | Source directory. Must exist, be a real directory, and stay inside `--cwd`                                                                       |
+| `--from <locale>`           | Source locale                                                                                                                                    |
+| `--to <locale> <dir>`       | Target locale and output directory. Repeat the pair for each locale. `pt-BR,es` in one `--to` is an error. The directory is created when missing |
+| `--cwd <path>`              | Project root                                                                                                                                     |
+| `--model <id>`              | Model id (default: `gpt-5.4-mini`)                                                                                                               |
+| `--base-url <url>`          | OpenAI-compatible API base URL                                                                                                                   |
+| `--dry-run`                 | List the files that would be translated. **No API call**, no `OPENAI_API_KEY`, no write, no directory creation                                   |
+| `--no-config`               | Ignore `catlex.config.*`                                                                                                                         |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                                                                |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                                                                |
+| `--json`                    | JSON on stdout (`sourceDir`, `fromLocale`, and a `targets` entry per locale)                                                                     |
+| `--concurrency <n>`         | Max in-flight translations (default `4`, range 1–32). CLI wins over config `translate.concurrency`                                               |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                                                              |
+| `--guidance-file <path>`    | Same path rules as the file command                                                                                                              |
 
 `--from` and at least one `--to <locale> <dir>` are required. There is no separate output argument and no `--out` flag. The output directory must follow its locale (`--to pt-BR ./example/pt-BR`). Each `--to` takes exactly those two values, so an extra value after the directory is an error that names it. A repeated locale, or two pairs that resolve to the same directory, is an error.
 

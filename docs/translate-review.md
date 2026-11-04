@@ -16,23 +16,25 @@ catlex translate review --since main --auto-fix --yes --json
 catlex translate review --verbose
 ```
 
-| Option                   | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `--dir <path>`           | Messages directory relative to `--cwd`                                                                          |
-| `--base <locale>`        | Base locale stem                                                                                                |
-| `--cwd <path>`           | Project root                                                                                                    |
-| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
-| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
-| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
-| `--since <ref>`          | Only review keys changed between `<ref>` and the **working tree** (includes uncommitted edits)                  |
-| `--auto-fix`             | Collect suggested values for `wrong` / missing keys                                                             |
-| `--yes`                  | Apply auto-fix writes without a confirmation prompt                                                             |
-| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
-| `--json`                 | JSON on stdout; banner/progress on stderr                                                                       |
-| `--verbose`              | Print per-chunk path lists                                                                                      |
-| `--concurrency <n>`      | Max parallel API calls (default `4`, range 1–32)                                                                |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option                      | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`              | Messages directory relative to `--cwd`                                                                          |
+| `--base <locale>`           | Base locale stem                                                                                                |
+| `--cwd <path>`              | Project root                                                                                                    |
+| `--locale <locale>`         | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`              | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`          | OpenAI-compatible API base URL                                                                                  |
+| `--since <ref>`             | Only review keys changed between `<ref>` and the **working tree** (includes uncommitted edits)                  |
+| `--auto-fix`                | Collect suggested values for `wrong` / missing keys                                                             |
+| `--yes`                     | Apply auto-fix writes without a confirmation prompt                                                             |
+| `--no-config`               | Ignore `catlex.config.*`                                                                                        |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | JSON on stdout; banner/progress on stderr                                                                       |
+| `--verbose`                 | Print per-chunk path lists                                                                                      |
+| `--concurrency <n>`         | Max parallel API calls (default `4`, range 1–32)                                                                |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Providers, API key, headers, concurrency, and project guidance work the same as [`translate`](./translate.md). Guidance applies to both present-key review and `--auto-fix` missing-key translation.
 

@@ -48,6 +48,7 @@ export {
 } from "./core/ci/kinds.ts";
 export { resolveWorkflowPath } from "./core/ci/paths.ts";
 export {
+  CI_CATLEX_VERSION,
   CI_TRANSLATE_GUIDANCE_FILE,
   generateReviewFixTranslationsWorkflow,
   generateReviewTranslationsWorkflow,
@@ -67,9 +68,11 @@ export {
 } from "./core/translate/collect.ts";
 export {
   DEFAULT_OPENAI_TRANSLATE_MODEL,
+  InsecureOpenAiBaseUrlError,
   MissingOpenAiApiKeyError,
   MissingSubmitTranslationsError,
   assertOpenAiApiKey,
+  assertSafeOpenAiBaseUrl,
   buildOpenAiProviderSettings,
   createOpenAiTranslator,
   resolveOpenAiBaseUrl,

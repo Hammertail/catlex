@@ -27,6 +27,8 @@ export type TranslateMarkdownDirCommandOptions = {
   baseUrl?: string;
   dryRun?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
+  allowInsecureBaseUrl?: boolean;
   json?: boolean;
   concurrency?: number;
   guidance?: string;
@@ -111,8 +113,10 @@ function resolveTranslator(
         baseUrl: options.baseUrl,
         configBaseUrl: config.openai?.baseUrl,
         env,
+        allowInsecure: options.allowInsecureBaseUrl === true,
       }),
       headers: config.openai?.headers,
+      allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
       env,
     })
   );
@@ -147,7 +151,8 @@ export async function runTranslateMarkdownDirCommand(
   }
 
   const noConfig = options.noConfig === true;
-  const config = await loadConfig(cwd, { noConfig });
+  const allowJsConfig = options.allowJsConfig === true;
+  const config = await loadConfig(cwd, { noConfig, allowJsConfig });
   const translateMarkdown =
     dryRun && options.translateMarkdown === undefined
       ? async () => ({ markdown: "" })
@@ -160,6 +165,7 @@ export async function runTranslateMarkdownDirCommand(
     targets: options.targets,
     dryRun,
     noConfig,
+    allowJsConfig,
     concurrency: options.concurrency,
     guidance: options.guidance,
     guidanceFile: options.guidanceFile,

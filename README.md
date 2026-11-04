@@ -12,13 +12,13 @@ Catch missing keys before they hit production, optionally fail on keys that exis
 curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
 ```
 
-Pin a version:
+`latest` is convenient for humans. For CI and other production runners, pin a version:
 
 ```bash
 curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.sh | CATLEX_VERSION=0.0.1 bash
 ```
 
-The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and installs to `~/.local/bin/catlex`. Make sure `~/.local/bin` is on your `PATH`.
+The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`), verifies the binary against the release `SHA256SUMS` (the install fails if it is missing or does not match), and installs to `~/.local/bin/catlex`. Make sure `~/.local/bin` is on your `PATH`.
 
 ### Windows (x64)
 
@@ -26,13 +26,13 @@ The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`) and 
 irm https://github.com/Hammertail/catlex/releases/latest/download/install.ps1 | iex
 ```
 
-Pin a version:
+Pin a version (recommended for CI):
 
 ```powershell
 $env:CATLEX_VERSION='0.0.1'; irm https://github.com/Hammertail/catlex/releases/download/v0.0.1/install.ps1 | iex
 ```
 
-The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`.
+The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`. The installer verifies the download against the release `SHA256SUMS` and fails if it is missing or does not match.
 
 ## Quick start
 
@@ -70,14 +70,15 @@ Use `--strict-extra` to treat extra keys as errors.
 catlex validate [options]
 ```
 
-| Option            | Description                                            |
-| ----------------- | ------------------------------------------------------ |
-| `--dir <path>`    | Messages directory relative to the project root        |
-| `--base <locale>` | Base locale file stem (e.g. `en` → `en.json`)          |
-| `--cwd <path>`    | Project root (default: current directory)              |
-| `--strict-extra`  | Treat extra keys as errors                             |
-| `--no-config`     | Do not load or execute project `catlex.config.*` files |
-| `--json`          | Print JSON instead of the interactive terminal UI      |
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--dir <path>`      | Messages directory relative to the project root                   |
+| `--base <locale>`   | Base locale file stem (e.g. `en` → `en.json`)                     |
+| `--cwd <path>`      | Project root (default: current directory)                         |
+| `--strict-extra`    | Treat extra keys as errors                                        |
+| `--no-config`       | Do not load or execute project `catlex.config.*` files            |
+| `--allow-js-config` | Allow loading `catlex.config.js\|mjs\|ts` (executes project code) |
+| `--json`            | Print JSON instead of the interactive terminal UI                 |
 
 Examples:
 
@@ -119,7 +120,9 @@ Example `catlex.config.json`:
 }
 ```
 
-`.js` / `.mjs` / `.ts` configs are **executable code** (loaded via dynamic `import`). Only use them in trusted local environments. In CI, prefer `--no-config` and pass settings with CLI flags such as `--dir` and `--base`. Generated GitHub Actions workflows from `catlex ci` include `--no-config` by default.
+`.js` / `.mjs` / `.ts` configs are **executable code** (dynamic `import`) and are **refused by default**. Pass `--allow-js-config` only in trusted local environments. Prefer `catlex.config.json`, or `--no-config` with CLI flags. Generated GitHub Actions workflows from `catlex ci` include `--no-config` by default.
+
+JSON config is still **project-controlled policy** (not just data): it can set `openai.baseUrl` / `openai.headers`. Catlex rejects non-https and private/link-local base URLs unless you pass `--allow-insecure-base-url`.
 
 ## Source scan (alpha)
 
@@ -152,25 +155,27 @@ catlex translate --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.4-
 catlex translate --json
 ```
 
-| Option                   | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `--dir <path>`           | Messages directory relative to the project root                                                                 |
-| `--base <locale>`        | Base locale file stem (e.g. `en`)                                                                               |
-| `--cwd <path>`           | Project root (default: current directory)                                                                       |
-| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
-| `--model <id>`           | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
-| `--base-url <url>`       | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
-| `--dry-run`              | List missing keys without calling the API or writing files                                                      |
-| `--yes`                  | Skip both interactive prompts and write files                                                                   |
-| `--no-config`            | Do not load or execute project `catlex.config.*` files                                                          |
-| `--json`                 | Print JSON instead of the interactive terminal UI                                                               |
-| `--concurrency <n>`      | Max parallel translation API calls (default: `4`, range 1–32)                                                   |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option                      | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`              | Messages directory relative to the project root                                                                 |
+| `--base <locale>`           | Base locale file stem (e.g. `en`)                                                                               |
+| `--cwd <path>`              | Project root (default: current directory)                                                                       |
+| `--locale <locale>`         | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`              | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
+| `--base-url <url>`          | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
+| `--dry-run`                 | List missing keys without calling the API or writing files                                                      |
+| `--yes`                     | Skip both interactive prompts and write files                                                                   |
+| `--no-config`               | Do not load or execute project `catlex.config.*` files                                                          |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | Print JSON instead of the interactive terminal UI                                                               |
+| `--concurrency <n>`         | Max parallel translation API calls (default: `4`, range 1–32)                                                   |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Requires `OPENAI_API_KEY` in the environment. Catlex never stores API keys in config files.
 
-To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `translate.guidanceFile`, `--guidance`, or `--guidance-file` (CLI inline text wins over the CLI file, which wins over config inline, which wins over config file; do not pass both CLI flags). `--guidance-file` must resolve inside `--cwd` (absolute only if still under `--cwd`; no symlinks); `translate.guidanceFile` must resolve inside the config file directory. Guidance file contents are sent to the LLM provider:
+To use an OpenAI-compatible provider (OpenRouter, proxies, self-hosted gateways), set a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl` in `catlex.config.*` (CLI wins over config over env). The URL must be public `https` unless you pass `--allow-insecure-base-url` (for trusted local proxies). The endpoint must implement the OpenAI API surface Catlex uses (chat completions with tool calling). Optional provider headers (for example OpenRouter `HTTP-Referer` / `X-Title`) can be set under `openai.headers` in config only. Parallelism is `translate.concurrency` in config or `--concurrency` on the command (CLI wins over config over the default of 4). Extra translation guidance (a terminology glossary) is `translate.guidance`, `translate.guidanceFile`, `--guidance`, or `--guidance-file` (CLI inline text wins over the CLI file, which wins over config inline, which wins over config file; do not pass both CLI flags). `--guidance-file` must resolve inside `--cwd` (absolute only if still under `--cwd`; no symlinks); `translate.guidanceFile` must resolve inside the config file directory. Guidance file contents are sent to the LLM provider:
 
 ```json
 {
@@ -210,23 +215,25 @@ catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR
 catlex translate markdown dir ./example/en --from en --to pt-BR ./example/pt-BR --to fr ./example/fr --to ru ./example/ru
 ```
 
-| Option / argument        | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `<file>`                 | Markdown source (`.md` or `.markdown`) for `translate markdown`                                                 |
-| `<dir>`                  | Source directory for `translate markdown dir`                                                                   |
-| `--from <locale>`        | Source locale                                                                                                   |
-| `--to <locale>`          | Target locale for `translate markdown` (one locale)                                                             |
-| `--to <locale> <dir>`    | Target locale and output directory for `translate markdown dir` (repeat for each locale)                        |
-| `--out <path>`           | Write translated Markdown here (`translate markdown` only)                                                      |
-| `--cwd <path>`           | Project root (default: current directory)                                                                       |
-| `--model <id>`           | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
-| `--base-url <url>`       | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
-| `--dry-run`              | Validate sources without calling the API or writing                                                             |
-| `--no-config`            | Do not load or execute project `catlex.config.*` files                                                          |
-| `--json`                 | Print JSON instead of text                                                                                      |
-| `--concurrency <n>`      | Max in-flight translations for `translate markdown dir` (default 4, range 1–32)                                 |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option / argument           | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `<file>`                    | Markdown source (`.md` or `.markdown`) for `translate markdown`                                                 |
+| `<dir>`                     | Source directory for `translate markdown dir`                                                                   |
+| `--from <locale>`           | Source locale                                                                                                   |
+| `--to <locale>`             | Target locale for `translate markdown` (one locale)                                                             |
+| `--to <locale> <dir>`       | Target locale and output directory for `translate markdown dir` (repeat for each locale)                        |
+| `--out <path>`              | Write translated Markdown here (`translate markdown` only)                                                      |
+| `--cwd <path>`              | Project root (default: current directory)                                                                       |
+| `--model <id>`              | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
+| `--base-url <url>`          | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
+| `--dry-run`                 | Validate sources without calling the API or writing                                                             |
+| `--no-config`               | Do not load or execute project `catlex.config.*` files                                                          |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | Print JSON instead of text                                                                                      |
+| `--concurrency <n>`         | Max in-flight translations for `translate markdown dir` (default 4, range 1–32)                                 |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 `--from` and `--to` are required. The file command also requires `--out`. Sources must stay under `--cwd`. Each file is at most 64 KiB. A missing output directory is created; an existing file is overwritten with no confirm prompt. `translate markdown dir` walks the source directory recursively, keeps relative paths, and skips files that are not Markdown. Each `--to` is one locale followed by its output directory. File and locale pairs run together, up to `--concurrency` at a time.
 
@@ -246,23 +253,25 @@ catlex translate review --since main --auto-fix --yes --json
 catlex translate review --verbose
 ```
 
-| Option                   | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `--dir <path>`           | Messages directory relative to the project root                                                                 |
-| `--base <locale>`        | Base locale file stem (e.g. `en`)                                                                               |
-| `--cwd <path>`           | Project root (default: current directory)                                                                       |
-| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
-| `--model <id>`           | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
-| `--base-url <url>`       | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
-| `--since <ref>`          | Only review keys changed between `<ref>` and the current working tree (**recommended in CI**)                   |
-| `--auto-fix`             | Propose fixes for `wrong` / missing keys                                                                        |
-| `--yes`                  | Apply auto-fix writes without interactive confirmation                                                          |
-| `--no-config`            | Do not load or execute project `catlex.config.*` files                                                          |
-| `--json`                 | Print JSON instead of the interactive terminal UI                                                               |
-| `--verbose`              | Print per-chunk progress details (paths reviewed in each batch)                                                 |
-| `--concurrency <n>`      | Max parallel translation API calls (default: `4`, range 1–32)                                                   |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option                      | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`              | Messages directory relative to the project root                                                                 |
+| `--base <locale>`           | Base locale file stem (e.g. `en`)                                                                               |
+| `--cwd <path>`              | Project root (default: current directory)                                                                       |
+| `--locale <locale>`         | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`              | OpenAI model id (default: `gpt-5.4-mini`)                                                                       |
+| `--base-url <url>`          | OpenAI-compatible API base URL (default: official OpenAI endpoint)                                              |
+| `--since <ref>`             | Only review keys changed between `<ref>` and the current working tree (**recommended in CI**)                   |
+| `--auto-fix`                | Propose fixes for `wrong` / missing keys                                                                        |
+| `--yes`                     | Apply auto-fix writes without interactive confirmation                                                          |
+| `--no-config`               | Do not load or execute project `catlex.config.*` files                                                          |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | Print JSON instead of the interactive terminal UI                                                               |
+| `--verbose`                 | Print per-chunk progress details (paths reviewed in each batch)                                                 |
+| `--concurrency <n>`         | Max parallel translation API calls (default: `4`, range 1–32)                                                   |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 Without `--since`, catlex reviews the **full** corpus (every string key in the base locale × each target locale). That is expensive and noisy — prefer `--since` locally for focused work and always in CI. Full-corpus review still issues one model call per chunk of 50 keys; the default of 4 concurrent calls reduces wall-clock time but does not change how many calls run in total.
 
@@ -339,7 +348,7 @@ catlex ci
 | Review, auto-fix, and commit         | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit            |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml`          | `catlex translate --no-config --yes`, then commit                  |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Auto-commit workflows set `permissions: contents: write` and use `stefanzweifel/git-auto-commit-action`, with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
+AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Generated installs pin the Catlex version that scaffolded the file. Gate-only jobs use `permissions: contents: read`. Auto-commit workflows isolate write access to a separate commit job (`stefanzweifel/git-auto-commit-action`) with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
 
 ## Building from source
 

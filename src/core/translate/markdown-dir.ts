@@ -31,6 +31,7 @@ export type TranslateMarkdownDirectoryOptions = {
   targets: TranslateMarkdownDirectoryTarget[];
   dryRun?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
   concurrency?: number;
   guidance?: string;
   guidanceFile?: string;
@@ -420,7 +421,10 @@ export async function translateMarkdownDirectory(
     throw new MarkdownTranslateError(`No Markdown files found in source directory: ${sourceInput}`);
   }
 
-  const config = await loadConfig(cwd, { noConfig: options.noConfig });
+  const config = await loadConfig(cwd, {
+    noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
+  });
   const concurrency = resolveTranslateConcurrency(
     options.concurrency ?? config.translate?.concurrency,
   );

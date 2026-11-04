@@ -130,4 +130,32 @@ describe("createOpenAiMarkdownTranslator", () => {
       }),
     ).rejects.toBeInstanceOf(MissingOpenAiApiKeyError);
   });
+
+  it("rejects insecure base URLs unless allowInsecureBaseUrl is true", async () => {
+    const input = {
+      sourceLocale: "en",
+      targetLocale: "pt-BR",
+      sourceMarkdown: "# Hello\n",
+      prompt: "translate this markdown",
+    };
+    const generateText = (async (options: {
+      tools?: Record<string, { execute?: (input: unknown, context: unknown) => unknown }>;
+    }) => {
+      await options.tools?.submitMarkdownTranslation?.execute?.({ markdown: "# Olá\n" }, {});
+      return { text: "", toolCalls: [], toolResults: [] };
+    }) as never;
+    const shared = {
+      apiKey: "sk-test",
+      baseUrl: "http://127.0.0.1:8080/v1",
+      generateText,
+      createModel: () => "stub-model" as never,
+    };
+
+    await expect(createOpenAiMarkdownTranslator(shared)(input)).rejects.toThrow(
+      /allow-insecure-base-url/,
+    );
+    await expect(
+      createOpenAiMarkdownTranslator({ ...shared, allowInsecureBaseUrl: true })(input),
+    ).resolves.toEqual({ markdown: "# Olá\n" });
+  });
 });

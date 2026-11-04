@@ -42,6 +42,7 @@ export type TranslateMarkdownFileOptions = {
   out: string;
   dryRun?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
   guidance?: string;
   guidanceFile?: string;
   translateMarkdown: TranslateMarkdownFn;
@@ -281,7 +282,10 @@ export async function resolveMarkdownGuidance(options: {
  * requested after the source is validated.
  */
 export async function translateMarkdownFileWithGuidance(
-  options: Omit<TranslateMarkdownFileOptions, "noConfig" | "guidance" | "guidanceFile">,
+  options: Omit<
+    TranslateMarkdownFileOptions,
+    "noConfig" | "allowJsConfig" | "guidance" | "guidanceFile"
+  >,
   loadGuidance: () => Promise<ResolvedTranslateGuidance>,
 ): Promise<TranslateMarkdownResult> {
   const cwd = options.cwd ?? process.cwd();
@@ -362,7 +366,10 @@ export async function translateMarkdownFile(
 ): Promise<TranslateMarkdownResult> {
   const cwd = options.cwd ?? process.cwd();
   return translateMarkdownFileWithGuidance(options, async () => {
-    const config = await loadConfig(cwd, { noConfig: options.noConfig });
+    const config = await loadConfig(cwd, {
+      noConfig: options.noConfig,
+      allowJsConfig: options.allowJsConfig,
+    });
     return resolveMarkdownGuidance({
       cwd,
       config,

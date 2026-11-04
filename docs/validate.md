@@ -14,14 +14,15 @@ catlex validate --json
 catlex validate --no-config --json
 ```
 
-| Option            | Description                                    |
-| ----------------- | ---------------------------------------------- |
-| `--dir <path>`    | Messages directory relative to `--cwd`         |
-| `--base <locale>` | Base locale stem (`en` → `en.json`)            |
-| `--cwd <path>`    | Project root (default: current directory)      |
-| `--strict-extra`  | Treat extra keys as errors (default: warnings) |
-| `--no-config`     | Ignore `catlex.config.*`                       |
-| `--json`          | Print JSON instead of the Ink report           |
+| Option              | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `--dir <path>`      | Messages directory relative to `--cwd`                            |
+| `--base <locale>`   | Base locale stem (`en` → `en.json`)                               |
+| `--cwd <path>`      | Project root (default: current directory)                         |
+| `--strict-extra`    | Treat extra keys as errors (default: warnings)                    |
+| `--no-config`       | Ignore `catlex.config.*`                                          |
+| `--allow-js-config` | Allow loading `catlex.config.js\|mjs\|ts` (executes project code) |
+| `--json`            | Print JSON instead of the Ink report                              |
 
 Config: `messagesDir`, `baseLocale`, `strictExtra`. See [Configuration](./configuration.md) and [Message files](./message-files.md).
 

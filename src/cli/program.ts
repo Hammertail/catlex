@@ -126,6 +126,11 @@ export function createProgram(): Command {
     .option("--cwd <path>", "Project root directory", process.cwd())
     .option("--strict-extra", "Treat keys missing from the base locale as errors", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
@@ -135,6 +140,7 @@ export function createProgram(): Command {
           cwd: options.cwd,
           strictExtra: options.strictExtra === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
           json: options.json === true,
         }),
       );
@@ -189,6 +195,16 @@ export function createProgram(): Command {
     .option("--dry-run", "List missing keys without calling the API or writing files", false)
     .option("--yes", "Write files without interactive confirmation", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .option(
       "--concurrency <n>",
@@ -212,6 +228,8 @@ export function createProgram(): Command {
           dryRun: options.dryRun === true,
           yes: options.yes === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           concurrency: options.concurrency,
           guidance: options.guidance,
@@ -250,6 +268,16 @@ export function createProgram(): Command {
     .option("--auto-fix", "Propose fixes for wrong/missing translations", false)
     .option("--yes", "Apply auto-fix writes without interactive confirmation", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .option("--verbose", "Print per-chunk review progress details", false)
     .option(
@@ -275,6 +303,8 @@ export function createProgram(): Command {
           autoFix: options.autoFix === true,
           yes: options.yes === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           verbose: options.verbose === true,
           concurrency: options.concurrency,
@@ -299,6 +329,16 @@ export function createProgram(): Command {
     )
     .option("--dry-run", "Validate the source file without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of text", false)
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
@@ -338,6 +378,8 @@ export function createProgram(): Command {
           baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
@@ -365,6 +407,16 @@ export function createProgram(): Command {
     )
     .option("--dry-run", "Validate source files without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of text", false)
     .option(
       "--concurrency <n>",
@@ -388,6 +440,8 @@ export function createProgram(): Command {
           baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           concurrency: options.concurrency,
           guidance: options.guidance,

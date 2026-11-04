@@ -63,83 +63,74 @@ async function pruneOldLogs(dir: string): Promise<void> {
 
 export async function writeCrashReport(report: CrashReport, providedDir?: string): Promise<string> {
   const dir = providedDir ?? defaultLogDir();
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const name = filenameFor(new Date(report.timestamp));
+  const target = path.join(dir, name);
+  const tmp = `${target}.tmp`;
+  const contents = formatReport(report);
   try {
-    await mkdir(dir, { recursive: true, mode: 0o700 });
-    const name = filenameFor(new Date(report.timestamp));
-    const target = path.join(dir, name);
-    const tmp = `${target}.tmp`;
-    const contents = formatReport(report);
+    await writeFile(tmp, contents, { encoding: "utf8", mode: 0o600 });
+    await rename(tmp, target);
     try {
-      await writeFile(tmp, contents, { encoding: "utf8", mode: 0o600 });
-      await rename(tmp, target);
-      try {
-        await chmod(target, 0o600);
-      } catch {
-        // best-effort
-      }
-      // prune old logs asynchronously
-      void pruneOldLogs(dir);
-      return target;
-    } catch (err) {
-      // cleanup tmp if present
-      try {
-        await unlink(tmp);
-      } catch {
-        // ignore
-      }
-      throw err;
+      await chmod(target, 0o600);
+    } catch {
+      // best-effort
     }
+    // prune old logs asynchronously
+    void pruneOldLogs(dir);
+    return target;
   } catch (err) {
-    // bubble up to caller for them to decide; callers should handle failures gracefully
+    // cleanup tmp if present
+    try {
+      await unlink(tmp);
+    } catch {
+      // ignore
+    }
     throw err;
   }
 }
 
 export function writeCrashReportSync(report: CrashReport, providedDir?: string): string {
   const dir = providedDir ?? defaultLogDir();
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const name = filenameFor(new Date(report.timestamp));
+  const target = path.join(dir, name);
+  const tmp = `${target}.tmp`;
+  const contents = formatReport(report);
   try {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const name = filenameFor(new Date(report.timestamp));
-    const target = path.join(dir, name);
-    const tmp = `${target}.tmp`;
-    const contents = formatReport(report);
+    writeFileSync(tmp, contents, { encoding: "utf8", mode: 0o600 });
+    renameSync(tmp, target);
     try {
-      writeFileSync(tmp, contents, { encoding: "utf8", mode: 0o600 });
-      renameSync(tmp, target);
-      try {
-        chmodSync(target, 0o600);
-      } catch {
-        // best-effort
-      }
-      // best-effort prune (sync)
-      try {
-        const files = require("node:fs").readdirSync(dir);
-        const now = Date.now();
-        const cutoff = now - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-        for (const f of files) {
-          try {
-            const p = path.join(dir, f);
-            const s = require("node:fs").statSync(p);
-            if (s.mtimeMs < cutoff) {
-              require("node:fs").unlinkSync(p);
-            }
-          } catch {
-            // ignore
-          }
-        }
-      } catch {
-        // ignore
-      }
-      return target;
-    } catch (err) {
-      try {
-        require("node:fs").unlinkSync(tmp);
-      } catch {
-        // ignore
-      }
-      throw err;
+      chmodSync(target, 0o600);
+    } catch {
+      // best-effort
     }
+    // best-effort prune (sync)
+    try {
+      const files = require("node:fs").readdirSync(dir);
+      const now = Date.now();
+      const cutoff = now - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+      for (const f of files) {
+        try {
+          const p = path.join(dir, f);
+          const s = require("node:fs").statSync(p);
+          if (s.mtimeMs < cutoff) {
+            require("node:fs").unlinkSync(p);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return target;
   } catch (err) {
+    try {
+      require("node:fs").unlinkSync(tmp);
+    } catch {
+      // ignore
+    }
     throw err;
   }
 }
