@@ -1,16 +1,16 @@
-//* Libraries imports
-import packageJson from "../../../package.json" with { type: "json" };
-
 //* Local imports
+import packageJson from "../../../package.json" with { type: "json" };
 import type { CiWorkflowKind } from "./kinds.ts";
 
 /** Version pinned into generated CI install steps (matches this CLI release). */
 export const CI_CATLEX_VERSION = packageJson.version;
 
 const INSTALL_STEP = `      - name: Install catlex
+        env:
+          CATLEX_VERSION: "${CI_CATLEX_VERSION}"
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/Hammertail/catlex/releases/download/v${CI_CATLEX_VERSION}/install.sh | CATLEX_VERSION=${CI_CATLEX_VERSION} bash
+          curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh" | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"`;
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;
@@ -27,25 +27,21 @@ export const CI_TRANSLATE_GUIDANCE_FILE = "./glossary.md";
 
 function checkoutStep(options?: {
   fetchDepthZero?: boolean;
-  persistCredentials?: boolean;
+  /** Use the branch tip so a patch made by the read job applies in the commit job. */
+  headRef?: boolean;
+  write?: boolean;
 }): string {
-  const withLines: string[] = [];
-  if (options?.fetchDepthZero) {
-    withLines.push("          fetch-depth: 0");
+  const lines = [
+    "      - name: Checkout",
+    "        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1",
+    "        with:",
+    `          persist-credentials: ${options?.write === true}`,
+  ];
+  if (options?.headRef) {
+    lines.push(`          ref: ${GITHUB_EXPR("github.head_ref || github.ref_name")}`);
   }
-  if (options?.persistCredentials === false) {
-    withLines.push("          persist-credentials: false");
-  }
-
-  if (withLines.length === 0) {
-    return `      - name: Checkout
-        uses: actions/checkout@v4`;
-  }
-
-  return `      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-${withLines.join("\n")}`;
+  if (options?.fetchDepthZero) lines.push("          fetch-depth: 0");
+  return lines.join("\n");
 }
 
 function openaiEnvBlock(options?: { since?: boolean }): string {
@@ -76,7 +72,7 @@ function packageChangesStep(outputId: string, artifactName: string): string {
 
       - name: Upload translation changes
         if: ${GITHUB_EXPR(`steps.${outputId}.outputs.changed == 'true'`)}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${artifactName}
           path: \${{ runner.temp }}/catlex-changes.patch`;
@@ -93,15 +89,15 @@ function commitChangesJob(options: {
     name: ${options.jobName}
     needs: ${options.needsJobId}
     if: ${GITHUB_EXPR(`needs.${options.needsJobId}.outputs.changed == 'true' && (${SAME_REPO_COMMIT_GUARD})`)}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+${checkoutStep({ headRef: true, write: true })}
 
       - name: Download translation changes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${options.artifactName}
           path: \${{ runner.temp }}/catlex-changes
@@ -112,9 +108,9 @@ function commitChangesJob(options: {
           git apply "\${RUNNER_TEMP}/catlex-changes/catlex-changes.patch"
 
       - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1
         with:
-          commit_message: ${options.commitMessage}`;
+          commit_message: ${JSON.stringify(options.commitMessage)}`;
 }
 
 export function generateValidateMessagesWorkflow(): string {
@@ -127,10 +123,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   validate-messages:
     name: Validate translation messages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep()}
 
@@ -151,10 +152,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   review-translations:
+    if: ${SAME_REPO_COMMIT_GUARD}
     name: Review translation quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
 ${checkoutStep({ fetchDepthZero: true })}
 
@@ -173,16 +180,25 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   review-fix-translations:
+    if: ${SAME_REPO_COMMIT_GUARD}
     name: Review, fix, and prepare commit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     outputs:
       changed: ${GITHUB_EXPR("steps.changes.outputs.changed")}
     steps:
-${checkoutStep({ fetchDepthZero: true, persistCredentials: false })}
+${checkoutStep({ fetchDepthZero: true, headRef: true })}
 
 ${INSTALL_STEP}
 
@@ -209,16 +225,25 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${GITHUB_EXPR("github.workflow")}-${GITHUB_EXPR("github.ref")}
+  cancel-in-progress: true
+
 jobs:
   translate-fill:
+    if: ${SAME_REPO_COMMIT_GUARD}
     name: Fill missing translations
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     outputs:
       changed: ${GITHUB_EXPR("steps.changes.outputs.changed")}
     steps:
-${checkoutStep({ persistCredentials: false })}
+${checkoutStep({ headRef: true })}
 
 ${INSTALL_STEP}
 

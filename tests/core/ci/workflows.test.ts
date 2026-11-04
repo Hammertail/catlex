@@ -13,9 +13,16 @@ import {
 import { CI_WORKFLOW_OPTIONS } from "../../../src/core/ci/kinds.ts";
 
 const PINNED_VERSION = packageJson.version;
-const PINNED_INSTALL_URL = `https://github.com/Hammertail/catlex/releases/download/v${PINNED_VERSION}/install.sh`;
+const PINNED_INSTALL_URL = `https://github.com/Hammertail/catlex/releases/download/v\${CATLEX_VERSION}/install.sh`;
 const LATEST_INSTALL_URL =
   "https://github.com/Hammertail/catlex/releases/latest/download/install.sh";
+const CHECKOUT_ACTION = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1";
+const UPLOAD_ARTIFACT_ACTION =
+  "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2";
+const DOWNLOAD_ARTIFACT_ACTION =
+  "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2";
+const AUTO_COMMIT_ACTION =
+  "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1";
 const SINCE_EXPR =
   "${{" +
   " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
@@ -36,7 +43,7 @@ function assertNoGithubExpressionsInRunScripts(yaml: string): void {
 
 function assertPinnedInstall(yaml: string): void {
   expect(yaml).toContain(PINNED_INSTALL_URL);
-  expect(yaml).toContain(`CATLEX_VERSION=${PINNED_VERSION}`);
+  expect(yaml).toContain(`CATLEX_VERSION: "${PINNED_VERSION}"`);
   expect(yaml).not.toContain(LATEST_INSTALL_URL);
 }
 
@@ -47,19 +54,21 @@ function assertGateOnlyPermissions(yaml: string): void {
 
 function assertWriteJobIsolatedFromInstall(yaml: string): void {
   expect(yaml).toContain("persist-credentials: false");
-  expect(yaml).toContain("actions/upload-artifact@v4");
-  expect(yaml).toContain("actions/download-artifact@v4");
-  expect(yaml).toContain("stefanzweifel/git-auto-commit-action@v5");
+  expect(yaml).toContain(UPLOAD_ARTIFACT_ACTION);
+  expect(yaml).toContain(DOWNLOAD_ARTIFACT_ACTION);
+  expect(yaml).toContain(AUTO_COMMIT_ACTION);
 
   const installIndex = yaml.indexOf("Install catlex");
   const writePermissionIndex = yaml.indexOf("contents: write");
-  const commitActionIndex = yaml.indexOf("stefanzweifel/git-auto-commit-action@v5");
+  const writeCheckoutIndex = yaml.indexOf("persist-credentials: true");
+  const commitActionIndex = yaml.indexOf(AUTO_COMMIT_ACTION);
 
   expect(installIndex).toBeGreaterThanOrEqual(0);
   expect(writePermissionIndex).toBeGreaterThanOrEqual(0);
   expect(commitActionIndex).toBeGreaterThanOrEqual(0);
   // Install/run job must not hold write; write belongs to the later commit job.
   expect(writePermissionIndex).toBeGreaterThan(installIndex);
+  expect(writeCheckoutIndex).toBeGreaterThan(writePermissionIndex);
   expect(commitActionIndex).toBeGreaterThan(writePermissionIndex);
 }
 
@@ -68,7 +77,7 @@ describe("generateValidateMessagesWorkflow", () => {
     const yaml = generateValidateMessagesWorkflow();
 
     expect(yaml).toContain("name: Validate messages");
-    expect(yaml).toContain("actions/checkout@v4");
+    expect(yaml).toContain(CHECKOUT_ACTION);
     assertPinnedInstall(yaml);
     expect(yaml).toContain("set -euo pipefail");
     expect(yaml).toContain('echo "$HOME/.local/bin" >> "$GITHUB_PATH"');
@@ -157,9 +166,10 @@ describe("generateReviewFixTranslationsWorkflow", () => {
   it("skips auto-commit for pull requests from forks", () => {
     const yaml = generateReviewFixTranslationsWorkflow();
 
-    expect(yaml).toContain(SAME_REPO_COMMIT_GUARD);
-    expect(yaml.indexOf(SAME_REPO_COMMIT_GUARD)).toBeLessThan(
-      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeGreaterThan(-1);
+    expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeLessThan(
+      yaml.indexOf(AUTO_COMMIT_ACTION),
     );
   });
 
@@ -195,9 +205,10 @@ describe("generateTranslateFillWorkflow", () => {
   it("skips auto-commit for pull requests from forks", () => {
     const yaml = generateTranslateFillWorkflow();
 
-    expect(yaml).toContain(SAME_REPO_COMMIT_GUARD);
-    expect(yaml.indexOf(SAME_REPO_COMMIT_GUARD)).toBeLessThan(
-      yaml.indexOf("stefanzweifel/git-auto-commit-action@v5"),
+    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeGreaterThan(-1);
+    expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeLessThan(
+      yaml.indexOf(AUTO_COMMIT_ACTION),
     );
   });
 });
@@ -213,6 +224,34 @@ describe("generated CI workflows", () => {
 
     for (const yaml of workflows) {
       assertPinnedInstall(yaml);
+    }
+  });
+
+  it("generates valid YAML for every workflow, including commit messages", () => {
+    for (const option of CI_WORKFLOW_OPTIONS) {
+      expect(() => Bun.YAML.parse(generateWorkflow(option.kind))).not.toThrow();
+    }
+  });
+
+  it("pins every action to a full commit SHA", () => {
+    for (const option of CI_WORKFLOW_OPTIONS) {
+      const usesLines = generateWorkflow(option.kind)
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("uses:"));
+
+      expect(usesLines.length).toBeGreaterThan(0);
+      for (const line of usesLines) {
+        expect(line).toMatch(/^uses: [^\s@]+@[0-9a-f]{40} # v\d/);
+      }
+    }
+  });
+
+  it("checks out the same ref in the read job and the commit job so the patch applies", () => {
+    const headRefLine = "ref: ${{" + " github.head_ref || github.ref_name }}";
+
+    for (const yaml of [generateReviewFixTranslationsWorkflow(), generateTranslateFillWorkflow()]) {
+      expect(yaml.split(headRefLine).length - 1).toBe(2);
     }
   });
 

@@ -27,8 +27,8 @@ function verdictConstOf(variant: unknown): string | undefined {
   return typeof verdict?.const === "string" ? verdict.const : undefined;
 }
 
-function reviewItemVariants(jsonSchema: ReturnType<typeof z.toJSONSchema>): unknown[] {
-  const reviews = asJsonSchemaObject(jsonSchema.properties?.reviews);
+function reviewItemVariants(jsonSchema: unknown): unknown[] {
+  const reviews = asJsonSchemaObject(asJsonSchemaObject(jsonSchema)?.properties?.reviews);
   const items = asJsonSchemaObject(
     reviews && "items" in reviews ? (reviews as { items?: unknown }).items : undefined,
   );
@@ -156,22 +156,23 @@ describe("validateSubmittedReviews", () => {
   });
 
   it("does not keep reason or suggestedValue on accepted ok verdicts", () => {
+    // Simulate a model that still filled optional fields on an ok verdict.
+    const submitted = {
+      locale: "pt",
+      reviews: [
+        {
+          path: "welcome",
+          verdict: "ok" as const,
+          reason: "Looks fine",
+          suggestedValue: "Bem-vindo",
+        },
+      ],
+    };
     const result = validateSubmittedReviews({
       allowedPaths: new Set(["welcome"]),
       baseValues: new Map([["welcome", "Welcome"]]),
       requireSuggestedValue: false,
-      submitted: {
-        locale: "pt",
-        // Simulate a model that still filled optional fields on an ok verdict.
-        reviews: [
-          {
-            path: "welcome",
-            verdict: "ok",
-            reason: "Looks fine",
-            suggestedValue: "Bem-vindo",
-          },
-        ],
-      } as Parameters<typeof validateSubmittedReviews>[0]["submitted"],
+      submitted,
     });
 
     expect(result.accepted).toEqual([{ path: "welcome", verdict: "ok" }]);

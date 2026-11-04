@@ -1,7 +1,7 @@
 //* Libraries imports
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 //* Local imports
 import { scanVueFile } from "./vue.ts";

@@ -1,5 +1,5 @@
 //* Libraries imports
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 //* Local imports
@@ -18,6 +18,54 @@ export class MessagesLoadError extends Error {
 
 function localeFromFileName(fileName: string): string {
   return path.basename(fileName, ".json");
+}
+
+function isPathInside(candidate: string, allowedDir: string): boolean {
+  const relative = path.relative(allowedDir, candidate);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+/**
+ * Ensures a locale read target is a regular file contained in `messagesDir`.
+ * Rejects symbolic links and any path that resolves outside the messages directory.
+ */
+export async function assertSafeLocaleReadPath(
+  filePath: string,
+  messagesDir: string,
+): Promise<void> {
+  let resolvedMessagesDir: string;
+
+  try {
+    resolvedMessagesDir = await realpath(messagesDir);
+  } catch {
+    throw new MessagesLoadError(`Messages directory not found: ${messagesDir}`);
+  }
+
+  const absolutePath = path.resolve(filePath);
+  let fileStat: Stats;
+
+  try {
+    fileStat = await lstat(absolutePath);
+  } catch {
+    throw new MessagesLoadError(`Cannot read translation file: ${filePath}`);
+  }
+
+  if (fileStat.isSymbolicLink()) {
+    throw new MessagesLoadError(
+      `Refusing to read locale file because it is a symbolic link: ${filePath}`,
+    );
+  }
+
+  if (!fileStat.isFile()) {
+    throw new MessagesLoadError(`Translation path is not a regular file: ${filePath}`);
+  }
+
+  const resolvedFilePath = await realpath(absolutePath);
+  if (!isPathInside(resolvedFilePath, resolvedMessagesDir)) {
+    throw new MessagesLoadError(
+      `Refusing to read locale file outside the messages directory (${resolvedMessagesDir}): ${filePath}`,
+    );
+  }
 }
 
 export type ParseLocaleMessagesOptions = {
@@ -54,7 +102,9 @@ export function parseLocaleMessages(
   };
 }
 
-async function loadLocaleFile(filePath: string): Promise<LocaleMessages> {
+async function loadLocaleFile(filePath: string, messagesDir: string): Promise<LocaleMessages> {
+  await assertSafeLocaleReadPath(filePath, messagesDir);
+
   let raw: string;
 
   try {
@@ -96,7 +146,7 @@ export async function loadMessagesDir(messagesDir: string): Promise<LocaleMessag
 
   for (const fileName of jsonFiles) {
     const filePath = path.join(messagesDir, fileName);
-    locales.push(await loadLocaleFile(filePath));
+    locales.push(await loadLocaleFile(filePath, messagesDir));
   }
 
   return locales;

@@ -25,16 +25,16 @@ Omitted CLI flags do not wipe file values. `--no-config` skips the file entirely
 
 ## Fields
 
-| Field | Type | Default | Used by |
-|-------|------|---------|---------|
-| `messagesDir` | string | `"messages"` | validate, translate, translate review |
-| `baseLocale` | string | `"en"` | validate, translate, translate review |
-| `strictExtra` | boolean | `false` | validate |
-| `openai.baseUrl` | string | unset (official OpenAI) | translate, translate review |
-| `openai.headers` | `{ [name]: string }` | unset | translate, translate review |
-| `translate.concurrency` | integer 1–32 | `4` (runtime default if omitted) | translate, translate review |
-| `translate.guidance` | string (max 8192 chars after trim; global, every locale) | unset | translate, translate review |
-| `translate.guidanceFile` | string path (global, every locale) | unset | translate, translate review |
+| Field                    | Type                                                     | Default                          | Used by                                                                 |
+| ------------------------ | -------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| `messagesDir`            | string                                                   | `"messages"`                     | validate, translate, translate review                                   |
+| `baseLocale`             | string                                                   | `"en"`                           | validate, translate, translate review                                   |
+| `strictExtra`            | boolean                                                  | `false`                          | validate                                                                |
+| `openai.baseUrl`         | string                                                   | unset (official OpenAI)          | translate, translate review, translate markdown, translate markdown dir |
+| `openai.headers`         | `{ [name]: string }`                                     | unset                            | translate, translate review, translate markdown, translate markdown dir |
+| `translate.concurrency`  | integer 1–32                                             | `4` (runtime default if omitted) | translate, translate review                                             |
+| `translate.guidance`     | string (max 8192 chars after trim; global, every locale) | unset                            | translate, translate review, translate markdown, translate markdown dir |
+| `translate.guidanceFile` | string path (global, every locale)                       | unset                            | translate, translate review, translate markdown, translate markdown dir |
 
 [Scan](./scan.md) does **not** read this file. Scan roots, ignore globs, and string allowlists are not configurable yet; use `--dir` / `--cwd` only.
 
@@ -65,22 +65,22 @@ Module configs can `export default { ... }` with the same shape.
 
 ## CLI equivalents
 
-| Config | Flag |
-|--------|------|
-| `messagesDir` | `--dir <path>` |
-| `baseLocale` | `--base <locale>` |
-| `strictExtra` | `--strict-extra` |
-| `openai.baseUrl` | `--base-url <url>` (also `OPENAI_BASE_URL`) |
-| `openai.headers` | config only (no flag) |
-| `translate.concurrency` | `--concurrency <n>` |
-| `translate.guidance` | `--guidance <text>` |
-| `translate.guidanceFile` | `--guidance-file <path>` |
+| Config                   | Flag                                        |
+| ------------------------ | ------------------------------------------- |
+| `messagesDir`            | `--dir <path>`                              |
+| `baseLocale`             | `--base <locale>`                           |
+| `strictExtra`            | `--strict-extra`                            |
+| `openai.baseUrl`         | `--base-url <url>` (also `OPENAI_BASE_URL`) |
+| `openai.headers`         | config only (no flag)                       |
+| `translate.concurrency`  | `--concurrency <n>`                         |
+| `translate.guidance`     | `--guidance <text>`                         |
+| `translate.guidanceFile` | `--guidance-file <path>`                    |
 
 OpenAI base URL precedence: **CLI `--base-url` > config `openai.baseUrl` > env `OPENAI_BASE_URL` > SDK default**.
 
 Concurrency: **CLI `--concurrency` > config `translate.concurrency` > 4**. Invalid values (non-integer, outside 1–32) fail at flag parse or at runtime.
 
-Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd` unless absolute.
+Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidance` > config `translate.guidanceFile`**. Passing both `--guidance` and `--guidance-file` is an error. Empty or whitespace-only `--guidance` is treated as omitted and falls through. An empty `--guidance-file` is an error. `translate.guidanceFile` is resolved relative to the **config file directory**; CLI `--guidance-file` is relative to `--cwd`. Absolute paths are allowed only when the resolved real path stays inside that base directory. Symbolic links are refused. File contents are uploaded to the LLM provider inside `<project_guidance>`.
 
 The extra text is fenced in `<project_guidance>` on the user prompt. Built-in system instructions stay in place and are extended by one conflict-priority sentence (built-in rules win; project guidance wins over few-shot examples). The same string is sent for every target locale. `--dry-run --json` reports `guidanceSource` (`flag` | `file` | `config` | `null`) and `guidancePreview`.
 

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
-import { UnsafeLocaleWritePathError } from "../../../src/core/messages/write.ts";
+import { MessagesLoadError } from "../../../src/core/messages/load.ts";
 import { translateMissingKeys } from "../../../src/core/translate/translate.ts";
 
 async function writeMessages(root: string, files: Record<string, unknown>): Promise<string> {
@@ -230,7 +230,7 @@ describe("translateMissingKeys", () => {
     ]);
   });
 
-  it("refuses to overwrite files outside the messages directory through a locale symlink", async () => {
+  it("refuses to load locale files that are symlinks pointing outside the messages directory", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-symlink-"));
     const messagesDir = path.join(cwd, "messages");
     const victimPath = path.join(cwd, "package.json");
@@ -260,7 +260,7 @@ describe("translateMissingKeys", () => {
           })),
         }),
       }),
-    ).rejects.toBeInstanceOf(UnsafeLocaleWritePathError);
+    ).rejects.toBeInstanceOf(MessagesLoadError);
 
     expect(await readFile(victimPath, "utf8")).toBe(victimBefore);
   });
@@ -582,5 +582,40 @@ describe("translateMissingKeys", () => {
     expect(result.guidancePreview).toBe("from config guidanceFile");
     expect(prompts[0]).toContain("from config guidanceFile");
     expect(prompts[0]).toContain("<project_guidance>");
+  });
+
+  it("refuses a guidance file outside the project and never calls the translator", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-translate-guidance-escape-"));
+    const outside = await mkdtemp(path.join(tmpdir(), "catlex-translate-guidance-secret-"));
+    await writeMessages(cwd, {
+      en: { about: "About" },
+      pt: {},
+    });
+    const secret = "ISSUE53_SECRET_TOKEN=must-not-reach-model";
+    const secretPath = path.join(outside, "secrets.env");
+    await writeFile(secretPath, `${secret}\n`, "utf8");
+
+    const prompts: string[] = [];
+    await expect(
+      translateMissingKeys({
+        cwd,
+        messagesDir: "messages",
+        baseLocale: "en",
+        skipWrite: true,
+        guidanceFile: secretPath,
+        translateLocale: async (input) => {
+          prompts.push(input.prompt);
+          return {
+            locale: input.targetLocale,
+            translations: input.missing.map((item) => ({
+              path: item.path,
+              value: `PT:${item.baseValue}`,
+            })),
+          };
+        },
+      }),
+    ).rejects.toThrow(/Refusing to read guidance file outside/);
+
+    expect(prompts).toEqual([]);
   });
 });

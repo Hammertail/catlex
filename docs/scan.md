@@ -14,11 +14,11 @@ catlex scan --dir src
 catlex scan --json
 ```
 
-| Option | Description |
-|--------|-------------|
+| Option         | Description                                    |
+| -------------- | ---------------------------------------------- |
 | `--dir <path>` | Source root relative to `--cwd` (default: `.`) |
-| `--cwd <path>` | Project root (default: current directory) |
-| `--json` | Print JSON instead of the Ink report |
+| `--cwd <path>` | Project root (default: current directory)      |
+| `--json`       | Print JSON instead of the Ink report           |
 
 Scan does not load `catlex.config.*`. `--no-config` is not a scan flag.
 
@@ -53,14 +53,14 @@ If a single file throws (parse error, stack overflow on pathological nesting, I/
 
 ### What is flagged
 
-| Case | Kind | Example |
-|------|------|---------|
-| JSX text | `jsx-text` | `<button>Save</button>` |
-| String literal in a JSX expression | `jsx-text` | `<span>{"Hello"}</span>` |
-| User-facing attribute (literal or `{ "…" }`) | `jsx-attribute` | `placeholder="Email"` |
-| Vue template text | `jsx-text` | `<button>Save</button>` in `<template>` |
-| Vue interpolation that is a bare string | `jsx-text` | `{{ "Hello" }}` |
-| Vue user-facing attr, including `:attr="'…'"` / `v-bind:attr="'…'"` when the expression is a quoted literal | `jsx-attribute` | `placeholder="Email"` |
+| Case                                                                                                        | Kind            | Example                                 |
+| ----------------------------------------------------------------------------------------------------------- | --------------- | --------------------------------------- |
+| JSX text                                                                                                    | `jsx-text`      | `<button>Save</button>`                 |
+| String literal in a JSX expression                                                                          | `jsx-text`      | `<span>{"Hello"}</span>`                |
+| User-facing attribute (literal or `{ "…" }`)                                                                | `jsx-attribute` | `placeholder="Email"`                   |
+| Vue template text                                                                                           | `jsx-text`      | `<button>Save</button>` in `<template>` |
+| Vue interpolation that is a bare string                                                                     | `jsx-text`      | `{{ "Hello" }}`                         |
+| Vue user-facing attr, including `:attr="'…'"` / `v-bind:attr="'…'"` when the expression is a quoted literal | `jsx-attribute` | `placeholder="Email"`                   |
 
 User-facing attributes (`USER_FACING_ATTRS`):
 
@@ -75,7 +75,7 @@ User-facing attributes (`USER_FACING_ATTRS`):
 - Whitespace-only, punctuation-only, emoji-only, or numeric-only text (`isLikelyUserVisible`).
 - Children of `<Trans>` (the **subtree** is skipped). Attributes on `<Trans>` are still scanned.
 - Variable / prop flow: `const label = "Save"; return <span>{label}</span>` — the string is not tracked into JSX.
-- Template literals with substitutions (`` {`Hello ${name}`} ``).
+- Template literals with substitutions (``{`Hello ${name}`}``).
 - Ternaries, `children` props, and other non-literal expressions.
 
 ### Issue shape
@@ -83,8 +83,8 @@ User-facing attributes (`USER_FACING_ATTRS`):
 ```ts
 type HardcodedIssue = {
   filePath: string;
-  line: number;    // 1-based
-  column: number;  // 1-based
+  line: number; // 1-based
+  column: number; // 1-based
   text: string;
   kind: "jsx-text" | "jsx-attribute";
   attributeName?: string;
@@ -95,11 +95,11 @@ JSX text is trimmed in the reported `text`; attribute values are not.
 
 ## Exit codes
 
-| Code | When |
-|------|------|
-| `0` | No findings and no per-file scanner errors |
-| `1` | At least one hardcoded string, and no file-level errors |
-| `2` | One or more per-file scanner errors (findings from other files may still be in the report) |
+| Code | When                                                                                       |
+| ---- | ------------------------------------------------------------------------------------------ |
+| `0`  | No findings and no per-file scanner errors                                                 |
+| `1`  | At least one hardcoded string, and no file-level errors                                    |
+| `2`  | One or more per-file scanner errors (findings from other files may still be in the report) |
 
 Unexpected crashes (unreadable root, etc.) still surface as CLI exit `1` from the program wrapper.
 

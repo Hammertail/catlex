@@ -42,11 +42,7 @@ console.log(result.issues, result.errors);
 Inject a `translateLocale` function (tests, a non-OpenAI backend) or use the OpenAI helper:
 
 ```ts
-import {
-  assertOpenAiApiKey,
-  createOpenAiTranslator,
-  translateMissingKeys,
-} from "catlex";
+import { assertOpenAiApiKey, createOpenAiTranslator, translateMissingKeys } from "catlex";
 
 assertOpenAiApiKey();
 
@@ -63,14 +59,47 @@ const result = await translateMissingKeys({
 
 `dryRun: true` never calls `translateLocale`. `skipWrite: true` calls the model but does not touch disk (the CLI uses this between the two prompts). Optional `guidance` / `guidanceFile` append extra project instructions (a glossary, house terms) in a `<project_guidance>` fence. Config may also set `translate.guidance` or `translate.guidanceFile`. Results include `guidanceSource` and `guidancePreview`. See [Translate](./translate.md).
 
-## Review
+## Translate Markdown
+
+Inject a `translateMarkdown` function or use the OpenAI helper. `translateMarkdownFile` translates one file. `translateMarkdownDirectory` walks a directory, keeps relative paths, and translates each Markdown file into one locale:
 
 ```ts
 import {
-  createOpenAiReviewer,
-  createOpenAiTranslator,
-  reviewTranslations,
+  assertOpenAiApiKey,
+  createOpenAiMarkdownTranslator,
+  translateMarkdownDirectory,
+  translateMarkdownFile,
 } from "catlex";
+
+assertOpenAiApiKey();
+
+const fileResult = await translateMarkdownFile({
+  cwd: process.cwd(),
+  source: "docs/en/example.md",
+  from: "en",
+  to: "pt-BR",
+  out: "docs/pt-BR/example.md",
+  noConfig: true,
+  translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
+});
+
+const directoryResult = await translateMarkdownDirectory({
+  cwd: process.cwd(),
+  source: "docs/en",
+  from: "en",
+  to: "pt-BR",
+  out: "docs/pt-BR",
+  noConfig: true,
+  translateMarkdown: createOpenAiMarkdownTranslator({ model: "gpt-5.4-mini" }),
+});
+```
+
+`dryRun: true` never calls `translateMarkdown` and does not write. Source and output paths must stay inside `cwd`. A missing output directory is created on a real run. See [Translate Markdown](./translate-markdown.md).
+
+## Review
+
+```ts
+import { createOpenAiReviewer, createOpenAiTranslator, reviewTranslations } from "catlex";
 
 const result = await reviewTranslations({
   cwd: process.cwd(),
@@ -107,10 +136,7 @@ Merge order and `--no-config` semantics: [Configuration](./configuration.md).
 ## CI file generation
 
 ```ts
-import {
-  generateValidateMessagesWorkflow,
-  writeGithubWorkflows,
-} from "catlex";
+import { generateValidateMessagesWorkflow, writeGithubWorkflows } from "catlex";
 
 await writeGithubWorkflows({
   cwd: process.cwd(),

@@ -4,11 +4,11 @@ Catlex is meant to run in GitHub Actions (and any other runner that can install 
 
 ## Exit codes (all commands)
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success: validate/scan/translate finished cleanly (including translate cancel / nothing to do), or review **passed** (including successful auto-fix) |
-| `1` | Validate failed, scan found hardcoded strings (and no file errors), review failed, missing API key, or an unexpected error |
-| `2` | `scan` finished with one or more **per-file** scanner errors (other files may still have findings) |
+| Code | Meaning                                                                                                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success: validate/scan/translate finished cleanly (including translate cancel / nothing to do), or review **passed** (including successful auto-fix) |
+| `1`  | Validate failed, scan found hardcoded strings (and no file errors), review failed, missing API key, or an unexpected error                           |
+| `2`  | `scan` finished with one or more **per-file** scanner errors (other files may still have findings)                                                   |
 
 For pipelines, prefer `--json` and `--no-config` so stdout is machine-readable and project JS/TS config is not executed on the runner:
 
@@ -31,17 +31,17 @@ catlex ci
 
 Interactive multi-select (Space to toggle, Enter to confirm). You pick one or more workflow kinds. If a target file already exists, you are asked whether to overwrite it. Cancel (empty selection, or decline every overwrite) writes nothing and exits `0`.
 
-| Workflow | File | Command |
-|----------|------|---------|
-| Validate messages | `.github/workflows/validate-messages.yml` | `catlex validate --no-config --json` |
-| Review translations | `.github/workflows/review-translations.yml` | `catlex translate review --no-config --since … --json --guidance-file ./glossary.md` (gate only) |
-| Review, auto-fix, and commit | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes --guidance-file ./glossary.md`, then commit |
-| Fill missing translations and commit | `.github/workflows/translate-fill.yml` | `catlex translate --no-config --yes --json --guidance-file ./glossary.md`, then commit |
+| Workflow                             | File                                            | Command                                                                                          |
+| ------------------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Validate messages                    | `.github/workflows/validate-messages.yml`       | `catlex validate --no-config --json`                                                             |
+| Review translations                  | `.github/workflows/review-translations.yml`     | `catlex translate review --no-config --since … --json --guidance-file ./glossary.md` (gate only) |
+| Review, auto-fix, and commit         | `.github/workflows/review-fix-translations.yml` | Review with `--auto-fix --yes --guidance-file ./glossary.md`, then commit                        |
+| Fill missing translations and commit | `.github/workflows/translate-fill.yml`          | `catlex translate --no-config --yes --json --guidance-file ./glossary.md`, then commit           |
 
 All generated jobs:
 
 - Trigger on `push` and `pull_request`.
-- Install a **pinned** Catlex release (the CLI version that generated the file) and add `~/.local/bin` to `PATH`. Do not use `releases/latest` in production CI. Prefer `CATLEX_REQUIRE_CHECKSUM=1` once the pinned release publishes `SHA256SUMS`.
+- Install a **pinned** Catlex release (the CLI version that generated the file) and add `~/.local/bin` to `PATH`. Do not use `releases/latest` in production CI.
 - Use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md` (keep that file at the repo root, or edit the `run:` line). Project `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do not apply.
 
 ### Validate workflow
@@ -70,30 +70,36 @@ The commit job runs only when the run job produced changes and the event is not 
 if: needs.<run-job>.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
 ```
 
-Fork PRs still run the Catlex command (so the gate can fail) but will not push commits back to your repo.
+The run job carries the same-repository guard too, so fork PRs skip these workflows entirely and never push commits back to your repo.
 
 ## Secrets and variables
 
-| Name | Kind | Required for |
-|------|------|----------------|
-| `OPENAI_API_KEY` | secret | review, review-fix, translate-fill |
+| Name              | Kind                | Required for                        |
+| ----------------- | ------------------- | ----------------------------------- |
+| `OPENAI_API_KEY`  | secret              | review, review-fix, translate-fill  |
 | `OPENAI_BASE_URL` | variable (optional) | same, when not using api.openai.com |
 
 Validate and scan need neither.
 
 ## Installing Catlex on a runner
 
-Generated workflows pin the CLI release that scaffolded them (example for `0.5.0`):
+Generated workflows pin the CLI release that scaffolded them by setting `CATLEX_VERSION` in the step's `env`:
 
 ```bash
-curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.5.0/install.sh | CATLEX_VERSION=0.5.0 bash
+curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v${CATLEX_VERSION}/install.sh" | bash
 echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 ```
 
-`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. After a release that publishes `SHA256SUMS`, add `CATLEX_REQUIRE_CHECKSUM=1` to fail closed if checksums are missing. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
+`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. Installers from releases that publish `SHA256SUMS` always verify the binary and fail if the manifest is missing or does not match. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
 
 ## What `catlex ci` does not do
 
 - Edit existing workflows except overwrite-after-confirm.
 - Generate a scan workflow (add `catlex scan --json` yourself if you want it in CI).
 - Read `catlex.config.*` when generating files; the YAML is static besides GitHub expressions.
+
+## Generated workflow versions
+
+Generated workflows pin Checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2, and auto-commit 7.2.1 to immutable commits. They pin `CATLEX_VERSION` to the version of the CLI that generated them; edit that environment value to adopt a newer release. Read-only jobs disable credential persistence. AI jobs skip fork pull requests, where repository secrets are unavailable; auto-fix and fill workflows check out the branch explicitly in both jobs and scope `contents: write` to the commit job. Each generated workflow has a timeout and concurrency control.
+
+The repository's own CI uses Bun from `.bun-version`, TypeScript 7 for typechecking, and Fallow 3.37.0 in both local commands and the action's explicit `version` input. Formatting is a read-only check; run `bun run check:fix` locally when needed.
