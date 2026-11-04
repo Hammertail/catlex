@@ -414,6 +414,32 @@ describe("runTranslateReviewCommand", () => {
       }),
     ).rejects.toThrow(/either inline guidance or a guidance file/i);
   });
+
+  it("reviews a project with a JavaScript config when allowJsConfig is true", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-review-cli-js-config-"));
+    await writeMessages(cwd, {
+      en: { welcome: "Welcome" },
+      pt: { welcome: "Olá" },
+    });
+    await writeFile(path.join(cwd, "catlex.config.js"), 'export default { baseLocale: "en" };\n');
+    const log = captureLog();
+    silenceStderr();
+
+    const exitCode = await runTranslateReviewCommand({
+      cwd,
+      json: true,
+      allowJsConfig: true,
+      env: { OPENAI_API_KEY: "sk-test" },
+      reviewLocale: async (input) => ({
+        locale: input.targetLocale,
+        reviews: input.items.map((item) => ({ path: item.path, verdict: "ok" as const })),
+      }),
+    });
+
+    expect(exitCode).toBe(0);
+    const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+    expect(payload.keysReviewed).toBe(1);
+  });
 });
 
 const gitAvailable = await whichGit();

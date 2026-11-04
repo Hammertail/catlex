@@ -17,6 +17,8 @@ There is no merge across files. A JSON file in the same directory as a `.ts` con
 
 Even JSON config is **attacker-controlled policy** when you run Catlex against an untrusted tree: it can set `openai.baseUrl` / `openai.headers`. Catlex rejects non-https and private/link-local base URLs unless you pass `--allow-insecure-base-url`.
 
+That check does not make an untrusted config safe to run with a real key. There is no host allowlist, so a config can still point `openai.baseUrl` at any public `https` host, which then receives `OPENAI_API_KEY`. The check is also lexical: DNS is not resolved, so a public name that resolves to a loopback or link-local address (for example `127.0.0.1.nip.io`) is not rejected. Against an untrusted tree, use `--no-config` and pass `--base-url` yourself.
+
 ## Merge order
 
 ```text

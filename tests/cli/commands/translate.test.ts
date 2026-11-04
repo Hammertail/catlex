@@ -475,4 +475,70 @@ describe("runTranslateCommand", () => {
       }),
     ).rejects.toThrow(/guidance file is empty/);
   });
+
+  describe("with a JavaScript project config", () => {
+    async function createJsConfigProject(prefix: string): Promise<string> {
+      const cwd = await mkdtemp(path.join(tmpdir(), prefix));
+      await writeMessages(cwd, {
+        en: { about: "About" },
+        pt: {},
+      });
+      await writeFile(path.join(cwd, "catlex.config.js"), 'export default { baseLocale: "en" };\n');
+      return cwd;
+    }
+
+    it("refuses the config without allowJsConfig", async () => {
+      const cwd = await createJsConfigProject("catlex-translate-cli-js-refused-");
+      captureLog();
+
+      await expect(
+        runTranslateCommand({
+          cwd,
+          json: true,
+          dryRun: true,
+          env: {},
+          translateLocale: async () => ({ locale: "pt", translations: [] }),
+        }),
+      ).rejects.toThrow(/allow-js-config|allowJsConfig/);
+    });
+
+    it("plans a dry run when allowJsConfig is true", async () => {
+      const cwd = await createJsConfigProject("catlex-translate-cli-js-dry-");
+      const log = captureLog();
+
+      const exitCode = await runTranslateCommand({
+        cwd,
+        json: true,
+        dryRun: true,
+        allowJsConfig: true,
+        env: {},
+        translateLocale: async () => ({ locale: "pt", translations: [] }),
+      });
+
+      expect(exitCode).toBe(0);
+      const payload = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
+      expect(payload.pendingCount).toBe(1);
+    });
+
+    it("translates missing keys when allowJsConfig is true", async () => {
+      const cwd = await createJsConfigProject("catlex-translate-cli-js-run-");
+      captureLog();
+      silenceStderr();
+      const spy = createTranslateSpy();
+
+      const exitCode = await runTranslateCommand({
+        cwd,
+        json: true,
+        yes: true,
+        allowJsConfig: true,
+        env: { OPENAI_API_KEY: "sk-test" },
+        translateLocale: spy.translateLocale,
+      });
+
+      expect(exitCode).toBe(0);
+      expect(spy.callCount()).toBe(1);
+      const written = JSON.parse(await readFile(path.join(cwd, "messages", "pt.json"), "utf8"));
+      expect(written.about).toBe("PT:About");
+    });
+  });
 });
