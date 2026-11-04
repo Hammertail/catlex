@@ -197,6 +197,8 @@ describe("createProgram", () => {
       expect(markdownFlags.has("--json")).toBe(true);
       expect(markdownFlags.has("--dry-run")).toBe(true);
       expect(markdownFlags.has("--no-config")).toBe(true);
+      expect(markdownFlags.has("--allow-js-config")).toBe(true);
+      expect(markdownFlags.has("--allow-insecure-base-url")).toBe(true);
       expect(markdownFlags.has("--guidance <text>")).toBe(true);
       expect(markdownFlags.has("--guidance-file <path>")).toBe(true);
 
@@ -212,6 +214,8 @@ describe("createProgram", () => {
       expect(markdownDirFlags.has("--out <path>")).toBe(false);
       expect(markdownDirFlags.has("--json")).toBe(true);
       expect(markdownDirFlags.has("--dry-run")).toBe(true);
+      expect(markdownDirFlags.has("--allow-js-config")).toBe(true);
+      expect(markdownDirFlags.has("--allow-insecure-base-url")).toBe(true);
 
       const validateFlags = new Set(
         findCommand(program, ["validate"]).options.map((option) => option.flags),
@@ -619,6 +623,41 @@ describe("createProgram", () => {
         dryRun: true,
         json: true,
       });
+    });
+
+    it("forwards the opt-in security flags to the markdown commands", async () => {
+      silenceErrors();
+      const flags = ["--allow-js-config", "--allow-insecure-base-url"];
+      const expected = { allowJsConfig: true, allowInsecureBaseUrl: true };
+
+      expect(
+        await captureMarkdownActionOptions([
+          "translate",
+          "markdown",
+          "./docs/en/example.md",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "--out",
+          "./docs/pt-BR/example.md",
+          ...flags,
+        ]),
+      ).toMatchObject(expected);
+      expect(
+        await captureMarkdownDirActionOptions([
+          "translate",
+          "markdown",
+          "dir",
+          "./example/en",
+          "--from",
+          "en",
+          "--to",
+          "pt-BR",
+          "./example/pt-BR",
+          ...flags,
+        ]),
+      ).toMatchObject(expected);
     });
 
     it("still rejects translate markdown when --from is omitted", async () => {

@@ -30,6 +30,8 @@ export type CreateOpenAiMarkdownTranslatorOptions = {
   apiKey?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
+  /** When true, allow http and private/link-local base URLs. */
+  allowInsecureBaseUrl?: boolean;
   env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   generateText?: GenerateTextFn;
   createModel?: (modelId: string) => Parameters<GenerateTextFn>[0]["model"];
@@ -47,7 +49,11 @@ export function createOpenAiMarkdownTranslator(
   return async (input: TranslateMarkdownInput): Promise<SubmitMarkdownTranslationInput> => {
     const env = options.env ?? process.env;
     const apiKey = options.apiKey ?? assertOpenAiApiKey(env);
-    const baseUrl = resolveOpenAiBaseUrl({ baseUrl: options.baseUrl, env });
+    const baseUrl = resolveOpenAiBaseUrl({
+      baseUrl: options.baseUrl,
+      env,
+      allowInsecure: options.allowInsecureBaseUrl,
+    });
 
     const model =
       options.createModel?.(modelId) ??

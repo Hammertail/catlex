@@ -290,6 +290,16 @@ export function createProgram(): Command {
     )
     .option("--dry-run", "Validate the source file without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of text", false)
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
@@ -329,6 +339,8 @@ export function createProgram(): Command {
           baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
@@ -354,6 +366,16 @@ export function createProgram(): Command {
     )
     .option("--dry-run", "Validate source files without calling the API or writing", false)
     .option("--no-config", "Do not load or execute project catlex.config.* files")
+    .option(
+      "--allow-js-config",
+      "Allow loading catlex.config.js|mjs|ts (executes project code; prefer JSON)",
+      false,
+    )
+    .option(
+      "--allow-insecure-base-url",
+      "Allow http or private/link-local OpenAI base URLs (trusted local proxies only)",
+      false,
+    )
     .option("--json", "Print machine-readable JSON instead of text", false)
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
@@ -372,6 +394,8 @@ export function createProgram(): Command {
           baseUrl: options.baseUrl,
           dryRun: options.dryRun === true,
           noConfig: options.config === false,
+          allowJsConfig: options.allowJsConfig === true,
+          allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
