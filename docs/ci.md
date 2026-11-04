@@ -41,35 +41,36 @@ Interactive multi-select (Space to toggle, Enter to confirm). You pick one or mo
 All generated jobs:
 
 - Trigger on `push` and `pull_request`.
-- Install Catlex with the Unix [release installer](../README.md#install) and add `~/.local/bin` to `PATH`.
+- Install a **pinned** Catlex release (the CLI version that generated the file) and add `~/.local/bin` to `PATH`. Do not use `releases/latest` in production CI.
 - Use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md` (keep that file at the repo root, or edit the `run:` line). Project `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do not apply.
 
 ### Validate workflow
 
-No OpenAI key. Default `actions/checkout` depth is enough (no git history needed).
+No OpenAI key. Declares `permissions: contents: read`. Default `actions/checkout` depth is enough (no git history needed).
 
 ### Review workflows
 
+- Gate-only review declares `permissions: contents: read`.
 - `fetch-depth: 0` so `--since` can resolve `origin/{base_ref}` / `origin/main`.
 - `OPENAI_API_KEY` from repository **secrets**.
 - Optional `OPENAI_BASE_URL` from repository **variables** (empty → official OpenAI).
 - `CATLEX_SINCE` is set in `env` from GitHub context (PR base vs `origin/main` on push). Do not inline `${{ }}` into the `run:` script.
 
-The gate-only review workflow does not write files. The auto-fix workflow sets `permissions: contents: write`, runs `--auto-fix --yes`, then [stefanzweifel/git-auto-commit-action](https://github.com/stefanzweifel/git-auto-commit-action).
+The gate-only review workflow does not write files. The auto-fix workflow runs install + Catlex under `contents: read` (with `persist-credentials: false`), uploads a patch artifact when files change, then a separate commit job with `contents: write` applies the patch and runs [stefanzweifel/git-auto-commit-action](https://github.com/stefanzweifel/git-auto-commit-action).
 
 ### Translate-fill workflow
 
-Same OpenAI env as review (no `CATLEX_SINCE`). Writes missing keys and commits. Needs `contents: write`.
+Same OpenAI env as review (no `CATLEX_SINCE`). Same split: read-only install/run job, then a write-only commit job.
 
 ### Auto-commit guard
 
-Commit steps run only when the job is not a **fork pull request**:
+The commit job runs only when the run job produced changes and the event is not a **fork pull request**:
 
 ```yaml
-if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+if: needs.<run-job>.outputs.changed == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
 ```
 
-Fork PRs still run the Catlex command (so the gate can fail) but will not push commits back to your repo.
+The run job carries the same-repository guard too, so fork PRs skip these workflows entirely and never push commits back to your repo.
 
 ## Secrets and variables
 
@@ -82,14 +83,14 @@ Validate and scan need neither.
 
 ## Installing Catlex on a runner
 
-Generated workflows use:
+Generated workflows pin the CLI release that scaffolded them by setting `CATLEX_VERSION` in the step's `env`:
 
 ```bash
-curl -fsSL https://github.com/Hammertail/catlex/releases/latest/download/install.sh | bash
+curl -fsSL "https://github.com/Hammertail/catlex/releases/download/v${CATLEX_VERSION}/install.sh" | bash
 echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 ```
 
-Pin a version with `CATLEX_VERSION` if you do not want `latest`. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
+`releases/latest` is fine for interactive human installs; production CI should keep the pin so a replaced `latest` asset cannot silently change the binary. Installers from releases that publish `SHA256SUMS` always verify the binary and fail if the manifest is missing or does not match. Windows runners would use `install.ps1`; the generated YAML is Ubuntu-only.
 
 ## What `catlex ci` does not do
 
@@ -99,6 +100,6 @@ Pin a version with `CATLEX_VERSION` if you do not want `latest`. Windows runners
 
 ## Generated workflow versions
 
-Generated workflows pin Checkout 7.0.1 and auto-commit 7.2.1 to immutable commits. They pin `CATLEX_VERSION` to the version of the CLI that generated them; edit that environment value to adopt a newer release. Read-only jobs disable credential persistence. AI jobs skip fork pull requests, where repository secrets are unavailable; write jobs also select the branch explicitly and scope `contents: write` to the job. Each generated workflow has a timeout and concurrency control.
+Generated workflows pin Checkout 7.0.1, upload-artifact 7.0.2, download-artifact 8.0.2, and auto-commit 7.2.1 to immutable commits. They pin `CATLEX_VERSION` to the version of the CLI that generated them; edit that environment value to adopt a newer release. Read-only jobs disable credential persistence. AI jobs skip fork pull requests, where repository secrets are unavailable; auto-fix and fill workflows check out the branch explicitly in both jobs and scope `contents: write` to the commit job. Each generated workflow has a timeout and concurrency control.
 
 The repository's own CI uses Bun from `.bun-version`, TypeScript 7 for typechecking, and Fallow 3.37.0 in both local commands and the action's explicit `version` input. Formatting is a read-only check; run `bun run check:fix` locally when needed.

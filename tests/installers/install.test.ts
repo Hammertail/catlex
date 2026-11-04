@@ -94,6 +94,13 @@ describe.skipIf(process.platform === "win32")("Unix release installer", () => {
     expect(await readFile(path.join(f.destination, "catlex"), "utf8")).toBe("original");
   });
 
+  it("refuses to install when the release has no SHA256SUMS", async () => {
+    const f = await fixture(true);
+    await rm(path.join(f.root, "SHA256SUMS"));
+    expect(await run(["bash", installer], f.env)).not.toBe(0);
+    expect(await Bun.file(path.join(f.destination, "catlex")).exists()).toBe(false);
+  });
+
   it("rejects a manifest without the selected asset", async () => {
     const f = await fixture(true);
     await writeFile(path.join(f.root, "SHA256SUMS"), "");

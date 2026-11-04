@@ -135,7 +135,7 @@ jobs:
 
           Installs the binary to \`~/.local/bin/catlex\`.
 
-          To install a specific version:
+          To install a specific version (recommended for CI; verifies SHA256SUMS):
 
           \`\`\`bash
           curl -fsSL https://github.com/${{ github.repository }}/releases/download/${TAG}/install.sh | CATLEX_VERSION=${VERSION} bash
@@ -149,7 +149,7 @@ jobs:
 
           Installs the binary to \`%LOCALAPPDATA%\\catlex\\bin\\catlex.exe\`.
 
-          To install a specific version:
+          To install a specific version (recommended for CI; verifies SHA256SUMS):
 
           \`\`\`powershell
           \$env:CATLEX_VERSION='${VERSION}'; irm https://github.com/${{ github.repository }}/releases/download/${TAG}/install.ps1 | iex
