@@ -8,7 +8,8 @@ import { resolveTranslateGuidance } from "./guidance.ts";
 import { buildMarkdownTranslatePrompt } from "./markdown-prompt.ts";
 
 //* Types imports
-import type { TranslateGuidanceSource } from "./guidance.ts";
+import type { CatlexConfig } from "../config/schema.ts";
+import type { ResolvedTranslateGuidance, TranslateGuidanceSource } from "./guidance.ts";
 import type { SubmitMarkdownTranslationInput } from "./markdown-schema.ts";
 
 export const MAX_MARKDOWN_SOURCE_BYTES = 64 * 1024;
@@ -255,11 +256,37 @@ async function readMarkdownSource(filePath: string): Promise<{ contents: string;
 }
 
 /**
- * Translates a single Markdown file from one locale into another.
- * Dry-run validates the source and reports paths without calling the translator or writing.
+ * Resolves Markdown translation guidance from flags and already loaded config.
  */
-export async function translateMarkdownFile(
-  options: TranslateMarkdownFileOptions,
+export async function resolveMarkdownGuidance(options: {
+  cwd: string;
+  config: CatlexConfig;
+  noConfig?: boolean;
+  guidance?: string;
+  guidanceFile?: string;
+}): Promise<ResolvedTranslateGuidance> {
+  const configPath = options.noConfig === true ? null : await findConfigFile(options.cwd);
+  return resolveTranslateGuidance({
+    cwd: options.cwd,
+    guidance: options.guidance,
+    guidanceFile: options.guidanceFile,
+    configGuidance: options.config.translate?.guidance,
+    configGuidanceFile: options.config.translate?.guidanceFile,
+    configDir: configPath === null ? options.cwd : path.dirname(configPath),
+  });
+}
+
+/**
+ * Translates one Markdown file with guidance supplied by the caller, so a
+ * directory run can share one resolved guidance across its files. Guidance is
+ * requested after the source is validated.
+ */
+export async function translateMarkdownFileWithGuidance(
+  options: Omit<
+    TranslateMarkdownFileOptions,
+    "noConfig" | "allowJsConfig" | "guidance" | "guidanceFile"
+  >,
+  loadGuidance: () => Promise<ResolvedTranslateGuidance>,
 ): Promise<TranslateMarkdownResult> {
   const cwd = options.cwd ?? process.cwd();
   const fromLocale = normalizeLocale(options.from, "--from");
@@ -284,19 +311,7 @@ export async function translateMarkdownFile(
   const { contents, bytes } = await readMarkdownSource(sourcePath);
   const outPath = resolveLogicalOutPath(outInput, resolvedCwd);
 
-  const config = await loadConfig(cwd, {
-    noConfig: options.noConfig,
-    allowJsConfig: options.allowJsConfig,
-  });
-  const configPath = options.noConfig === true ? null : await findConfigFile(cwd);
-  const resolvedGuidance = await resolveTranslateGuidance({
-    cwd,
-    guidance: options.guidance,
-    guidanceFile: options.guidanceFile,
-    configGuidance: config.translate?.guidance,
-    configGuidanceFile: config.translate?.guidanceFile,
-    configDir: configPath === null ? cwd : path.dirname(configPath),
-  });
+  const resolvedGuidance = await loadGuidance();
 
   if (dryRun) {
     return {
@@ -340,4 +355,27 @@ export async function translateMarkdownFile(
     guidanceSource: resolvedGuidance.source,
     guidancePreview: resolvedGuidance.preview,
   };
+}
+
+/**
+ * Translates a single Markdown file from one locale into another.
+ * Dry-run validates the source and reports paths without calling the translator or writing.
+ */
+export async function translateMarkdownFile(
+  options: TranslateMarkdownFileOptions,
+): Promise<TranslateMarkdownResult> {
+  const cwd = options.cwd ?? process.cwd();
+  return translateMarkdownFileWithGuidance(options, async () => {
+    const config = await loadConfig(cwd, {
+      noConfig: options.noConfig,
+      allowJsConfig: options.allowJsConfig,
+    });
+    return resolveMarkdownGuidance({
+      cwd,
+      config,
+      noConfig: options.noConfig,
+      guidance: options.guidance,
+      guidanceFile: options.guidanceFile,
+    });
+  });
 }

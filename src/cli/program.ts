@@ -4,6 +4,7 @@ import { styleText } from "node:util";
 import packageJson from "../../package.json" with { type: "json" };
 
 //* Local imports
+import { parseMarkdownDirectoryTarget } from "../core/translate/markdown-dir.ts";
 import { resolveTranslateConcurrency } from "../core/translate/pool.ts";
 import { HELP_COMMAND_COLOR, HELP_OPTION_COLOR, HELP_TITLE_COLOR } from "./colors.ts";
 import { runCiCommand } from "./commands/ci.tsx";
@@ -13,6 +14,9 @@ import { runTranslateMarkdownDirCommand } from "./commands/translate-markdown-di
 import { runTranslateMarkdownCommand } from "./commands/translate-markdown.tsx";
 import { runTranslateReviewCommand } from "./commands/translate-review.tsx";
 import { runValidateCommand } from "./commands/validate.tsx";
+
+//* Types imports
+import type { TranslateMarkdownDirectoryTarget } from "../core/translate/markdown-dir.ts";
 
 const packageVersion = packageJson.version;
 
@@ -42,6 +46,41 @@ function parseConcurrencyOption(value: string): number {
     const message = error instanceof Error ? error.message : String(error);
     throw new InvalidArgumentError(message);
   }
+}
+
+function readMarkdownDirectoryTargetValues(args: string[], index: number) {
+  const arg = args[index] ?? "";
+  const values: string[] = arg === "--to" ? [] : [arg.slice("--to=".length)];
+  while (args[index + 1] !== undefined && !args[index + 1]?.startsWith("-")) {
+    index += 1;
+    values.push(args[index] ?? "");
+  }
+  return { values, lastIndex: index };
+}
+
+function parseMarkdownDirectoryTargets(command: Command): TranslateMarkdownDirectoryTarget[] {
+  // The parent retains the directory command's arguments before its options are parsed.
+  const args = command.parent?.args.slice(1) ?? [];
+  const targets: TranslateMarkdownDirectoryTarget[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--") {
+      break;
+    }
+    if (arg === "--to" || arg?.startsWith("--to=")) {
+      const collected = readMarkdownDirectoryTargetValues(args, index);
+      targets.push(parseMarkdownDirectoryTarget(collected.values));
+      index = collected.lastIndex;
+    } else if (
+      command.options.some(
+        (option) => (option.long === arg || option.short === arg) && option.required,
+      )
+    ) {
+      // Required scalar options consume their value even when it looks like --to.
+      index += 1;
+    }
+  }
+  return targets;
 }
 
 function styleHeading(text: string): string {
@@ -355,9 +394,11 @@ export function createProgram(): Command {
     .command("dir")
     .description("Translate Markdown files in a directory with OpenAI (alpha prototype)")
     .argument("<dir>", "Source directory of Markdown files")
-    .argument("<out>", "Directory to write translated Markdown files")
     .requiredOption("--from <locale>", "Source locale")
-    .requiredOption("--to <locale>", "Target locale (one locale)")
+    .requiredOption(
+      "--to <locale> <dir...>",
+      "Target locale and output directory (repeat for each locale: --to <locale> <dir>)",
+    )
     .option("--cwd <path>", "Project root directory", process.cwd())
     .option("--model <id>", "OpenAI model id (default: gpt-5.4-mini)")
     .option(
@@ -377,18 +418,23 @@ export function createProgram(): Command {
       false,
     )
     .option("--json", "Print machine-readable JSON instead of text", false)
+    .option(
+      "--concurrency <n>",
+      "Max parallel translation API calls (default: 4)",
+      parseConcurrencyOption,
+    )
     .option("--guidance <text>", "Extra translation guidance appended to the model prompt")
     .option(
       "--guidance-file <path>",
       "Read extra translation guidance from a file inside --cwd (absolute only if still under --cwd; no symlinks)",
     )
-    .action(async (source, out, options) => {
-      await setExitCodeFrom(() =>
-        runTranslateMarkdownDirCommand({
+    .action(async (source, options, command: Command) => {
+      await setExitCodeFrom(() => {
+        const targets = parseMarkdownDirectoryTargets(command);
+        return runTranslateMarkdownDirCommand({
           source,
           from: options.from,
-          to: options.to,
-          out,
+          targets,
           cwd: options.cwd,
           model: options.model,
           baseUrl: options.baseUrl,
@@ -397,10 +443,11 @@ export function createProgram(): Command {
           allowJsConfig: options.allowJsConfig === true,
           allowInsecureBaseUrl: options.allowInsecureBaseUrl === true,
           json: options.json === true,
+          concurrency: options.concurrency,
           guidance: options.guidance,
           guidanceFile: options.guidanceFile,
-        }),
-      );
+        });
+      });
     });
 
   return program;
