@@ -238,9 +238,13 @@ describe("repository GitHub Actions security", () => {
   });
 
   describe("release.yml", () => {
-    it("still allows contents: write for tagging and publishing releases", () => {
+    it("limits contents: write to the job that tags and publishes releases", () => {
       const yaml = readWorkflow("release.yml");
-      expect(hasContentsPermission(yaml, "write")).toBe(true);
+      const jobs = jobBlocks(yaml);
+      expect(jobs.map((job) => job.name)).toEqual(["build", "publish"]);
+      expect(hasContentsPermission(jobs[0]?.body ?? "", "read")).toBe(true);
+      expect(hasContentsPermission(jobs[1]?.body ?? "", "write")).toBe(true);
+      expect(topLevelPermissionsBlock(yaml) ?? "").not.toMatch(/write/);
     });
 
     it("installs dependencies with --ignore-scripts before building release binaries", () => {

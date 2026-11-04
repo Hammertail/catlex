@@ -14,7 +14,7 @@ if (-not $Version -or $Version -eq "latest") {
   $Version = $ReleaseUri.AbsolutePath.Split('/')[-1]
 }
 $Version = $Version -creplace '^v', ''
-if ($Version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$') {
+if ($Version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?\z') {
   throw "Invalid release version: $Version"
 }
 $BaseUrl = "https://github.com/$Repo/releases/download/v$Version"

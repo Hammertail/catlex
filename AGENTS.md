@@ -113,6 +113,9 @@ The release workflow cross-compiles and publishes:
 - `catlex-darwin-x64`, `catlex-darwin-arm64`
 - `catlex-windows-x64.exe`
 - `install.sh` (Linux / macOS), `install.ps1` (Windows)
+- `SHA256SUMS`, plus a signed build provenance attestation for every asset
+
+Keep the two release jobs separate: `build` runs repository and dependency code with read-only access, and `publish` holds write access and the signing identity, so it must not run that code.
 
 ---
 
