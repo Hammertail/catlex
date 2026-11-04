@@ -398,6 +398,7 @@ export async function translateMissingKeys(
     baseLocale: options.baseLocale,
     strictExtra: options.strictExtra,
     noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
   });
   const messagesDir = path.resolve(cwd, config.messagesDir);
   const dryRun = options.dryRun === true;

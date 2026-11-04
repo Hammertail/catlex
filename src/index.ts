@@ -68,9 +68,11 @@ export {
 } from "./core/translate/collect.ts";
 export {
   DEFAULT_OPENAI_TRANSLATE_MODEL,
+  InsecureOpenAiBaseUrlError,
   MissingOpenAiApiKeyError,
   MissingSubmitTranslationsError,
   assertOpenAiApiKey,
+  assertSafeOpenAiBaseUrl,
   buildOpenAiProviderSettings,
   createOpenAiTranslator,
   resolveOpenAiBaseUrl,

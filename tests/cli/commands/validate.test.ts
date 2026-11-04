@@ -41,11 +41,23 @@ export default { messagesDir: "messages", baseLocale: "en" };
     return { cwd, markerPath };
   }
 
-  it("executes project JavaScript config by default", async () => {
+  it("refuses project JavaScript config by default", async () => {
+    const { cwd, markerPath } = await createProject();
+    silenceLog();
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    logSpies.push(errorSpy);
+
+    await expect(runValidateCommand({ cwd, json: true })).rejects.toThrow(
+      /allow-js-config|allowJsConfig/,
+    );
+    expect(await Bun.file(markerPath).exists()).toBe(false);
+  });
+
+  it("executes project JavaScript config when allowJsConfig is true", async () => {
     const { cwd, markerPath } = await createProject();
     silenceLog();
 
-    const code = await runValidateCommand({ cwd, json: true });
+    const code = await runValidateCommand({ cwd, json: true, allowJsConfig: true });
 
     expect(code).toBe(0);
     expect(await Bun.file(markerPath).text()).toBe("executed");

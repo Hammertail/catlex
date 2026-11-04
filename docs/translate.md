@@ -17,21 +17,23 @@ catlex translate --base-url https://openrouter.ai/api/v1 --model openai/gpt-5.4-
 catlex translate --json
 ```
 
-| Option                   | Description                                                                                                     |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `--dir <path>`           | Messages directory relative to `--cwd`                                                                          |
-| `--base <locale>`        | Base locale stem                                                                                                |
-| `--cwd <path>`           | Project root                                                                                                    |
-| `--locale <locale>`      | Target locale (repeatable or comma-separated; default: all non-base)                                            |
-| `--model <id>`           | Model id (default: `gpt-5.4-mini`)                                                                              |
-| `--base-url <url>`       | OpenAI-compatible API base URL                                                                                  |
-| `--dry-run`              | List missing/skipped keys; **no API call**, no `OPENAI_API_KEY` required                                        |
-| `--yes`                  | Skip both interactive prompts and write files                                                                   |
-| `--no-config`            | Ignore `catlex.config.*`                                                                                        |
-| `--json`                 | JSON on stdout (progress on stderr when the API runs)                                                           |
-| `--concurrency <n>`      | Max parallel API calls (default `4`, range 1–32)                                                                |
-| `--guidance <text>`      | Extra project guidance appended to the model prompt                                                             |
-| `--guidance-file <path>` | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
+| Option                      | Description                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>`              | Messages directory relative to `--cwd`                                                                          |
+| `--base <locale>`           | Base locale stem                                                                                                |
+| `--cwd <path>`              | Project root                                                                                                    |
+| `--locale <locale>`         | Target locale (repeatable or comma-separated; default: all non-base)                                            |
+| `--model <id>`              | Model id (default: `gpt-5.4-mini`)                                                                              |
+| `--base-url <url>`          | OpenAI-compatible API base URL                                                                                  |
+| `--dry-run`                 | List missing/skipped keys; **no API call**, no `OPENAI_API_KEY` required                                        |
+| `--yes`                     | Skip both interactive prompts and write files                                                                   |
+| `--no-config`               | Ignore `catlex.config.*`                                                                                        |
+| `--allow-js-config`         | Allow loading `catlex.config.js\|mjs\|ts` (executes project code)                                               |
+| `--allow-insecure-base-url` | Allow http or private/link-local OpenAI base URLs                                                               |
+| `--json`                    | JSON on stdout (progress on stderr when the API runs)                                                           |
+| `--concurrency <n>`         | Max parallel API calls (default `4`, range 1–32)                                                                |
+| `--guidance <text>`         | Extra project guidance appended to the model prompt                                                             |
+| `--guidance-file <path>`    | Read extra project guidance from a file inside `--cwd` (absolute only if still under `--cwd`; symlinks refused) |
 
 ## How it works
 
@@ -92,7 +94,7 @@ Generated CI workflows use `--no-config --guidance-file ./glossary.md`. Keep tha
 
 Requires `OPENAI_API_KEY` in the environment (except `--dry-run`). Catlex never stores keys in config.
 
-OpenAI-compatible endpoints (OpenRouter, proxies, self-hosted gateways) need a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl`. Precedence: CLI > config > env. The endpoint must support **chat completions with tool calling**.
+OpenAI-compatible endpoints (OpenRouter, proxies, self-hosted gateways) need a base URL via `--base-url`, `OPENAI_BASE_URL`, or `openai.baseUrl`. Precedence: CLI > config > env. The URL must be public `https` unless you pass `--allow-insecure-base-url`. The endpoint must support **chat completions with tool calling**.
 
 Optional provider headers (OpenRouter `HTTP-Referer` / `X-Title`) live under `openai.headers` in config only.
 

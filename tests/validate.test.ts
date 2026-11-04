@@ -1,5 +1,7 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
@@ -42,5 +44,33 @@ describe("validateTranslations", () => {
 
     expect(hasFailingIssues(extras, false)).toBe(false);
     expect(hasFailingIssues(extras, true)).toBe(true);
+  });
+
+  describe("with a JavaScript project config", () => {
+    async function createJsConfigProject(): Promise<string> {
+      const cwd = await mkdtemp(path.join(tmpdir(), "catlex-validate-js-config-"));
+      await mkdir(path.join(cwd, "locales"), { recursive: true });
+      await writeFile(path.join(cwd, "locales", "en.json"), JSON.stringify({ hello: "Hello" }));
+      await writeFile(path.join(cwd, "locales", "pt.json"), JSON.stringify({}));
+      await writeFile(
+        path.join(cwd, "catlex.config.js"),
+        'export default { messagesDir: "locales", baseLocale: "en" };\n',
+      );
+      return cwd;
+    }
+
+    it("refuses the config without allowJsConfig", async () => {
+      const cwd = await createJsConfigProject();
+
+      await expect(validateTranslations({ cwd })).rejects.toThrow(/allow-js-config|allowJsConfig/);
+    });
+
+    it("applies the config when allowJsConfig is true", async () => {
+      const cwd = await createJsConfigProject();
+
+      const result = await validateTranslations({ cwd, allowJsConfig: true });
+
+      expect(result.issues).toContainEqual({ locale: "pt", path: "hello", kind: "missing" });
+    });
   });
 });

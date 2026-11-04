@@ -37,6 +37,7 @@ export async function validateTranslations(
     baseLocale: options.baseLocale,
     strictExtra: options.strictExtra,
     noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
   });
 
   const messagesDir = path.resolve(cwd, config.messagesDir);

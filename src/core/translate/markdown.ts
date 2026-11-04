@@ -41,6 +41,7 @@ export type TranslateMarkdownFileOptions = {
   out: string;
   dryRun?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
   guidance?: string;
   guidanceFile?: string;
   translateMarkdown: TranslateMarkdownFn;
@@ -283,7 +284,10 @@ export async function translateMarkdownFile(
   const { contents, bytes } = await readMarkdownSource(sourcePath);
   const outPath = resolveLogicalOutPath(outInput, resolvedCwd);
 
-  const config = await loadConfig(cwd, { noConfig: options.noConfig });
+  const config = await loadConfig(cwd, {
+    noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
+  });
   const configPath = options.noConfig === true ? null : await findConfigFile(cwd);
   const resolvedGuidance = await resolveTranslateGuidance({
     cwd,

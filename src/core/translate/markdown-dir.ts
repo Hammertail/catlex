@@ -19,6 +19,7 @@ export type TranslateMarkdownDirectoryOptions = {
   out: string;
   dryRun?: boolean;
   noConfig?: boolean;
+  allowJsConfig?: boolean;
   guidance?: string;
   guidanceFile?: string;
   translateMarkdown: TranslateMarkdownFn;
@@ -272,6 +273,7 @@ export async function translateMarkdownDirectory(
       out: path.join(logicalOutDir, relativeFile),
       dryRun,
       noConfig: options.noConfig,
+      allowJsConfig: options.allowJsConfig,
       guidance: options.guidance,
       guidanceFile: options.guidanceFile,
       translateMarkdown: options.translateMarkdown,

@@ -645,6 +645,7 @@ export async function reviewTranslations(
     baseLocale: options.baseLocale,
     strictExtra: options.strictExtra,
     noConfig: options.noConfig,
+    allowJsConfig: options.allowJsConfig,
   });
   const messagesDir = path.resolve(cwd, config.messagesDir);
   const autoFix = options.autoFix === true;

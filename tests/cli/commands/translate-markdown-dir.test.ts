@@ -168,4 +168,82 @@ describe("runTranslateMarkdownDirCommand", () => {
       "PT:# Setup\n",
     );
   });
+
+  describe("with a JavaScript project config", () => {
+    async function createJsConfigProject(prefix: string): Promise<string> {
+      const cwd = await mkdtemp(path.join(tmpdir(), prefix));
+      await writeSource(cwd, "docs/en/example.md", "# Hello\n");
+      await writeFile(path.join(cwd, "catlex.config.js"), 'export default { baseLocale: "en" };\n');
+      return cwd;
+    }
+
+    it("refuses the config without allowJsConfig", async () => {
+      const cwd = await createJsConfigProject("catlex-md-dir-cli-js-refused-");
+
+      await expect(
+        runTranslateMarkdownDirCommand({
+          source: "docs/en",
+          from: "en",
+          to: "pt-BR",
+          out: "docs/pt-BR",
+          cwd,
+          dryRun: true,
+          json: true,
+          env: {},
+        }),
+      ).rejects.toThrow(/allow-js-config|allowJsConfig/);
+    });
+
+    it("translates the directory when allowJsConfig is true", async () => {
+      const cwd = await createJsConfigProject("catlex-md-dir-cli-js-run-");
+      captureLog();
+      const spy = createTranslateSpy();
+
+      const exitCode = await runTranslateMarkdownDirCommand({
+        source: "docs/en",
+        from: "en",
+        to: "pt-BR",
+        out: "docs/pt-BR",
+        cwd,
+        json: true,
+        allowJsConfig: true,
+        env: { OPENAI_API_KEY: "sk-test" },
+        translateMarkdown: spy.translateMarkdown,
+      });
+
+      expect(exitCode).toBe(0);
+      expect(spy.callCount()).toBe(1);
+      expect(await readFile(path.join(cwd, "docs/pt-BR/example.md"), "utf8")).toContain("PT:");
+    });
+  });
+
+  it("rejects an insecure OpenAI base URL unless allowInsecureBaseUrl is true", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-md-dir-cli-url-"));
+    await writeSource(cwd, "docs/en/example.md", "# Hello\n");
+    const options = {
+      source: "docs/en",
+      from: "en",
+      to: "pt-BR",
+      out: "docs/pt-BR",
+      cwd,
+      json: true,
+      baseUrl: "http://127.0.0.1:8080/v1",
+      env: { OPENAI_API_KEY: "sk-test" },
+    };
+
+    await expect(runTranslateMarkdownDirCommand(options)).rejects.toThrow(
+      /allow-insecure-base-url/,
+    );
+
+    const fetchSpy = spyOn(globalThis, "fetch").mockRejectedValue(new Error("network stubbed"));
+    try {
+      await runTranslateMarkdownDirCommand({ ...options, allowInsecureBaseUrl: true }).catch(
+        () => {},
+      );
+      const requested = String(fetchSpy.mock.calls[0]?.[0]);
+      expect(requested.startsWith("http://127.0.0.1:8080/v1")).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 });
