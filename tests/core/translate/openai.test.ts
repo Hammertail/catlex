@@ -100,6 +100,33 @@ describe("resolveOpenAiBaseUrl", () => {
     ).toThrow(InsecureOpenAiBaseUrlError);
   });
 
+  it.each([
+    ["an invalid port", "https://user:SECRETTOKEN@host:notaport/v1"],
+    ["whitespace in the host", "https://user:SECRETTOKEN@ho st/v1"],
+    ["no scheme", "SECRETTOKEN@proxy.example/v1"],
+  ])("does not echo an unparseable base URL with %s", (_label, url) => {
+    let message = "";
+    try {
+      assertSafeOpenAiBaseUrl(url);
+    } catch (error) {
+      expect(error).toBeInstanceOf(InsecureOpenAiBaseUrlError);
+      message = (error as Error).message;
+    }
+    expect(message).toContain("Invalid OpenAI base URL");
+    expect(message).toContain("--allow-insecure-base-url");
+    expect(message).not.toContain("SECRETTOKEN");
+  });
+
+  it("does not echo credentials when refusing a non-https or private base URL", () => {
+    for (const url of [
+      "http://user:SECRETTOKEN@proxy.example/v1",
+      "https://user:SECRETTOKEN@10.0.0.1/v1",
+    ]) {
+      expect(() => assertSafeOpenAiBaseUrl(url)).toThrow(InsecureOpenAiBaseUrlError);
+      expect(() => assertSafeOpenAiBaseUrl(url)).not.toThrow(/SECRETTOKEN/);
+    }
+  });
+
   it("allows insecure base URLs when allowInsecure is true", () => {
     expect(
       resolveOpenAiBaseUrl({

@@ -73,7 +73,8 @@ export function assertSafeOpenAiBaseUrl(
     parsed = new URL(url);
   } catch {
     throw new InsecureOpenAiBaseUrlError(
-      `Invalid OpenAI base URL: ${url}. Pass a valid https URL, or --allow-insecure-base-url for trusted local endpoints.`,
+      // The URL is not echoed: it may carry credentials, and an unparseable one cannot be reliably masked.
+      "Invalid OpenAI base URL. Pass a valid https URL, or --allow-insecure-base-url for trusted local endpoints.",
     );
   }
 
