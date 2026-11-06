@@ -34,8 +34,8 @@
     "smoke": "bun run scripts/smoke.ts"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.105",
-    "ai": "^7.0.157",
+    "@ai-sdk/openai": "^4.0.108",
+    "ai": "^7.0.162",
     "commander": "^15.0.0",
     "ink": "^8.0.0",
     "react": "^19.3.1",
