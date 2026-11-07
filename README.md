@@ -326,10 +326,13 @@ catlex translate review --no-config --since origin/main --json
 
 ## Crash logs
 
-When an unexpected error occurs, Catlex now persists a short crash log to `~/.catlex/logs/` and prints the saved path to stderr so it can be attached to bug reports. The log contains a timestamp, the command invoked, the working directory, the Node/Bun version, the error message, and the stack trace when available.
+When an unexpected error escapes command handling (an uncaught exception or unhandled rejection), Catlex persists a short crash log to `~/.catlex/logs/`, prints the error and the saved path to stderr so it can be attached to bug reports, and exits with code `1`. Logs are readable only by your user. Logs older than 30 days are pruned whenever a new crash log is written.
 
-To opt out of automatic crash-log creation, set the environment variable `CATLEX_NO_CRASH_LOGS=1`.
+The log contains a timestamp, the command invoked, the working directory, the runtime's Node version, the error message, and the stack trace when available. It never includes environment variables.
 
+Secrets are masked in the logged command: the values of `--guidance`, `--base-url`, and any flag whose name contains `key`, `token`, `secret`, or `password`, plus credentials embedded in URLs (`https://user:token@host`) and the values of URL parameters with those words in their names (`?access_token=...`). Masking is best effort, so review a log before sharing it, and avoid uploading `~/.catlex/logs/` as a CI artifact. Logs written by earlier versions are not masked, so delete any that may contain secrets.
+
+To opt out of automatic crash-log creation, set the environment variable `CATLEX_NO_CRASH_LOGS=1`. Crashes then print the stack trace to stderr instead, and still exit with code `1`.
 
 ### Add GitHub Actions workflows
 

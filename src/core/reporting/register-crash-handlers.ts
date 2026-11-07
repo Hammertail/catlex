@@ -1,8 +1,21 @@
-import { writeCrashReportSync, type CrashReport } from "./write-error.ts";
+//* Local imports
+import { redactUrlCredentials } from "./redact.ts";
+import { writeCrashReportSync } from "./write-error.ts";
+
+//* Types imports
+import type { CrashReport } from "./write-error.ts";
 
 export type RegisterOptions = {
   logDir?: string;
 };
+
+function currentDirectory(): string {
+  try {
+    return process.cwd();
+  } catch {
+    return "<unavailable>";
+  }
+}
 
 function buildCrashReportFromError(err: unknown): CrashReport {
   const now = new Date().toISOString();
@@ -11,7 +24,7 @@ function buildCrashReportFromError(err: unknown): CrashReport {
   return {
     timestamp: now,
     argv: process.argv,
-    cwd: process.cwd(),
+    cwd: currentDirectory(),
     node: typeof process !== "undefined" ? (process.version as string) : undefined,
     error: {
       message,
@@ -20,24 +33,43 @@ function buildCrashReportFromError(err: unknown): CrashReport {
   };
 }
 
-function tryPersistCrashSync(err: unknown, providedDir?: string): void {
+function tryPersistCrashSync(report: CrashReport, providedDir?: string): string | undefined {
   try {
-    if (process.env.CATLEX_NO_CRASH_LOGS === "1") return;
-    const report = buildCrashReportFromError(err);
-    writeCrashReportSync(report, providedDir);
+    if (process.env.CATLEX_NO_CRASH_LOGS === "1") return undefined;
+    return writeCrashReportSync(report, providedDir);
   } catch {
-    // swallow errors
+    return undefined;
+  }
+}
+
+function printFatalError(report: CrashReport, savedPath: string | undefined): void {
+  const details = savedPath ? report.error.message : (report.error.stack ?? report.error.message);
+  console.error(`catlex: unexpected error: ${redactUrlCredentials(details)}`);
+  if (savedPath) console.error(`Crash log saved to ${savedPath}`);
+}
+
+/**
+ * Registering a handler suppresses the runtime's default crash output and exit,
+ * so this has to report the error and end the process itself. Exiting non-zero
+ * keeps a crash from passing as success in CI.
+ */
+function handleFatalError(err: unknown, providedDir?: string): void {
+  try {
+    const report = buildCrashReportFromError(err);
+    printFatalError(report, tryPersistCrashSync(report, providedDir));
+  } catch {
+    console.error("catlex: unexpected error (details unavailable)");
+  } finally {
+    process.exit(1);
   }
 }
 
 export function registerCrashHandlers(opts?: RegisterOptions): void {
   process.on("uncaughtException", (err) => {
-    console.log("banan");
-    tryPersistCrashSync(err, opts?.logDir);
+    handleFatalError(err, opts?.logDir);
   });
 
   process.on("unhandledRejection", (reason) => {
-    console.log("melao");
-    tryPersistCrashSync(reason, opts?.logDir);
+    handleFatalError(reason, opts?.logDir);
   });
 }

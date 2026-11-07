@@ -4,6 +4,9 @@ import { writeFileSync, renameSync, mkdirSync, chmodSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
+//* Local imports
+import { redactArgv, redactUrlCredentials } from "./redact.ts";
+
 export type CrashReport = {
   timestamp: string;
   argv: string[];
@@ -33,8 +36,11 @@ function filenameFor(timestamp: Date): string {
 }
 
 function formatReport(report: CrashReport): string {
-  const header = `Timestamp: ${report.timestamp}\nCommand: ${report.argv.join(" ")}\nCwd: ${report.cwd}\nNode: ${report.node ?? "unknown"}\n\n`;
-  const err = `Error: ${report.error.message}\n\nStack:\n${report.error.stack ?? "<no stack>"}\n`;
+  const command = redactArgv(report.argv).join(" ");
+  const header = `Timestamp: ${report.timestamp}\nCommand: ${command}\nCwd: ${report.cwd}\nNode: ${report.node ?? "unknown"}\n\n`;
+  const message = redactUrlCredentials(report.error.message);
+  const stack = redactUrlCredentials(report.error.stack ?? "<no stack>");
+  const err = `Error: ${message}\n\nStack:\n${stack}\n`;
   return header + err;
 }
 

@@ -59,4 +59,34 @@ describe("writeCrashReport", () => {
     const contents = fs.readFileSync(saved, "utf8");
     expect(contents).toContain("Error: boom");
   });
+
+  describe("when the report carries sensitive values", () => {
+    function sensitiveReport(): CrashReport {
+      return {
+        ...sampleReport(),
+        argv: ["bun", "catlex", "translate", "--guidance", "secret glossary", "--json"],
+        error: {
+          message: "fetch failed: https://user:token@proxy.example/v1",
+          stack: "Error: fetch failed: https://user:token@proxy.example/v1\n at <test>",
+        },
+      };
+    }
+
+    function expectRedacted(contents: string) {
+      expect(contents).not.toContain("secret glossary");
+      expect(contents).not.toContain("user:token");
+      expect(contents).toContain("Command: bun catlex translate --guidance <redacted> --json");
+      expect(contents).toContain("https://<redacted>@proxy.example/v1");
+    }
+
+    it("redacts them from the async report", async () => {
+      const saved = await writeCrashReport(sensitiveReport(), tmpRoot);
+      expectRedacted(fs.readFileSync(saved, "utf8"));
+    });
+
+    it("redacts them from the sync report", () => {
+      const saved = writeCrashReportSync(sensitiveReport(), tmpRoot);
+      expectRedacted(fs.readFileSync(saved, "utf8"));
+    });
+  });
 });
