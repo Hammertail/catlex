@@ -111,8 +111,52 @@ describe("redactUrlCredentials", () => {
     expect(redactUrlCredentials(text)).toBe(text);
   });
 
+  it("masks sensitive query and fragment parameter values", () => {
+    expect(
+      redactUrlCredentials("fetch failed: https://proxy.example/v1?access_token=SECRET (503)"),
+    ).toBe(`fetch failed: https://proxy.example/v1?access_token=${REDACTED} (503)`);
+    expect(redactUrlCredentials("https://h/v1?x=1&API_KEY=s1#client_secret=s2;password=s3")).toBe(
+      `https://h/v1?x=1&API_KEY=${REDACTED}#client_secret=${REDACTED};password=${REDACTED}`,
+    );
+  });
+
+  it("masks sensitive parameters together with URL credentials", () => {
+    expect(redactUrlCredentials("https://user:pw@h/v1?x=1&api_key=SECRET#frag")).toBe(
+      `https://${REDACTED}@h/v1?x=1&api_key=${REDACTED}#frag`,
+    );
+  });
+
+  it("masks sensitive parameters in text without a URL scheme", () => {
+    expect(redactUrlCredentials("GET /v1/chat?token=SECRET failed")).toBe(
+      `GET /v1/chat?token=${REDACTED} failed`,
+    );
+  });
+
+  it("masks a parameter value up to the next &, # or ;, including any ?", () => {
+    expect(redactUrlCredentials("https://h/v1?api_key=a?b=c&x=1")).toBe(
+      `https://h/v1?api_key=${REDACTED}&x=1`,
+    );
+  });
+
+  it("masks a sensitive parameter that follows a ? inside another value", () => {
+    expect(redactUrlCredentials("https://h/v1?x=1?api_key=SECRET")).toBe(
+      `https://h/v1?x=1?api_key=${REDACTED}`,
+    );
+  });
+
+  it("leaves non-sensitive parameters and bare names untouched", () => {
+    const text = "https://h/v1?x=1&token&monkeys#section";
+    expect(redactUrlCredentials(text)).toBe(text);
+  });
+
   it("stays fast on long unbroken input", () => {
-    const inputs = ["A".repeat(2_000_000), "x://".repeat(500_000)];
+    const inputs = [
+      "A".repeat(2_000_000),
+      "x://".repeat(500_000),
+      `?${"key".repeat(700_000)}`,
+      `?${"keya".repeat(500_000)}`,
+      "?key=".repeat(400_000),
+    ];
     for (const input of inputs) {
       const startedAt = performance.now();
       redactUrlCredentials(input);

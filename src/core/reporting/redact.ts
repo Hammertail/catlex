@@ -7,12 +7,44 @@ const SENSITIVE_FLAG_PATTERN = /key|token|secret|password/i;
 
 const URL_SCHEME_SEPARATOR = "://";
 
+const PARAM_DELIMITERS = "?&#;";
+
+const PARAM_VALUE_TERMINATORS = "&#;";
+
 function isSensitiveFlag(flag: string): boolean {
   if (!flag.startsWith("-")) return false;
   return SENSITIVE_FLAGS.has(flag.toLowerCase()) || SENSITIVE_FLAG_PATTERN.test(flag);
 }
 
-function redactTokenCredentials(token: string): string {
+/** Returns the index of the first character of `chars` at or after `from`, or `text.length`. */
+function indexOfAny(text: string, chars: string, from: number): number {
+  let index = from;
+  while (index < text.length && !chars.includes(text.charAt(index))) index += 1;
+  return index;
+}
+
+/**
+ * Masks the values of query or fragment parameters whose names match the
+ * sensitive-flag rule, such as `?access_token=...`. Each parameter name is read
+ * once up to the next delimiter or `=`, and a masked value is skipped up to the
+ * next `&`, `#` or `;`, so the scan stays linear.
+ */
+function redactSensitiveParams(token: string): string {
+  let output = "";
+  let index = 0;
+  while (index < token.length) {
+    const delimiter = indexOfAny(token, PARAM_DELIMITERS, index);
+    output += token.slice(index, delimiter + 1);
+    const nameEnd = indexOfAny(token, `=${PARAM_DELIMITERS}`, delimiter + 1);
+    const name = token.slice(delimiter + 1, nameEnd);
+    const isSensitive = token.charAt(nameEnd) === "=" && SENSITIVE_FLAG_PATTERN.test(name);
+    output += isSensitive ? `${name}=${REDACTED}` : name;
+    index = isSensitive ? indexOfAny(token, PARAM_VALUE_TERMINATORS, nameEnd + 1) : nameEnd;
+  }
+  return output;
+}
+
+function redactUserinfo(token: string): string {
   const separator = token.indexOf(URL_SCHEME_SEPARATOR);
   const lastAt = token.lastIndexOf("@");
   if (separator === -1 || lastAt < separator) return token;
@@ -20,14 +52,15 @@ function redactTokenCredentials(token: string): string {
 }
 
 /**
- * Masks `scheme://user:password@host` credentials anywhere in `text`.
+ * Masks URL credentials anywhere in `text`: `scheme://user:password@host`
+ * userinfo, and sensitive query or fragment parameters such as `?api_key=...`.
  *
  * Runs on crash paths over arbitrary error text, so it scans each token linearly
- * instead of using a backtracking pattern. It masks up to the last `@`, as URL
- * parsers do, so a raw `@` in a password cannot expose the rest of it.
+ * instead of using a backtracking pattern. It masks userinfo up to the last `@`,
+ * as URL parsers do, so a raw `@` in a password cannot expose the rest of it.
  */
 export function redactUrlCredentials(text: string): string {
-  return text.replace(/\S+/g, (token) => redactTokenCredentials(token));
+  return text.replace(/\S+/g, (token) => redactSensitiveParams(redactUserinfo(token)));
 }
 
 /**

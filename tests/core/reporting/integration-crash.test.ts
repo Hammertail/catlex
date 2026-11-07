@@ -13,7 +13,7 @@ const FATAL = {
   unhandledRejection: `Promise.reject(new Error("integration-boom"));`,
   nonErrorRejection: `Promise.reject("integration-boom");`,
   unprintableRejection: `Promise.reject(Object.create(null));`,
-  credentialsInMessage: `setTimeout(() => { throw new Error("integration-boom https://user:token@proxy.example/v1"); }, 0);`,
+  credentialsInMessage: `setTimeout(() => { throw new Error("integration-boom https://user:token@proxy.example/v1?access_token=QUERYSECRET"); }, 0);`,
   hugeMessage: `setTimeout(() => { throw new Error("integration-boom " + "A".repeat(2_000_000)); }, 0);`,
   deletedCwd: `setTimeout(() => {
   const fs = require("node:fs");
@@ -166,6 +166,11 @@ describe("integration: crash handlers", () => {
       expect(run.exitCode).toBe(1);
       expect(run.stderr).toContain("https://<redacted>@proxy.example/v1");
       expect(run.stderr).not.toContain("user:token");
+      expect(run.stderr).not.toContain("QUERYSECRET");
+      for (const log of run.logs) {
+        expect(log).not.toContain("user:token");
+        expect(log).not.toContain("QUERYSECRET");
+      }
     });
   });
 
