@@ -1,5 +1,5 @@
 //* Libraries imports
-import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 
 //* Local imports
@@ -8,6 +8,8 @@ import { flattenMessages } from "./flatten.ts";
 //* Types imports
 import type { Stats } from "node:fs";
 import type { LocaleMessages, MessageTree } from "../types.ts";
+
+export const MAX_LOCALE_FILE_BYTES = 2 * 1024 * 1024;
 
 export class MessagesLoadError extends Error {
   constructor(message: string) {
@@ -22,11 +24,85 @@ function localeFromFileName(fileName: string): string {
 
 function isPathInside(candidate: string, allowedDir: string): boolean {
   const relative = path.relative(allowedDir, candidate);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  return (
+    relative !== "" &&
+    relative !== ".." &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+function isInsideOrEqual(candidate: string, allowedDir: string): boolean {
+  const relative = path.relative(allowedDir, candidate);
+  if (relative === "") {
+    return true;
+  }
+  return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 /**
- * Ensures a locale read target is a regular file contained in `messagesDir`.
+ * Ensures `messagesDir` logically resolves inside (or equal to) `cwd`.
+ */
+export function assertLogicalMessagesDirInsideCwd(cwd: string, messagesDir: string): string {
+  const absoluteCwd = path.resolve(cwd);
+  const candidate = path.resolve(absoluteCwd, messagesDir);
+  if (!isInsideOrEqual(candidate, absoluteCwd)) {
+    throw new MessagesLoadError(
+      `Refusing to use messages directory outside the working directory (${absoluteCwd}): ${messagesDir}`,
+    );
+  }
+  return candidate;
+}
+
+/**
+ * Resolves `messagesDir` against `cwd` and verifies that it is a non-symlink directory
+ * whose canonical `realpath` remains inside (or equal to) the canonical `cwd`.
+ */
+export async function resolveSafeMessagesDir(cwd: string, messagesDir: string): Promise<string> {
+  const candidate = assertLogicalMessagesDirInsideCwd(cwd, messagesDir);
+  let resolvedCwd: string;
+
+  try {
+    resolvedCwd = await realpath(path.resolve(cwd));
+  } catch {
+    throw new MessagesLoadError(`Working directory not found: ${cwd}`);
+  }
+
+  let dirStat: Stats;
+  try {
+    dirStat = await lstat(candidate);
+  } catch {
+    throw new MessagesLoadError(`Messages directory not found: ${candidate}`);
+  }
+
+  if (dirStat.isSymbolicLink()) {
+    throw new MessagesLoadError(
+      `Refusing to read messages directory because it is a symbolic link: ${messagesDir}`,
+    );
+  }
+
+  if (!dirStat.isDirectory()) {
+    throw new MessagesLoadError(`Messages path is not a directory: ${candidate}`);
+  }
+
+  let resolvedMessagesDir: string;
+  try {
+    resolvedMessagesDir = await realpath(candidate);
+  } catch {
+    throw new MessagesLoadError(`Messages directory not found: ${candidate}`);
+  }
+
+  if (!isInsideOrEqual(resolvedMessagesDir, resolvedCwd)) {
+    throw new MessagesLoadError(
+      `Refusing to use messages directory outside the working directory (${resolvedCwd}): ${messagesDir}`,
+    );
+  }
+
+  return candidate;
+}
+
+/**
+ * Ensures a locale read target is a regular file contained in `messagesDir` and within the byte limit.
  * Rejects symbolic links and any path that resolves outside the messages directory.
  */
 export async function assertSafeLocaleReadPath(
@@ -60,6 +136,12 @@ export async function assertSafeLocaleReadPath(
     throw new MessagesLoadError(`Translation path is not a regular file: ${filePath}`);
   }
 
+  if (fileStat.size > MAX_LOCALE_FILE_BYTES) {
+    throw new MessagesLoadError(
+      `Locale file exceeds the ${MAX_LOCALE_FILE_BYTES} byte limit: ${filePath}`,
+    );
+  }
+
   const resolvedFilePath = await realpath(absolutePath);
   if (!isPathInside(resolvedFilePath, resolvedMessagesDir)) {
     throw new MessagesLoadError(
@@ -80,6 +162,12 @@ export function parseLocaleMessages(
   raw: string,
   options: ParseLocaleMessagesOptions,
 ): LocaleMessages {
+  if (Buffer.byteLength(raw, "utf8") > MAX_LOCALE_FILE_BYTES) {
+    throw new MessagesLoadError(
+      `Locale file exceeds the ${MAX_LOCALE_FILE_BYTES} byte limit: ${options.filePath}`,
+    );
+  }
+
   let parsed: unknown;
 
   try {
@@ -119,16 +207,33 @@ async function loadLocaleFile(filePath: string, messagesDir: string): Promise<Lo
   });
 }
 
+export type LoadMessagesDirOptions = {
+  allowedRootDir?: string;
+};
+
 /**
  * Loads all `*.json` translation files from a messages directory.
  */
-export async function loadMessagesDir(messagesDir: string): Promise<LocaleMessages[]> {
+export async function loadMessagesDir(
+  messagesDir: string,
+  options?: LoadMessagesDirOptions,
+): Promise<LocaleMessages[]> {
+  if (options?.allowedRootDir !== undefined) {
+    await resolveSafeMessagesDir(options.allowedRootDir, messagesDir);
+  }
+
   let dirStat: Stats;
 
   try {
-    dirStat = await stat(messagesDir);
+    dirStat = await lstat(messagesDir);
   } catch {
     throw new MessagesLoadError(`Messages directory not found: ${messagesDir}`);
+  }
+
+  if (dirStat.isSymbolicLink()) {
+    throw new MessagesLoadError(
+      `Refusing to read messages directory because it is a symbolic link: ${messagesDir}`,
+    );
   }
 
   if (!dirStat.isDirectory()) {

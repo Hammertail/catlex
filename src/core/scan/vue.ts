@@ -8,7 +8,6 @@ import { walkSourceFile } from "./walk.ts";
 //* Types imports
 import type { HardcodedIssue } from "./types.ts";
 
-const BLOCK_OPEN_RE = /<(template|script)\b/gi;
 const ATTRIBUTE_RE = /([:@]?[A-Za-z_][\w:.-]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'))?/g;
 
 type SfcBlock = {
@@ -521,20 +520,36 @@ function scanScriptBlock(
   collector.issues.push(...remappedIssues);
 }
 
-function findClosingTagIndex(content: string, blockType: string, fromIndex: number): number {
-  const closeRe = new RegExp(`</${blockType}>`, "gi");
+function createBlockCloseRe(blockType: SfcBlock["type"]): RegExp {
+  return blockType === "template" ? /<\/template>/gi : /<\/script>/gi;
+}
+
+function createNestedOpenRe(blockType: SfcBlock["type"]): RegExp {
+  return blockType === "template" ? /<template\b/gi : /<script\b/gi;
+}
+
+function findClosingTagIndex(
+  content: string,
+  blockType: SfcBlock["type"],
+  fromIndex: number,
+): number {
+  const closeRe = createBlockCloseRe(blockType);
   closeRe.lastIndex = fromIndex;
   const match = closeRe.exec(content);
   return match?.index ?? -1;
 }
 
-function findNestedOpenIndex(content: string, blockType: string, fromIndex: number): number {
-  const nestedOpenRe = new RegExp(`<${blockType}\\b`, "gi");
+function findNestedOpenIndex(
+  content: string,
+  blockType: SfcBlock["type"],
+  fromIndex: number,
+): number {
+  const nestedOpenRe = createNestedOpenRe(blockType);
   nestedOpenRe.lastIndex = fromIndex;
   return nestedOpenRe.exec(content)?.index ?? -1;
 }
 
-function closeTagLength(blockType: string): number {
+function closeTagLength(blockType: SfcBlock["type"]): number {
   return blockType.length + 3; // </name>
 }
 
@@ -561,7 +576,7 @@ function consumeNestedOpen(
  */
 function findMatchingCloseIndex(
   content: string,
-  blockType: string,
+  blockType: SfcBlock["type"],
   contentStartIndex: number,
 ): number {
   let depth = 1;
@@ -605,13 +620,20 @@ type ParseSfcBlockResult =
   | { status: "skip" }
   | { status: "stop" };
 
+function toSfcBlockType(rawType: string | undefined): SfcBlock["type"] | undefined {
+  const normalized = rawType?.toLowerCase();
+  if (normalized === "template" || normalized === "script") {
+    return normalized;
+  }
+  return undefined;
+}
+
 function parseSfcBlockAt(content: string, openMatch: RegExpExecArray): ParseSfcBlockResult {
-  const rawType = openMatch[1];
-  if (rawType === undefined) {
+  const blockType = toSfcBlockType(openMatch[1]);
+  if (blockType === undefined) {
     return { status: "skip" };
   }
 
-  const blockType = rawType.toLowerCase() as SfcBlock["type"];
   const openTagEnd = findTagEnd(content, openMatch.index + 1);
   if (openTagEnd === -1) {
     return { status: "stop" };
@@ -640,7 +662,7 @@ function parseSfcBlockAt(content: string, openMatch: RegExpExecArray): ParseSfcB
  */
 function extractSfcBlocks(content: string): SfcBlock[] {
   const blocks: SfcBlock[] = [];
-  const openRe = new RegExp(BLOCK_OPEN_RE.source, BLOCK_OPEN_RE.flags);
+  const openRe = /<(template|script)\b/gi;
 
   while (true) {
     const openMatch = openRe.exec(content);

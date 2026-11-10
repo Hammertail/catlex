@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 
 //* Local imports
+import { assertSafeLocaleReadPath } from "../messages/load.ts";
 import { applyTranslationsToTree } from "../messages/unflatten.ts";
 import { writeLocaleMessages } from "../messages/write.ts";
 
@@ -31,6 +32,7 @@ export async function writeTranslatedReports(
       continue;
     }
 
+    await assertSafeLocaleReadPath(report.filePath, options.allowedDir);
     const raw = await readFile(report.filePath, "utf8");
     const tree = JSON.parse(raw) as MessageTree;
     const next = applyTranslationsToTree(

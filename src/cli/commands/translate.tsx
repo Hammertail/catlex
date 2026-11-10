@@ -1,5 +1,4 @@
 //* Libraries imports
-import path from "node:path";
 import { render } from "ink";
 
 //* Local imports
@@ -12,7 +11,11 @@ import {
   countTranslatedKeys,
 } from "../ui/translate-report-view.ts";
 import { loadConfig } from "../../core/config/load.ts";
-import { loadMessagesDir, splitBaseAndLocales } from "../../core/messages/load.ts";
+import {
+  loadMessagesDir,
+  resolveSafeMessagesDir,
+  splitBaseAndLocales,
+} from "../../core/messages/load.ts";
 import { collectMissingTranslations } from "../../core/translate/collect.ts";
 import {
   DEFAULT_OPENAI_TRANSLATE_MODEL,
@@ -106,8 +109,8 @@ async function collectMissingTranslationPlan(options: {
     noConfig: options.noConfig,
     allowJsConfig: options.allowJsConfig,
   });
-  const messagesDir = path.resolve(options.cwd, config.messagesDir);
-  const allLocales = await loadMessagesDir(messagesDir);
+  const messagesDir = await resolveSafeMessagesDir(options.cwd, config.messagesDir);
+  const allLocales = await loadMessagesDir(messagesDir, { allowedRootDir: options.cwd });
   const { base, others } = splitBaseAndLocales(allLocales, config.baseLocale);
   const collected = collectMissingTranslations({
     base,
@@ -306,7 +309,7 @@ export async function runTranslateCommand(options: TranslateCommandOptions): Pro
   }
 
   const writtenFiles = await writeTranslatedReports(result.reports, {
-    allowedDir: path.resolve(cwd, result.messagesDir),
+    allowedDir: await resolveSafeMessagesDir(cwd, result.messagesDir),
   });
   result = { ...result, dryRun: false, cancelled: false, writtenFiles };
   emitOutput(result, json);
