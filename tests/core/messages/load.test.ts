@@ -203,6 +203,30 @@ describe("loadMessagesDir", () => {
     await expect(loadMessagesDir(linkMessages)).rejects.toThrow(/symbolic link/i);
   });
 
+  it("reads from the directory resolved against allowedRootDir instead of process.cwd()", async () => {
+    const allowedRoot = await mkdtemp(path.join(tmpdir(), "catlex-load-allowed-root-"));
+    const otherRoot = await mkdtemp(path.join(tmpdir(), "catlex-load-process-cwd-"));
+    await mkdir(path.join(allowedRoot, "messages"));
+    await mkdir(path.join(otherRoot, "messages"));
+    await writeFile(path.join(allowedRoot, "messages", "en.json"), '{"from":"allowed"}\n', "utf8");
+    await writeFile(
+      path.join(otherRoot, "messages", "en.json"),
+      '{"from":"process-cwd"}\n',
+      "utf8",
+    );
+
+    const previousCwd = process.cwd();
+    process.chdir(otherRoot);
+    try {
+      const locales = await loadMessagesDir("messages", { allowedRootDir: allowedRoot });
+
+      expect(locales[0]?.flat.get("from")).toBe("allowed");
+      expect(locales[0]?.filePath).toBe(path.join(allowedRoot, "messages", "en.json"));
+    } finally {
+      process.chdir(previousCwd);
+    }
+  });
+
   it("refuses to load a locale file that exceeds MAX_LOCALE_FILE_BYTES", async () => {
     const messagesDir = await mkdtemp(path.join(tmpdir(), "catlex-load-oversize-"));
     const oversized = `{"a":"${"x".repeat(MAX_LOCALE_FILE_BYTES)}"}`;

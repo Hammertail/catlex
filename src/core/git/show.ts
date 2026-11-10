@@ -103,15 +103,18 @@ export async function assertRefExists(options: GitCwdOptions & { ref: string }):
  * Rejects empty paths and `:` (which would confuse `rev:path`). `..` segments are
  * allowed: git resolves `<ref>:./../dir` inside the same repository, which monorepo
  * packages rely on for sibling `messagesDir` values such as `../messages`.
+ *
+ * Whitespace is preserved: trimming would turn a directory literally named `  ..`
+ * into a `..` segment, so the object git reads would differ from the path callers
+ * validated against the filesystem.
  */
 export function toGitTreePath(relativePath: string): string {
   const normalized = relativePath
     .replaceAll("\\", "/")
     .replace(/^\.\/+/, "")
-    .replace(/^\/+/, "")
-    .trim();
+    .replace(/^\/+/, "");
 
-  if (normalized.length === 0) {
+  if (normalized.trim().length === 0) {
     throw new GitError(
       `Invalid git tree path: "${relativePath}". Paths must be a non-empty tree-relative path.`,
     );
@@ -270,7 +273,7 @@ export async function listFilesAtRef(options: ListFilesAtRefOptions): Promise<st
 
   return result.stdout
     .split("\n")
-    .map((line) => line.trim())
+    .map((line) => line.replace(/\r$/, ""))
     .filter((line) => line.length > 0)
     .sort();
 }

@@ -230,6 +230,11 @@ describe("toGitTreePath", () => {
     expect(toGitTreePath("..\\messages\\en.json")).toBe("./../messages/en.json");
   });
 
+  it("preserves leading and trailing whitespace instead of collapsing it into .. segments", () => {
+    expect(toGitTreePath("  ../secrets/en.json")).toBe("./  ../secrets/en.json");
+    expect(toGitTreePath("messages/en.json ")).toBe("./messages/en.json ");
+  });
+
   it("rejects empty paths", () => {
     expect(() => toGitTreePath("")).toThrow(GitError);
     expect(() => toGitTreePath("   ")).toThrow(GitError);
@@ -460,6 +465,30 @@ describe("listFilesAtRef", () => {
       ["cat-file", "-e", "--end-of-options", "main:./messages"],
       ["ls-tree", "-r", "--name-only", "--end-of-options", "main", "--", "messages"],
     ]);
+  });
+
+  it("keeps whitespace in listed paths and only strips a trailing carriage return", async () => {
+    const runGit = createFakeRunner({
+      onArgs: (args) => {
+        if (args[0] === "cat-file") {
+          return { stdout: "", stderr: "", exitCode: 0 };
+        }
+        return {
+          stdout: "  ../secrets/en.json\r\nmessages/pt.json \n",
+          stderr: "",
+          exitCode: 0,
+        };
+      },
+    });
+
+    const files = await listFilesAtRef({
+      cwd: "/repo",
+      ref: "main",
+      directory: "  ../secrets",
+      runGit,
+    });
+
+    expect(files).toEqual(["  ../secrets/en.json", "messages/pt.json "]);
   });
 
   it("returns an empty list when the directory is absent at the ref", async () => {

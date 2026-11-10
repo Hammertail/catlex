@@ -22,7 +22,11 @@ function localeFromFileName(fileName: string): string {
   return path.basename(fileName, ".json");
 }
 
-function isPathInside(candidate: string, allowedDir: string): boolean {
+/**
+ * Returns whether `candidate` is strictly inside `allowedDir` (both compared as given, without
+ * resolving symlinks).
+ */
+export function isPathInside(candidate: string, allowedDir: string): boolean {
   const relative = path.relative(allowedDir, candidate);
   return (
     relative !== "" &&
@@ -218,40 +222,41 @@ export async function loadMessagesDir(
   messagesDir: string,
   options?: LoadMessagesDirOptions,
 ): Promise<LocaleMessages[]> {
+  let directory = messagesDir;
   if (options?.allowedRootDir !== undefined) {
-    await resolveSafeMessagesDir(options.allowedRootDir, messagesDir);
+    directory = await resolveSafeMessagesDir(options.allowedRootDir, messagesDir);
   }
 
   let dirStat: Stats;
 
   try {
-    dirStat = await lstat(messagesDir);
+    dirStat = await lstat(directory);
   } catch {
-    throw new MessagesLoadError(`Messages directory not found: ${messagesDir}`);
+    throw new MessagesLoadError(`Messages directory not found: ${directory}`);
   }
 
   if (dirStat.isSymbolicLink()) {
     throw new MessagesLoadError(
-      `Refusing to read messages directory because it is a symbolic link: ${messagesDir}`,
+      `Refusing to read messages directory because it is a symbolic link: ${directory}`,
     );
   }
 
   if (!dirStat.isDirectory()) {
-    throw new MessagesLoadError(`Messages path is not a directory: ${messagesDir}`);
+    throw new MessagesLoadError(`Messages path is not a directory: ${directory}`);
   }
 
-  const entries = await readdir(messagesDir);
+  const entries = await readdir(directory);
   const jsonFiles = entries.filter((name) => name.endsWith(".json")).sort();
 
   if (jsonFiles.length === 0) {
-    throw new MessagesLoadError(`No JSON translation files found in: ${messagesDir}`);
+    throw new MessagesLoadError(`No JSON translation files found in: ${directory}`);
   }
 
   const locales: LocaleMessages[] = [];
 
   for (const fileName of jsonFiles) {
-    const filePath = path.join(messagesDir, fileName);
-    locales.push(await loadLocaleFile(filePath, messagesDir));
+    const filePath = path.join(directory, fileName);
+    locales.push(await loadLocaleFile(filePath, directory));
   }
 
   return locales;
