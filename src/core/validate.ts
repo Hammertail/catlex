@@ -3,7 +3,7 @@ import path from "node:path";
 
 //* Local imports
 import { loadConfig } from "./config/load.ts";
-import { loadMessagesDir, splitBaseAndLocales } from "./messages/load.ts";
+import { loadMessagesDir, resolveSafeMessagesDir, splitBaseAndLocales } from "./messages/load.ts";
 import { runValidators } from "./validators/registry.ts";
 
 //* Types imports
@@ -40,8 +40,8 @@ export async function validateTranslations(
     allowJsConfig: options.allowJsConfig,
   });
 
-  const messagesDir = path.resolve(cwd, config.messagesDir);
-  const allLocales = await loadMessagesDir(messagesDir);
+  const messagesDir = await resolveSafeMessagesDir(cwd, config.messagesDir);
+  const allLocales = await loadMessagesDir(messagesDir, { allowedRootDir: cwd });
   const { base, others } = splitBaseAndLocales(allLocales, config.baseLocale);
 
   const issues = runValidators({

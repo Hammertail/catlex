@@ -1,5 +1,5 @@
 //* Libraries imports
-import { readdir } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import ts from "@typescript/typescript6";
 
@@ -9,6 +9,64 @@ import { walkSourceFile } from "./walk.ts";
 
 //* Types imports
 import type { HardcodedIssue, ScanFileError, ScanResult } from "./types.ts";
+
+export const MAX_SCAN_FILE_BYTES = 1024 * 1024;
+
+export type ResolveSafeScanRootOptions = {
+  cwd?: string;
+  dir?: string;
+  allowOutsideCwd?: boolean;
+};
+
+function isInsideOrEqual(candidate: string, allowedDir: string): boolean {
+  const relative = path.relative(allowedDir, candidate);
+  if (relative === "") {
+    return true;
+  }
+  return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/**
+ * Resolves the scan target directory against `cwd` and refuses targets that escape
+ * `cwd` (logically or via symlinks) unless `allowOutsideCwd: true` is passed.
+ */
+export async function resolveSafeScanRoot(
+  options: ResolveSafeScanRootOptions = {},
+): Promise<string> {
+  const cwd = options.cwd ?? process.cwd();
+  const dir = options.dir ?? ".";
+  const allowOutsideCwd = options.allowOutsideCwd === true;
+  const absoluteCwd = path.resolve(cwd);
+  const absoluteTarget = path.resolve(absoluteCwd, dir);
+
+  if (!allowOutsideCwd && !isInsideOrEqual(absoluteTarget, absoluteCwd)) {
+    throw new Error(
+      `Refusing to scan directory outside the working directory (${absoluteCwd}): ${dir}. Pass --allow-outside-cwd to override.`,
+    );
+  }
+
+  const targetStat = await lstat(absoluteTarget);
+
+  if (!allowOutsideCwd) {
+    if (targetStat.isSymbolicLink()) {
+      throw new Error(
+        `Refusing to scan directory because it is a symbolic link: ${dir}. Pass --allow-outside-cwd to override.`,
+      );
+    }
+
+    const [resolvedCwd, resolvedTarget] = await Promise.all([
+      realpath(absoluteCwd),
+      realpath(absoluteTarget),
+    ]);
+    if (!isInsideOrEqual(resolvedTarget, resolvedCwd)) {
+      throw new Error(
+        `Refusing to scan directory outside the working directory (${resolvedCwd}): ${dir}. Pass --allow-outside-cwd to override.`,
+      );
+    }
+  }
+
+  return absoluteTarget;
+}
 
 const IGNORE_DIR_NAMES = new Set(["node_modules", "dist", ".next", ".git"]);
 
@@ -70,7 +128,18 @@ async function scanOneFile(
   filePath: string,
 ): Promise<{ issues: HardcodedIssue[]; error?: ScanFileError }> {
   try {
-    const content = await Bun.file(filePath).text();
+    const file = Bun.file(filePath);
+    if (file.size > MAX_SCAN_FILE_BYTES) {
+      throw new Error(
+        `Source file exceeds the ${MAX_SCAN_FILE_BYTES} byte scan limit: ${filePath}`,
+      );
+    }
+    const content = await file.text();
+    if (Buffer.byteLength(content, "utf8") > MAX_SCAN_FILE_BYTES) {
+      throw new Error(
+        `Source file exceeds the ${MAX_SCAN_FILE_BYTES} byte scan limit: ${filePath}`,
+      );
+    }
     return { issues: scanSourceContent(filePath, content) };
   } catch (error) {
     return {

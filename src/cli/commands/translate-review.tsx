@@ -1,5 +1,4 @@
 //* Libraries imports
-import path from "node:path";
 import { render } from "ink";
 
 //* Local imports
@@ -8,6 +7,7 @@ import { promptConfirm, type ConfirmFn } from "../ui/prompt-confirm.tsx";
 import { createReviewProgressWriter } from "../ui/review-progress.ts";
 import { REVIEW_ALPHA_MESSAGE, buildReviewReportView } from "../ui/review-report-view.ts";
 import { loadConfig } from "../../core/config/load.ts";
+import { resolveSafeMessagesDir } from "../../core/messages/load.ts";
 import {
   DEFAULT_OPENAI_TRANSLATE_MODEL,
   MissingOpenAiApiKeyError,
@@ -104,6 +104,7 @@ async function writeReviewFixes(
   result: ReviewResult,
   options: { cwd: string },
 ): Promise<ReviewResult> {
+  const allowedDir = await resolveSafeMessagesDir(options.cwd, result.messagesDir);
   const writtenFiles = await writeTranslatedReports(
     result.reports.map((report) => ({
       locale: report.locale,
@@ -115,7 +116,7 @@ async function writeReviewFixes(
       unexpectedPaths: [],
       placeholderWarnings: [],
     })),
-    { allowedDir: path.resolve(options.cwd, result.messagesDir) },
+    { allowedDir },
   );
   return withReviewFixesApplied(result, writtenFiles);
 }

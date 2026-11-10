@@ -3,7 +3,12 @@ import path from "node:path";
 
 //* Local imports
 import { loadConfig, findConfigFile } from "../config/load.ts";
-import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
+import {
+  assertLogicalMessagesDirInsideCwd,
+  loadMessagesDir,
+  resolveSafeMessagesDir,
+  splitBaseAndLocales,
+} from "../messages/load.ts";
 import { collectTranslationExamples } from "./collect.ts";
 import { resolveTranslateGuidance } from "./guidance.ts";
 import { chunkItems, mapWithConcurrency, resolveTranslateConcurrency } from "./pool.ts";
@@ -647,7 +652,10 @@ export async function reviewTranslations(
     noConfig: options.noConfig,
     allowJsConfig: options.allowJsConfig,
   });
-  const messagesDir = path.resolve(cwd, config.messagesDir);
+  const messagesDir =
+    options.loadWorkingTree !== undefined
+      ? assertLogicalMessagesDirInsideCwd(cwd, config.messagesDir)
+      : await resolveSafeMessagesDir(cwd, config.messagesDir);
   const autoFix = options.autoFix === true;
   const dryRun = options.dryRun === true;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
@@ -668,7 +676,7 @@ export async function reviewTranslations(
   const workingTree =
     options.loadWorkingTree !== undefined
       ? await options.loadWorkingTree()
-      : await loadMessagesDir(messagesDir);
+      : await loadMessagesDir(messagesDir, { allowedRootDir: cwd });
   const { base, others } = splitBaseAndLocales(workingTree, config.baseLocale);
   const localeById = new Map(others.map((locale) => [locale.locale, locale]));
 

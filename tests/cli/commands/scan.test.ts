@@ -1,6 +1,6 @@
 //* Libraries imports
 import { afterEach, describe, expect, it, spyOn } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -156,5 +156,53 @@ describe("runScanCommand", () => {
         json: true,
       }),
     ).rejects.toThrow(/ENOENT|no such file or directory/i);
+  });
+
+  it("refuses --dir that resolves outside --cwd unless allowOutsideCwd is true", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-scan-outside-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd);
+    await mkdir(outside);
+    await writeFile(
+      path.join(outside, "Leak.tsx"),
+      "export const L = () => <button>Save</button>;\n",
+    );
+
+    await expect(
+      runScanCommand({
+        cwd,
+        dir: "../outside",
+        json: true,
+      }),
+    ).rejects.toThrow(/outside the working directory/i);
+
+    const log = captureLog();
+    const exitCode = await runScanCommand({
+      cwd,
+      dir: "../outside",
+      allowOutsideCwd: true,
+      json: true,
+    });
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(payload.rootDir).toBe(path.resolve(outside));
+  });
+
+  it("refuses --dir that is a symlink pointing outside --cwd unless allowOutsideCwd is true", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-scan-symlink-outside-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd);
+    await mkdir(outside);
+    await symlink(outside, path.join(cwd, "linked"));
+
+    await expect(
+      runScanCommand({
+        cwd,
+        dir: "linked",
+        json: true,
+      }),
+    ).rejects.toThrow(/symbolic link|outside the working directory/i);
   });
 });

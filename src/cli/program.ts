@@ -151,12 +151,14 @@ export function createProgram(): Command {
     .description("Scan JSX/TSX/VUE for hardcoded user-visible strings (alpha)")
     .option("--dir <path>", "Source root directory relative to cwd", ".")
     .option("--cwd <path>", "Project root directory", process.cwd())
+    .option("--allow-outside-cwd", "Allow --dir to resolve outside --cwd", false)
     .option("--json", "Print machine-readable JSON instead of Ink UI", false)
     .action(async (options) => {
       await setExitCodeFrom(() =>
         runScanCommand({
           dir: options.dir,
           cwd: options.cwd,
+          allowOutsideCwd: options.allowOutsideCwd === true,
           json: options.json === true,
         }),
       );

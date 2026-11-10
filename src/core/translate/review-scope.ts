@@ -9,10 +9,18 @@ import {
   readFileAtRef,
   resolveCurrentBranch,
   resolveRefSha,
+  toGitTreePath,
 } from "../git/show.ts";
 import { diffFlatMessages } from "../messages/diff-flat.ts";
 import { flattenMessages } from "../messages/flatten.ts";
-import { loadMessagesDir, parseLocaleMessages } from "../messages/load.ts";
+import {
+  assertLogicalMessagesDirInsideCwd,
+  isPathInside,
+  loadMessagesDir,
+  MessagesLoadError,
+  parseLocaleMessages,
+  resolveSafeMessagesDir,
+} from "../messages/load.ts";
 import { sortByLocalePath } from "./locale-path.ts";
 
 //* Types imports
@@ -138,7 +146,8 @@ async function resolveSinceGitContext(options: {
 }
 
 async function defaultLoadWorkingTree(cwd: string, messagesDir: string): Promise<LocaleMessages[]> {
-  return loadMessagesDir(path.resolve(cwd, messagesDir));
+  const safeMessagesDir = await resolveSafeMessagesDir(cwd, messagesDir);
+  return loadMessagesDir(safeMessagesDir, { allowedRootDir: cwd });
 }
 
 async function defaultLoadAtRef(options: {
@@ -155,9 +164,18 @@ async function defaultLoadAtRef(options: {
   });
 
   const jsonFiles = files.filter((filePath) => filePath.endsWith(".json")).sort();
+  const messagesRoot = assertLogicalMessagesDirInsideCwd(options.cwd, options.messagesDir);
   const locales: LocaleMessages[] = [];
 
   for (const relativePath of jsonFiles) {
+    // Check the exact path git will be asked for, so the read stays bound to messagesDir.
+    const requestedPath = path.resolve(options.cwd, toGitTreePath(relativePath));
+    if (!isPathInside(requestedPath, messagesRoot)) {
+      throw new MessagesLoadError(
+        `Refusing to read locale file outside the messages directory (${messagesRoot}) at ${options.ref}: ${relativePath}`,
+      );
+    }
+
     const raw = await readFileAtRef({
       cwd: options.cwd,
       ref: options.ref,
@@ -515,6 +533,7 @@ async function buildSinceScope(options: {
 export async function resolveReviewScope(
   options: ResolveReviewScopeOptions,
 ): Promise<ReviewScopeResult> {
+  assertLogicalMessagesDirInsideCwd(options.cwd, options.messagesDir);
   const loadWorkingTree =
     options.loadWorkingTree ?? (() => defaultLoadWorkingTree(options.cwd, options.messagesDir));
   const loadAtRef =

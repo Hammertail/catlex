@@ -205,4 +205,23 @@ describe("scanHardcoded complex fixtures", () => {
       }),
     );
   });
+
+  it("ignores non-template/script SFC blocks and regex metacharacters in custom tag names", () => {
+    const { scanVueFile } = require("../../src/core/scan/vue.ts");
+    const sfc = [
+      "<style>.btn { content: 'Ignored style'; }</style>",
+      "<custom-block(foo)+>Ignored custom block</custom-block(foo)+>",
+      "<template>",
+      '  <template v-if="ok"><span>Visible inside nested template</span></template>',
+      "</template>",
+    ].join("\n");
+
+    const issues = scanVueFile("Component.vue", sfc);
+    expect(issues).toEqual([
+      expect.objectContaining({
+        kind: "jsx-text",
+        text: "Visible inside nested template",
+      }),
+    ]);
+  });
 });

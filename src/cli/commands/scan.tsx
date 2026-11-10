@@ -1,11 +1,10 @@
 //* Libraries imports
-import path from "node:path";
 import { render } from "ink";
 
 //* Local imports
 import { ScanReport } from "../ui/ScanReport.tsx";
 import { SCAN_ALPHA_MESSAGE } from "../ui/scan-report-view.ts";
-import { scanHardcoded } from "../../core/scan/scan.ts";
+import { resolveSafeScanRoot, scanHardcoded } from "../../core/scan/scan.ts";
 
 //* Types imports
 import type { ScanResult } from "../../core/scan/types.ts";
@@ -13,6 +12,7 @@ import type { ScanResult } from "../../core/scan/types.ts";
 export type ScanCommandOptions = {
   dir?: string;
   cwd?: string;
+  allowOutsideCwd?: boolean;
   json?: boolean;
 };
 
@@ -22,12 +22,6 @@ const SCAN_EXIT = {
   findings: 1,
   error: 2,
 } as const;
-
-function resolveScanRoot(options: ScanCommandOptions): string {
-  const cwd = options.cwd ?? process.cwd();
-  const dir = options.dir ?? ".";
-  return path.resolve(cwd, dir);
-}
 
 function printJson(result: ScanResult): void {
   const hasErrors = result.errors.length > 0;
@@ -73,7 +67,8 @@ function exitCodeForScanResult(result: ScanResult): number {
 export async function runScanCommand(options: ScanCommandOptions): Promise<number> {
   // Let unexpected failures propagate to program.ts (`setExitCodeFrom` → exit 1).
   // Exit 2 is only for completed scans with per-file errors.
-  const result = await scanHardcoded(resolveScanRoot(options));
+  const scanRoot = await resolveSafeScanRoot(options);
+  const result = await scanHardcoded(scanRoot);
   emitScanOutput(result, options.json === true);
   return exitCodeForScanResult(result);
 }

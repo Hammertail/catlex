@@ -8,9 +8,12 @@ export {
   compareResultToIssues,
 } from "./core/messages/compare.ts";
 export {
+  assertLogicalMessagesDirInsideCwd,
   assertSafeLocaleReadPath,
   loadMessagesDir,
+  MAX_LOCALE_FILE_BYTES,
   parseLocaleMessages,
+  resolveSafeMessagesDir,
   splitBaseAndLocales,
   MessagesLoadError,
 } from "./core/messages/load.ts";
@@ -31,7 +34,12 @@ export {
   validateTranslations,
   hasFailingIssues,
 } from "./core/validate.ts";
-export { scanHardcoded } from "./core/scan/scan.ts";
+export {
+  MAX_SCAN_FILE_BYTES,
+  resolveSafeScanRoot,
+  scanHardcoded,
+  type ResolveSafeScanRootOptions,
+} from "./core/scan/scan.ts";
 export {
   isLikelyUserVisible,
   isUserFacingAttribute,

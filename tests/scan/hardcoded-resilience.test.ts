@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 //* Local imports
-import { scanHardcoded } from "../../src/index.ts";
+import { MAX_SCAN_FILE_BYTES, scanHardcoded } from "../../src/index.ts";
 import { brokenRoot } from "./helpers.ts";
 
 function deeplyNestedVueScript(depth: number): string {
@@ -85,5 +85,26 @@ describe("scanHardcoded resilience", () => {
     } finally {
       Bun.file = originalFile;
     }
+  });
+
+  it("allows a source file at MAX_SCAN_FILE_BYTES and records a file-level error at MAX_SCAN_FILE_BYTES + 1", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-scan-oversize-"));
+    const prefix = "export const B = () => <button>Save</button>; // ";
+    const suffix = "\n";
+    const exactFill = MAX_SCAN_FILE_BYTES - prefix.length - suffix.length;
+
+    await writeFile(path.join(root, "a-exact.tsx"), `${prefix}${"x".repeat(exactFill)}${suffix}`);
+    await writeFile(
+      path.join(root, "b-huge.tsx"),
+      `${prefix}${"x".repeat(exactFill + 1)}${suffix}`,
+    );
+    await writeFile(path.join(root, "c-good.tsx"), "export const C = () => <span>Cancel</span>;\n");
+
+    const result = await scanHardcoded(root);
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.filePath).toBe(path.join(root, "b-huge.tsx"));
+    expect(result.errors[0]?.message).toMatch(/exceeds.*byte.*limit/i);
+    expect(result.issues.map((issue) => issue.text).sort()).toEqual(["Cancel", "Save"]);
   });
 });

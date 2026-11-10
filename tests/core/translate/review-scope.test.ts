@@ -422,6 +422,61 @@ describe.skipIf(!gitAvailable)("resolveReviewScope with real git", () => {
     ).rejects.toThrow(GitError);
   });
 
+  it("does not let a whitespace-prefixed messagesDir read a sibling directory at the --since ref", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(
+      cwd,
+      "secrets/en.json",
+      `${JSON.stringify({ leaked: "OUTSIDE_SECRET" }, null, 2)}\n`,
+    );
+    await writeRepoFile(
+      cwd,
+      "package/  ../secrets/en.json",
+      `${JSON.stringify({ welcome: "Welcome" }, null, 2)}\n`,
+    );
+    await commitAll(cwd, "initial");
+    await runGit(["branch", "-M", "main"], { cwd });
+
+    const packageCwd = path.join(cwd, "package");
+    const result = await resolveReviewScope({
+      cwd: packageCwd,
+      messagesDir: "  ../secrets",
+      baseLocale: "en",
+      since: "main",
+    });
+
+    expect(result.targets).toEqual([]);
+    expect(result.removed).toEqual([]);
+    expect(result.sinceContext?.filesAtRef).toEqual(["en.json"]);
+  });
+
+  it("refuses a listed locale path at the --since ref that resolves outside messagesDir", async () => {
+    const { cwd } = await createTempGitRepo();
+    await writeRepoFile(cwd, "package/messages/en.json", '{"welcome":"Welcome"}\n');
+    await commitAll(cwd, "initial");
+    const packageCwd = path.join(cwd, "package");
+    const shown: string[][] = [];
+
+    const result = resolveReviewScope({
+      cwd: packageCwd,
+      messagesDir: "messages",
+      baseLocale: "en",
+      since: "HEAD",
+      runGit: async (args, runOptions) => {
+        if (args[0] === "ls-tree") {
+          return { stdout: "../secrets/en.json\n", stderr: "", exitCode: 0 };
+        }
+        if (args[0] === "show") {
+          shown.push(args);
+        }
+        return runGit(args, runOptions);
+      },
+    });
+
+    await expect(result).rejects.toThrow(/outside the messages directory/i);
+    expect(shown).toEqual([]);
+  });
+
   it("resolves --since scope when cwd is a package subdirectory in a monorepo", async () => {
     const { cwd } = await createTempGitRepo();
     await writeRepoFile(

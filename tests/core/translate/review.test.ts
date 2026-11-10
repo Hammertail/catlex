@@ -839,4 +839,30 @@ describe("reviewTranslations", () => {
     expect(reviewPrompts[0]).toContain("Always translate About as Sobre.");
     expect(translatePrompts[0]).toContain("Always translate About as Sobre.");
   });
+
+  it("refuses a messagesDir outside the working directory and never calls the reviewer", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-review-msgdir-escape-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "en.json"), JSON.stringify({ welcome: "Welcome" }), "utf8");
+    await writeFile(path.join(outside, "pt.json"), JSON.stringify({ welcome: "Olá" }), "utf8");
+
+    let called = false;
+    await expect(
+      reviewTranslations({
+        cwd,
+        messagesDir: "../outside",
+        baseLocale: "en",
+        dryRun: true,
+        reviewLocale: async (input) => {
+          called = true;
+          return { locale: input.targetLocale, reviews: [] };
+        },
+      }),
+    ).rejects.toThrow(/outside the working directory/i);
+
+    expect(called).toBe(false);
+  });
 });

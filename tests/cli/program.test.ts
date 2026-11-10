@@ -336,11 +336,12 @@ describe("createProgram", () => {
       silenceErrors();
       const opts = await captureCommandOpts(
         ["scan"],
-        ["scan", "--dir", "src", "--cwd", "/tmp/scan-cwd", "--json"],
+        ["scan", "--dir", "src", "--cwd", "/tmp/scan-cwd", "--allow-outside-cwd", "--json"],
       );
       expect(opts).toMatchObject({
         dir: "src",
         cwd: "/tmp/scan-cwd",
+        allowOutsideCwd: true,
         json: true,
       });
     });

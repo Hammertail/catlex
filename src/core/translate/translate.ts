@@ -3,7 +3,7 @@ import path from "node:path";
 
 //* Local imports
 import { loadConfig, findConfigFile } from "../config/load.ts";
-import { loadMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
+import { loadMessagesDir, resolveSafeMessagesDir, splitBaseAndLocales } from "../messages/load.ts";
 import { applyTranslationsToTree } from "../messages/unflatten.ts";
 import { writeLocaleMessages } from "../messages/write.ts";
 import { collectMissingTranslations, collectTranslationExamples } from "./collect.ts";
@@ -400,7 +400,7 @@ export async function translateMissingKeys(
     noConfig: options.noConfig,
     allowJsConfig: options.allowJsConfig,
   });
-  const messagesDir = path.resolve(cwd, config.messagesDir);
+  const messagesDir = await resolveSafeMessagesDir(cwd, config.messagesDir);
   const dryRun = options.dryRun === true;
   const skipWrite = options.skipWrite === true || dryRun;
   const chunkSize = options.chunkSize ?? DEFAULT_TRANSLATE_CHUNK_SIZE;
@@ -421,7 +421,7 @@ export async function translateMissingKeys(
     options.writeLocale ??
     ((filePath, tree) => writeLocaleMessages(filePath, tree, { allowedDir: messagesDir }));
 
-  const allLocales = await loadMessagesDir(messagesDir);
+  const allLocales = await loadMessagesDir(messagesDir, { allowedRootDir: cwd });
   const { base, others } = splitBaseAndLocales(allLocales, config.baseLocale);
   const collected = collectMissingTranslations({
     base,

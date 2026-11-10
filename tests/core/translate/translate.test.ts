@@ -618,4 +618,30 @@ describe("translateMissingKeys", () => {
 
     expect(prompts).toEqual([]);
   });
+
+  it("refuses a messagesDir outside the working directory and never calls the translator", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-translate-msgdir-escape-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "en.json"), JSON.stringify({ about: "About" }), "utf8");
+    await writeFile(path.join(outside, "pt.json"), JSON.stringify({}), "utf8");
+
+    let called = false;
+    await expect(
+      translateMissingKeys({
+        cwd,
+        messagesDir: "../outside",
+        baseLocale: "en",
+        skipWrite: true,
+        translateLocale: async (input) => {
+          called = true;
+          return { locale: input.targetLocale, translations: [] };
+        },
+      }),
+    ).rejects.toThrow(/outside the working directory/i);
+
+    expect(called).toBe(false);
+  });
 });

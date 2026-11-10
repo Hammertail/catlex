@@ -1,6 +1,6 @@
 //* Libraries imports
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -72,5 +72,32 @@ describe("validateTranslations", () => {
 
       expect(result.issues).toContainEqual({ locale: "pt", path: "hello", kind: "missing" });
     });
+  });
+
+  it("refuses messagesDir that resolves outside cwd", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-validate-escape-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "en.json"), JSON.stringify({ hello: "Hello" }));
+
+    await expect(
+      validateTranslations({ cwd, messagesDir: "../outside", baseLocale: "en" }),
+    ).rejects.toThrow(/outside the working directory/i);
+  });
+
+  it("refuses a symlinked messagesDir", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "catlex-validate-symlink-"));
+    const cwd = path.join(root, "project");
+    const outside = path.join(root, "outside");
+    await mkdir(cwd, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(path.join(outside, "en.json"), JSON.stringify({ hello: "Hello" }));
+    await symlink(outside, path.join(cwd, "messages"));
+
+    await expect(
+      validateTranslations({ cwd, messagesDir: "messages", baseLocale: "en" }),
+    ).rejects.toThrow(/symbolic link/i);
   });
 });
