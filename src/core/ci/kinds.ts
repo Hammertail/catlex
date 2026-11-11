@@ -28,21 +28,21 @@ export const CI_WORKFLOW_OPTIONS: readonly CiWorkflowOption[] = [
     relativePath: REVIEW_WORKFLOW_RELATIVE_PATH,
     title: "Review translations",
     description:
-      "Gate PRs/pushes with catlex translate review --no-config --since (requires OPENAI_API_KEY; no auto-fix).",
+      "Run a manual review on the trusted default branch (requires catlex-ai environment and OPENAI_API_KEY; no auto-fix).",
   },
   {
     kind: "review-fix",
     relativePath: REVIEW_FIX_WORKFLOW_RELATIVE_PATH,
     title: "Review, auto-fix, and commit",
     description:
-      "Review changed keys with --no-config, apply --auto-fix --yes, and commit fixes (requires OPENAI_API_KEY and write access).",
+      "Run a manual review-fix on the trusted default branch; upload a patch, with commits opt-in (requires catlex-ai and OPENAI_API_KEY).",
   },
   {
     kind: "translate",
     relativePath: TRANSLATE_WORKFLOW_RELATIVE_PATH,
     title: "Fill missing translations and commit",
     description:
-      "Run catlex translate --no-config --yes to fill missing keys and commit (requires OPENAI_API_KEY and write access).",
+      "Run a manual fill on the trusted default branch; upload a patch, with commits opt-in (requires catlex-ai and OPENAI_API_KEY).",
   },
 ] as const;
 

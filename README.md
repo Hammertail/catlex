@@ -306,23 +306,13 @@ Requires `OPENAI_API_KEY`. This command is **alpha**: model verdicts may be wron
 
 ### CI example (changed keys only)
 
-Use a full git history (or fetch the base ref) so `--since` can resolve:
+Generate a manual workflow with `catlex ci` and run it on the trusted default branch. AI jobs use the `catlex-ai` environment: store the key there, restrict deployments to the default branch, and configure reviewers where supported. See [CI setup and trust boundaries](docs/ci.md). Review compares the latest commit to its first parent using full history:
 
-```yaml
-- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-  with:
-    fetch-depth: 0
-
-- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-    CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
+```bash
+catlex translate review --no-config --since HEAD^ --json
 ```
 
-Generated workflows use `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md`, so keep a glossary at the repository root (or edit the `run:` line). `translate.concurrency` in `catlex.config.*` does **not** apply on those jobs. They still use the runtime default of 4 parallel API calls. To raise or lower that in Actions, add `--concurrency` to the workflow `run:` line.
-
-Pass GitHub context values through `env` (never interpolate `${{ }}` directly into `run:` scripts). On `push` (no PR base), the expression above falls back to `origin/main`. Set optional repository variable `OPENAI_BASE_URL` when using an OpenAI-compatible endpoint in CI; leave it unset to use the official OpenAI API.
+Generated workflows do not load a glossary by default. Add guidance only after reviewing it on a trusted branch. They ignore project config and use the default of 4 parallel API calls; use `--concurrency` on the workflow command to change that. Optional Actions variable `OPENAI_BASE_URL` selects an OpenAI-compatible endpoint. Pass context values through `env`, never directly into shell scripts.
 
 ## Exit codes and CI
 
@@ -368,7 +358,7 @@ catlex ci
 | Review, auto-fix, and commit         | `.github/workflows/review-fix-translations.yml` | Review with `--no-config --auto-fix --yes`, then commit            |
 | Fill missing translations and commit | `.github/workflows/translate-fill.yml`          | `catlex translate --no-config --yes`, then commit                  |
 
-AI workflows require repository secret `OPENAI_API_KEY`. Optionally set Actions variable `OPENAI_BASE_URL` for an OpenAI-compatible API endpoint (generated workflows pass `vars.OPENAI_BASE_URL`). Generated installs pin the Catlex version that scaffolded the file. Gate-only jobs use `permissions: contents: read`. Auto-commit workflows isolate write access to a separate commit job (`stefanzweifel/git-auto-commit-action`) with a same-repository guard so commits are skipped for fork pull requests. If a selected file already exists, you are asked whether to overwrite it.
+Validation runs on push and PR events. AI workflows require manual dispatch on the default branch and an `OPENAI_API_KEY` secret in the `catlex-ai` environment; configure branch restrictions and reviewers there. Optional Actions variable `OPENAI_BASE_URL` selects a compatible API. Fix/fill workflows upload a patch for review; committing is opt-in with `auto_commit` (default `false`) and isolates write access in a separate job. Repository secrets are accessible to repository writers, so use environment restrictions as described in [CI workflows](docs/ci.md). Generated installs pin the Catlex release. Existing workflows need regeneration with an updated build or manual editing; no release is published by this change. Existing files are overwritten only after confirmation.
 
 ## Building from source
 

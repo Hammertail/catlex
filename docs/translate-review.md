@@ -166,18 +166,10 @@ Declining the write prompt sets `cancelled: true` in JSON but still exits `1` if
 
 ## CI
 
-Always pass `--since` so you do not review the whole corpus on every push.
+Generated AI workflows run manually on the trusted default branch, using the restricted `catlex-ai` environment for credentials. They fetch full history and pass `--since HEAD^` to review only the latest commit relative to its first parent; a root commit has no valid parent. They are not automatic PR gates.
 
-```yaml
-- uses: actions/checkout@v4
-  with:
-    fetch-depth: 0
-
-- run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md
-  env:
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
-    CATLEX_SINCE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
+```bash
+catlex translate review --no-config --since HEAD^ --json
 ```
 
-Pass GitHub context through `env` (do not interpolate `${{ }}` into `run:` scripts). Generated workflows from `catlex ci` do this; they also use `--no-config --guidance-file ./glossary.md`. Set `--concurrency` on the `run:` line if you need it. See [CI workflows](./ci.md).
+Generated workflows do not load project guidance by default. Review a glossary on a trusted branch before adding `--guidance-file`. Use `--concurrency` on the workflow command to change parallelism. See [CI workflows](./ci.md) for secret restrictions, dispatch inputs, and opt-in commits.

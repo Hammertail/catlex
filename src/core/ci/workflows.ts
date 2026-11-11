@@ -15,19 +15,25 @@ const INSTALL_STEP = `      - name: Install catlex
 
 const GITHUB_EXPR = (expression: string): string => `\${{ ${expression} }}`;
 
-const SINCE_EXPR = GITHUB_EXPR(
-  "github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main'",
-);
+const TRUSTED_AI_GUARD =
+  "github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)";
 
 const SAME_REPO_COMMIT_GUARD =
   "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
 
-/** Path passed as `--guidance-file` on generated translate/review workflows. */
+const MANUAL_COMMIT_TRIGGER = `  workflow_dispatch:
+    inputs:
+      auto_commit:
+        description: Commit model output to the trusted default branch
+        type: boolean
+        default: false`;
+
+/** @deprecated Legacy guidance path; generated workflows no longer load guidance by default. */
 export const CI_TRANSLATE_GUIDANCE_FILE = "./glossary.md";
 
 function checkoutStep(options?: {
   fetchDepthZero?: boolean;
-  /** Use the branch tip so a patch made by the read job applies in the commit job. */
+  /** Check out the default branch selected by the guarded manual dispatch. */
   headRef?: boolean;
   write?: boolean;
 }): string {
@@ -38,7 +44,7 @@ function checkoutStep(options?: {
     `          persist-credentials: ${options?.write === true}`,
   ];
   if (options?.headRef) {
-    lines.push(`          ref: ${GITHUB_EXPR("github.head_ref || github.ref_name")}`);
+    lines.push(`          ref: ${GITHUB_EXPR("github.ref")}`);
   }
   if (options?.fetchDepthZero) lines.push("          fetch-depth: 0");
   return lines.join("\n");
@@ -50,7 +56,7 @@ function openaiEnvBlock(options?: { since?: boolean }): string {
     `          OPENAI_BASE_URL: ${GITHUB_EXPR("vars.OPENAI_BASE_URL")}`,
   ];
   if (options?.since) {
-    lines.push(`          CATLEX_SINCE: ${SINCE_EXPR}`);
+    lines.push("          CATLEX_SINCE: HEAD^");
   }
 
   return `        env:
@@ -88,7 +94,7 @@ function commitChangesJob(options: {
   return `  ${options.jobId}:
     name: ${options.jobName}
     needs: ${options.needsJobId}
-    if: ${GITHUB_EXPR(`needs.${options.needsJobId}.outputs.changed == 'true' && (${SAME_REPO_COMMIT_GUARD})`)}
+    if: ${GITHUB_EXPR(`needs.${options.needsJobId}.outputs.changed == 'true' && inputs.auto_commit == true && (${TRUSTED_AI_GUARD}) && (${SAME_REPO_COMMIT_GUARD})`)}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -146,8 +152,7 @@ export function generateReviewTranslationsWorkflow(): string {
   return `name: Review translations
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -158,17 +163,18 @@ concurrency:
 
 jobs:
   review-translations:
-    if: ${SAME_REPO_COMMIT_GUARD}
+    if: ${TRUSTED_AI_GUARD} && (${SAME_REPO_COMMIT_GUARD})
     name: Review translation quality
+    environment: catlex-ai
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-${checkoutStep({ fetchDepthZero: true })}
+${checkoutStep({ fetchDepthZero: true, headRef: true })}
 
 ${INSTALL_STEP}
 
       - name: Review translations
-        run: catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --json
 ${openaiEnvBlock({ since: true })}
 `;
 }
@@ -177,8 +183,7 @@ export function generateReviewFixTranslationsWorkflow(): string {
   return `name: Review and fix translations
 
 on:
-  push:
-  pull_request:
+${MANUAL_COMMIT_TRIGGER}
 
 permissions:
   contents: read
@@ -189,8 +194,9 @@ concurrency:
 
 jobs:
   review-fix-translations:
-    if: ${SAME_REPO_COMMIT_GUARD}
+    if: ${TRUSTED_AI_GUARD} && (${SAME_REPO_COMMIT_GUARD})
     name: Review, fix, and prepare commit
+    environment: catlex-ai
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -203,7 +209,7 @@ ${checkoutStep({ fetchDepthZero: true, headRef: true })}
 ${INSTALL_STEP}
 
       - name: Review and auto-fix translations
-        run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
+        run: catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json
 ${openaiEnvBlock({ since: true })}
 
 ${packageChangesStep("changes", "catlex-review-fix-changes")}
@@ -222,8 +228,7 @@ export function generateTranslateFillWorkflow(): string {
   return `name: Fill missing translations
 
 on:
-  push:
-  pull_request:
+${MANUAL_COMMIT_TRIGGER}
 
 permissions:
   contents: read
@@ -234,8 +239,9 @@ concurrency:
 
 jobs:
   translate-fill:
-    if: ${SAME_REPO_COMMIT_GUARD}
+    if: ${TRUSTED_AI_GUARD} && (${SAME_REPO_COMMIT_GUARD})
     name: Fill missing translations
+    environment: catlex-ai
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -248,7 +254,7 @@ ${checkoutStep({ headRef: true })}
 ${INSTALL_STEP}
 
       - name: Fill missing translations
-        run: catlex translate --no-config --yes --json --guidance-file ${CI_TRANSLATE_GUIDANCE_FILE}
+        run: catlex translate --no-config --yes --json
 ${openaiEnvBlock()}
 
 ${packageChangesStep("changes", "catlex-translate-fill-changes")}

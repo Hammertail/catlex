@@ -90,7 +90,7 @@ Guidance: **CLI `--guidance` > CLI `--guidance-file` > config `translate.guidanc
 
 The extra text is fenced in `<project_guidance>` on the user prompt. Built-in system instructions stay in place and are extended by one conflict-priority sentence (built-in rules win; project guidance wins over few-shot examples). The same string is sent for every target locale. `--dry-run --json` reports `guidanceSource` (`flag` | `file` | `config` | `null`) and `guidancePreview`.
 
-Generated translate/review workflows pass `--no-config --guidance-file ./glossary.md`, so keep a `glossary.md` at the repository root (or edit the `run:` line).
+Generated translate/review workflows pass `--no-config` and omit guidance by default. Add `--guidance-file ./glossary.md` only after reviewing the glossary on a trusted branch; prompt fences do not enforce a security boundary. See [CI workflows](./ci.md).
 
 ## `--no-config`
 
@@ -107,7 +107,7 @@ Opt in to loading `catlex.config.js` / `.mjs` / `.ts` via dynamic `import`. With
 
 Opt in to `http` or private/link-local OpenAI-compatible base URLs. Required for local gateways such as `http://127.0.0.1:8080/v1`. Do not use in CI against untrusted repositories.
 
-Generated workflows always pass `--no-config`. Translate and review jobs also pass `--guidance-file ./glossary.md`. Config `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
+Generated workflows always pass `--no-config`. Translate and review jobs do not load guidance by default. Config `translate.concurrency` / `translate.guidance` / `translate.guidanceFile` do **not** apply on those jobs. Raise or lower parallelism with `--concurrency` on the workflow `run:` line.
 
 ## Library
 

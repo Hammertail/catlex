@@ -23,9 +23,7 @@ const DOWNLOAD_ARTIFACT_ACTION =
   "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2";
 const AUTO_COMMIT_ACTION =
   "stefanzweifel/git-auto-commit-action@d0b01107b5db882071f96de5dd4b54961ea93f4c # v7.2.1";
-const SINCE_EXPR =
-  "${{" +
-  " github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}";
+const SINCE_EXPR = "HEAD^";
 const OPENAI_SECRET_LINE = "OPENAI_API_KEY: ${{" + " secrets.OPENAI_API_KEY }}";
 const OPENAI_BASE_URL_LINE = "OPENAI_BASE_URL: ${{" + " vars.OPENAI_BASE_URL }}";
 const SAME_REPO_COMMIT_GUARD =
@@ -114,9 +112,7 @@ describe("generateReviewTranslationsWorkflow", () => {
     expect(yaml).toContain("name: Review translations");
     expect(yaml).toContain("fetch-depth: 0");
     assertPinnedInstall(yaml);
-    expect(yaml).toContain(
-      'catlex translate review --no-config --since "$CATLEX_SINCE" --json --guidance-file ./glossary.md',
-    );
+    expect(yaml).toContain('catlex translate review --no-config --since "$CATLEX_SINCE" --json');
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
@@ -145,7 +141,7 @@ describe("generateReviewFixTranslationsWorkflow", () => {
     assertPinnedInstall(yaml);
     expect(yaml).toContain("fetch-depth: 0");
     expect(yaml).toContain(
-      'catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json --guidance-file ./glossary.md',
+      'catlex translate review --no-config --since "$CATLEX_SINCE" --auto-fix --yes --json',
     );
     expect(yaml).toContain(`CATLEX_SINCE: ${SINCE_EXPR}`);
     expect(yaml).toContain(OPENAI_SECRET_LINE);
@@ -166,7 +162,7 @@ describe("generateReviewFixTranslationsWorkflow", () => {
   it("skips auto-commit for pull requests from forks", () => {
     const yaml = generateReviewFixTranslationsWorkflow();
 
-    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml).toContain(`&& (${SAME_REPO_COMMIT_GUARD})`);
     expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeGreaterThan(-1);
     expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeLessThan(
       yaml.indexOf(AUTO_COMMIT_ACTION),
@@ -184,9 +180,7 @@ describe("generateTranslateFillWorkflow", () => {
 
     expect(yaml).toContain("name: Fill missing translations");
     assertPinnedInstall(yaml);
-    expect(yaml).toContain(
-      "catlex translate --no-config --yes --json --guidance-file ./glossary.md",
-    );
+    expect(yaml).toContain("catlex translate --no-config --yes --json");
     expect(yaml).toContain(OPENAI_SECRET_LINE);
     expect(yaml).toContain(OPENAI_BASE_URL_LINE);
     expect(yaml).toContain("chore: fill missing translations with catlex");
@@ -205,7 +199,7 @@ describe("generateTranslateFillWorkflow", () => {
   it("skips auto-commit for pull requests from forks", () => {
     const yaml = generateTranslateFillWorkflow();
 
-    expect(yaml).toContain(`if: ${SAME_REPO_COMMIT_GUARD}`);
+    expect(yaml).toContain(`&& (${SAME_REPO_COMMIT_GUARD})`);
     expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeGreaterThan(-1);
     expect(yaml.indexOf(`&& (${SAME_REPO_COMMIT_GUARD})`)).toBeLessThan(
       yaml.indexOf(AUTO_COMMIT_ACTION),
@@ -214,6 +208,60 @@ describe("generateTranslateFillWorkflow", () => {
 });
 
 describe("generated CI workflows", () => {
+  it("uses a dedicated AI environment and explicitly checks out the guarded branch", () => {
+    for (const kind of ["review", "review-fix", "translate"] as const) {
+      const yaml = generateWorkflow(kind);
+      expect(yaml).toContain("    environment: catlex-ai");
+      expect(yaml).toContain("ref: ${{" + " github.ref }}");
+      expect(yaml).not.toContain("github.head_ref || github.ref_name");
+    }
+  });
+
+  it("reviews the dispatched commit against its parent instead of the checked-out branch tip", () => {
+    for (const kind of ["review", "review-fix"] as const) {
+      const yaml = generateWorkflow(kind);
+      expect(yaml).toContain("CATLEX_SINCE: HEAD^");
+      expect(yaml).toContain("fetch-depth: 0");
+      expect(yaml).not.toContain("origin/main");
+    }
+  });
+
+  it("does not implicitly load repository guidance into AI prompts", () => {
+    for (const kind of ["review", "review-fix", "translate"] as const) {
+      expect(generateWorkflow(kind)).not.toContain("--guidance-file");
+    }
+  });
+
+  it("keeps model output as an artifact unless auto-commit is explicitly selected", () => {
+    for (const kind of ["review-fix", "translate"] as const) {
+      const yaml = generateWorkflow(kind);
+      expect(Bun.YAML.parse(yaml)).toMatchObject({
+        on: {
+          workflow_dispatch: {
+            inputs: {
+              auto_commit: { type: "boolean", default: false },
+            },
+          },
+        },
+      });
+      expect(yaml).toContain("&& inputs.auto_commit == true &&");
+      expect(yaml).toContain("Upload translation changes");
+    }
+  });
+
+  it("requires an explicit manual dispatch on the default branch before running AI jobs", () => {
+    for (const kind of ["review", "review-fix", "translate"] as const) {
+      const yaml = generateWorkflow(kind);
+      expect(yaml).toContain("  workflow_dispatch:");
+      expect(yaml).not.toMatch(/^ {2}(push|pull_request|pull_request_target):/m);
+      expect(yaml).toContain(
+        "github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+      );
+    }
+    expect(generateValidateMessagesWorkflow()).toContain("  pull_request:");
+    expect(generateValidateMessagesWorkflow()).toContain("  push:");
+  });
+
   it("never installs Catlex from releases/latest", () => {
     const workflows = [
       generateValidateMessagesWorkflow(),
@@ -248,7 +296,7 @@ describe("generated CI workflows", () => {
   });
 
   it("checks out the same ref in the read job and the commit job so the patch applies", () => {
-    const headRefLine = "ref: ${{" + " github.head_ref || github.ref_name }}";
+    const headRefLine = "ref: ${{" + " github.ref }}";
 
     for (const yaml of [generateReviewFixTranslationsWorkflow(), generateTranslateFillWorkflow()]) {
       expect(yaml.split(headRefLine).length - 1).toBe(2);
@@ -274,18 +322,6 @@ describe("generated CI workflows", () => {
         expect(line).toContain("--no-config");
       }
     }
-  });
-
-  it("passes --guidance-file ./glossary.md on generated translate and review jobs", () => {
-    const translateYaml = generateTranslateFillWorkflow();
-    const reviewYaml = generateReviewTranslationsWorkflow();
-    const reviewFixYaml = generateReviewFixTranslationsWorkflow();
-    const validateYaml = generateValidateMessagesWorkflow();
-
-    expect(translateYaml).toContain("--guidance-file ./glossary.md");
-    expect(reviewYaml).toContain("--guidance-file ./glossary.md");
-    expect(reviewFixYaml).toContain("--guidance-file ./glossary.md");
-    expect(validateYaml).not.toContain("--guidance-file");
   });
 });
 

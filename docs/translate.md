@@ -86,7 +86,7 @@ Do not translate: Catlex, next-intl
 Always translate "workspace" as "espaço de trabalho" in pt
 ```
 
-Generated CI workflows use `--no-config --guidance-file ./glossary.md`. Keep that file at the repo root, or edit the `run:` line.
+Generated CI workflows use `--no-config` and do not load guidance by default. Add `--guidance-file ./glossary.md` only after reviewing the glossary on a trusted branch. See [CI workflows](./ci.md).
 
 `--dry-run --json` includes `guidanceSource` and `guidancePreview` so you can confirm which glossary was selected without calling the model.
 

@@ -35,6 +35,36 @@ describe("runCiCommand", () => {
     }
   }
 
+  it("explains trusted manual execution and writes AI workflows without automatic commits by default", async () => {
+    const cwd = await mkdtemp(path.join(tmpdir(), "catlex-ci-trusted-"));
+    captureLog();
+    const exitCode = await runCiCommand({
+      cwd,
+      select: async (_message, options) => {
+        for (const option of options.filter((entry) => entry.value !== "validate")) {
+          expect(option.description).toContain("manual");
+          expect(option.description).toContain("default branch");
+        }
+        return ["review", "review-fix", "translate"];
+      },
+      confirm: async () => true,
+    });
+
+    expect(exitCode).toBe(0);
+    for (const kind of ["review", "review-fix", "translate"] as const) {
+      const yaml = await readFile(
+        resolveWorkflowPath(cwd, getCiWorkflowOption(kind).relativePath),
+        "utf8",
+      );
+      expect(yaml).toContain("  workflow_dispatch:");
+      expect(yaml).not.toContain("  pull_request:");
+      expect(yaml).not.toContain("--guidance-file");
+      if (kind !== "review") {
+        expect(yaml).toContain("default: false");
+      }
+    }
+  });
+
   it("writes nothing and exits 0 when no workflows are selected", async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), "catlex-ci-empty-"));
     captureLog();
