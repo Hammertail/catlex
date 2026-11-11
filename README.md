@@ -20,7 +20,16 @@ curl -fsSL https://github.com/Hammertail/catlex/releases/download/v0.0.1/install
 
 The installer detects OS and architecture (`linux`/`darwin`, `x64`/`arm64`), verifies the binary against the release `SHA256SUMS` (the install fails if it is missing or does not match), and installs to `~/.local/bin/catlex`.
 
-If the install directory is not on your `PATH`, the installer adds a marked `# >>> catlex PATH >>>` block to your shell startup file: `~/.bashrc` for Bash on Linux, `~/.bash_profile` for Bash on macOS, `${ZDOTDIR:-~}/.zshrc` for Zsh, or `~/.config/fish/conf.d/catlex.fish` for fish. Reinstalling replaces that block instead of adding another. Other shells get manual instructions and the binary's full path.
+The installer adds a marked `# >>> catlex PATH >>>` block to the startup file of your login shell (`$SHELL`):
+
+- Bash on Linux: `~/.bashrc`.
+- Bash on macOS: the login file Bash reads, which is the first existing file among `~/.bash_profile`, `~/.bash_login` and `~/.profile`. If none exists, it creates `~/.bash_profile`.
+- Zsh: `${ZDOTDIR:-~}/.zshrc`.
+- fish: `~/.config/fish/conf.d/catlex.fish`.
+
+It also adds the block to the Bash and Zsh startup files and the fish config directory you already have, so a terminal that runs a different shell (for example Bash in VS Code while your login shell is Zsh) also finds `catlex`. The block only adds the directory when it is missing from `PATH`, so it never creates duplicate entries.
+
+Reinstalling updates the existing block in place and leaves the file untouched when nothing changed. If the file has a start marker without the matching `# <<< catlex PATH <<<` line, the installer leaves the file as it is and asks you to fix it. For any other shell, or when a startup file cannot be updated, the installer prints manual instructions and the binary's full path.
 
 The installer runs in a child process (`curl ... | bash`), so it cannot change the `PATH` of the terminal you ran it from. Open a new terminal or terminal tab, or run the `export PATH=...` command it prints.
 
@@ -40,7 +49,7 @@ $env:CATLEX_VERSION='0.0.1'; irm https://github.com/Hammertail/catlex/releases/d
 
 The binary is installed to `%LOCALAPPDATA%\catlex\bin\catlex.exe`. The installer verifies the download against the release `SHA256SUMS` and fails if it is missing or does not match.
 
-If the install directory is missing from your user `PATH`, the installer appends it. It only edits the user `PATH` stored in the registry, leaves the system `PATH` alone, and keeps existing entries such as `%USERPROFILE%\...` as they are. Reinstalling never adds the entry twice. `catlex` works right away in the PowerShell session that ran the installer. Other terminals that are already open keep their old `PATH`: open a new one, and fully restart VS Code or Windows Terminal if you use their terminals. Set `CATLEX_NO_MODIFY_PATH=1` (or `CI`) to leave the user `PATH` unchanged.
+If the install directory is missing from your user `PATH`, the installer appends it. It only edits the user `PATH` stored in the registry, leaves the system `PATH` alone, and keeps existing entries such as `%USERPROFILE%\...` as they are. A relative `CATLEX_INSTALL_DIR` is stored as an absolute path. Reinstalling never adds the entry twice. With `irm ... | iex`, `catlex` works right away in the PowerShell session that ran the installer. Otherwise, run the `$env:Path = ...` command it prints. Other terminals that are already open keep their old `PATH`: open a new one, and fully restart VS Code or Windows Terminal if you use their terminals. Set `CATLEX_NO_MODIFY_PATH=1` (or `CI`) to leave the user `PATH` unchanged.
 
 ## Quick start
 
