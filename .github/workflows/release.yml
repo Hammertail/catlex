@@ -195,7 +195,7 @@ jobs:
           curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | bash
           \`\`\`
 
-          Installs the binary to \`~/.local/bin/catlex\`.
+          Installs the binary to \`~/.local/bin/catlex\` and adds that directory to your shell startup file when it is not on \`PATH\` (set \`CATLEX_NO_MODIFY_PATH=1\` to skip).
 
           To install a specific version (recommended for CI; verifies SHA256SUMS):
 
@@ -209,7 +209,7 @@ jobs:
           irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex
           \`\`\`
 
-          Installs the binary to \`%LOCALAPPDATA%\\catlex\\bin\\catlex.exe\`.
+          Installs the binary to \`%LOCALAPPDATA%\\catlex\\bin\\catlex.exe\` and adds that directory to your user PATH (set \`CATLEX_NO_MODIFY_PATH=1\` to skip).
 
           To install a specific version (recommended for CI; verifies SHA256SUMS):
 

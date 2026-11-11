@@ -4,6 +4,8 @@ $ErrorActionPreference = "Stop"
 $Repo = "Hammertail/catlex"
 $AssetName = "catlex-windows-x64.exe"
 $InstallDir = if ($env:CATLEX_INSTALL_DIR) { $env:CATLEX_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "catlex\bin" }
+# Store an absolute path in the user PATH, even for a relative CATLEX_INSTALL_DIR.
+$InstallDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($InstallDir)
 $BinaryPath = Join-Path $InstallDir "catlex.exe"
 
 $Version = $env:CATLEX_VERSION
@@ -39,10 +41,89 @@ try {
 
 Write-Host "Installed $BinaryPath"
 
-$PathEntries = $env:PATH -split ";"
-if ($PathEntries -notcontains $InstallDir) {
+# Read and write the persistent user PATH from the registry, never the merged
+# process PATH, so machine entries are not copied into it and %VARIABLE%
+# references stay unexpanded.
+function Get-CatlexUserPath {
+  $Key = Get-Item -Path 'HKCU:\Environment'
+  $Key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+}
+
+function Set-CatlexUserPath {
+  param([string]$Value)
+  Set-ItemProperty -Path 'HKCU:\Environment' -Name 'Path' -Value $Value -Type ExpandString
+  # Tell Explorer and other top-level windows that the environment changed.
+  try {
+    if (-not ('Catlex.NativeMethods' -as [type])) {
+      Add-Type -Namespace Catlex -Name NativeMethods -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+    }
+    $Result = [UIntPtr]::Zero
+    [void][Catlex.NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1a, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$Result)
+  } catch {
+    Write-Verbose "Could not broadcast the environment change: $_"
+  }
+}
+
+# Normalize a PATH entry for comparison: expand variables, unify separators,
+# and drop surrounding quotes and trailing separators.
+function ConvertTo-CatlexNormalizedPath {
+  param([string]$Entry)
+  [Environment]::ExpandEnvironmentVariables($Entry.Trim().Trim('"')).Replace('/', '\').TrimEnd('\')
+}
+
+function Test-CatlexPathContains {
+  param([string]$PathValue, [string]$Directory)
+  $Wanted = ConvertTo-CatlexNormalizedPath $Directory
+  foreach ($Entry in ($PathValue -split ';')) {
+    if ($Entry -and ((ConvertTo-CatlexNormalizedPath $Entry) -ieq $Wanted)) { return $true }
+  }
+  return $false
+}
+
+function Write-CatlexManualPathHelp {
+  Write-Host "Run catlex with its full path: $BinaryPath"
+  Write-Host "Or add $InstallDir to your user PATH in System Properties > Environment Variables."
+}
+
+function Write-CatlexSessionPathHint {
+  $Quoted = $InstallDir.Replace("'", "''")
+  Write-Host "If you ran the installer with 'irm ... | iex', this PowerShell session can use catlex now."
+  Write-Host "Otherwise, run this to use it in the current PowerShell session:"
+  Write-Host "  `$env:Path = '$Quoted;' + `$env:Path"
+}
+
+if (-not (Test-CatlexPathContains $env:PATH $InstallDir)) {
+  # With 'irm ... | iex' the installer runs in the caller's session, so it can use catlex right away.
+  $env:PATH = "$InstallDir;$env:PATH"
+}
+
+$UserPathError = $null
+$UserPath = $null
+try { $UserPath = Get-CatlexUserPath } catch { $UserPathError = $_ }
+
+if (-not $UserPathError -and (Test-CatlexPathContains $UserPath $InstallDir)) {
+  # Already configured; nothing to change.
+} elseif ($env:CATLEX_NO_MODIFY_PATH -eq '1' -or $env:CI) {
   Write-Host ""
-  Write-Host "Warning: $InstallDir is not in your PATH."
-  Write-Host "Add it for the current user, then restart your shell:"
-  Write-Host "  [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$InstallDir', 'User')"
+  Write-Host "Warning: $InstallDir is not in your user PATH; leaving it unchanged."
+  Write-CatlexManualPathHelp
+} else {
+  try {
+    if ($UserPathError) { throw $UserPathError }
+    $Trimmed = if ($UserPath) { $UserPath.TrimEnd(';') } else { '' }
+    $NewUserPath = if ($Trimmed) { "$Trimmed;$InstallDir" } else { $InstallDir }
+    Set-CatlexUserPath $NewUserPath
+    Write-Host ""
+    Write-Host "Added $InstallDir to your user PATH."
+    Write-Host "New terminals will find catlex. Terminals that are already open keep their old PATH:"
+    Write-Host "open a new terminal, and restart VS Code (or Windows Terminal) completely if you use its terminal."
+    Write-CatlexSessionPathHint
+  } catch {
+    Write-Host ""
+    Write-Warning "Could not add $InstallDir to your user PATH: $_"
+    Write-CatlexManualPathHelp
+  }
 }
