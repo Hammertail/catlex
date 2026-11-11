@@ -1,6 +1,6 @@
 //* Libraries imports
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -106,22 +106,33 @@ async function runWithOutput(
   return { exitCode, stdout, stderr };
 }
 
-/** Sources a startup file in a clean, non-interactive bash and resolves catlex from it. */
-async function resolveFromFreshShell(f: Fixture, startupFile: string): Promise<string> {
+/** Sources a startup file in a clean, non-interactive bash and runs a script there. */
+async function runInFreshShell(
+  f: Fixture,
+  startupFile: string,
+  script: string,
+  initialPath = "/usr/bin:/bin",
+): Promise<string> {
   const child = Bun.spawn(
-    [
-      "bash",
-      "--noprofile",
-      "--norc",
-      "-c",
-      'source "$1" && command -v catlex',
-      "bash",
-      startupFile,
-    ],
-    { env: { ...f.env, PATH: "/usr/bin:/bin" }, stdout: "pipe", stderr: "pipe" },
+    ["bash", "--noprofile", "--norc", "-c", `source "$1" && ${script}`, "bash", startupFile],
+    { env: { ...f.env, PATH: initialPath }, stdout: "pipe", stderr: "pipe" },
   );
   const [stdout] = await Promise.all([new Response(child.stdout).text(), child.exited]);
   return stdout.trim();
+}
+
+/** Resolves catlex in a fresh shell that loaded the startup file. */
+function resolveFromFreshShell(f: Fixture, startupFile: string): Promise<string> {
+  return runInFreshShell(f, startupFile, "command -v catlex");
+}
+
+/**
+ * Compares filesystem identity rather than spelling, since temp paths can differ
+ * by symlinks (macOS /var -> /private/var) or 8.3 short names (Windows).
+ */
+async function isSameFile(a: string, b: string): Promise<boolean> {
+  const [left, right] = await Promise.all([stat(a), stat(b)]);
+  return left.dev === right.dev && left.ino === right.ino;
 }
 
 function countOccurrences(text: string, needle: string): number {
@@ -317,10 +328,18 @@ describe.skipIf(process.platform === "win32")("Unix release installer", () => {
       const f = await fixture(true);
       f.env.CATLEX_INSTALL_DIR = "relative/bin";
       expect((await runWithOutput(["bash", installer], f.env, f.root)).exitCode).toBe(0);
-      const bashrc = path.join(f.home, ".bashrc");
-      expect(await resolveFromFreshShell(f, bashrc)).toBe(
-        path.join(f.root, "relative", "bin", "catlex"),
-      );
+      const resolved = await resolveFromFreshShell(f, path.join(f.home, ".bashrc"));
+      expect(path.isAbsolute(resolved)).toBe(true);
+      expect(await isSameFile(resolved, path.join(f.root, "relative", "bin", "catlex"))).toBe(true);
+    });
+
+    it("does not prepend a duplicate when PATH already has the directory with a trailing slash", async () => {
+      const f = await fixture(true);
+      expect(await run(["bash", installer], f.env)).toBe(0);
+      const initialPath = `${f.destination}/:/usr/bin:/bin`;
+      expect(
+        await runInFreshShell(f, path.join(f.home, ".bashrc"), 'echo "$PATH"', initialPath),
+      ).toBe(initialPath);
     });
 
     it("supports a custom install directory containing spaces, quotes, $ and backslashes", async () => {
@@ -518,7 +537,9 @@ describe.skipIf(!Bun.which("pwsh"))("Windows release installer", () => {
         const f = await fixture(true);
         f.env.CATLEX_INSTALL_DIR = "relative-bin";
         expect((await runPowershellInstaller(f, f.root)).exitCode).toBe(0);
-        expect(await readUserPath(f)).toBe(path.join(f.root, "relative-bin"));
+        const stored = await readUserPath(f);
+        expect(path.isAbsolute(stored)).toBe(true);
+        expect(await isSameFile(stored, path.join(f.root, "relative-bin"))).toBe(true);
       },
       POWERSHELL_TEST_TIMEOUT_MS,
     );

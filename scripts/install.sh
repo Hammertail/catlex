@@ -147,12 +147,13 @@ path_block() {
   local dir
   if [[ "$1" == *.fish ]]; then
     dir="$(fish_quote "${INSTALL_DIR}")"
-    printf '%s\nif not contains -- %s $PATH\n    set -gx PATH %s $PATH\nend\n%s\n' \
-      "${PATH_BLOCK_BEGIN}" "${dir}" "${dir}" "${PATH_BLOCK_END}"
+    printf '%s\nif not contains -- %s $PATH; and not contains -- %s/ $PATH\n    set -gx PATH %s $PATH\nend\n%s\n' \
+      "${PATH_BLOCK_BEGIN}" "${dir}" "${dir}" "${dir}" "${PATH_BLOCK_END}"
   else
     dir="$(sh_quote "${INSTALL_DIR}")"
-    printf '%s\ncase ":${PATH}:" in\n  *:%s:*) ;;\n  *) export PATH=%s":${PATH}" ;;\nesac\n%s\n' \
-      "${PATH_BLOCK_BEGIN}" "${dir}" "${dir}" "${PATH_BLOCK_END}"
+    # Treat "<dir>/" on PATH as already present, like path_has_install_dir does.
+    printf '%s\ncase ":${PATH}:" in\n  *:%s:* | *:%s/:*) ;;\n  *) export PATH=%s":${PATH}" ;;\nesac\n%s\n' \
+      "${PATH_BLOCK_BEGIN}" "${dir}" "${dir}" "${dir}" "${PATH_BLOCK_END}"
   fi
 }
 
